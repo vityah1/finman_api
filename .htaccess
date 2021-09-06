@@ -1,0 +1,9 @@
+#Options -Indexes +ExecCGI
+AddHandler cgi-script .py
+DirectoryIndex main.py
+#DirectoryIndex main_gsm.py
+
+RewriteEngine On
+RewriteBase /
+RewriteCond %{REQUEST_FILENAME} !-f 
+RewriteRule ^(.*)$ finman_api/main.py/$1 [L]
