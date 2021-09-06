@@ -6,7 +6,7 @@ import sys
 
 sys.path.insert(0, "/home/vityah1/kt.if.ua/mypy/gapi/lib/python3.6/site-packages")
 
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 
@@ -26,9 +26,9 @@ app.config[
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["SECRET_KEY"] = cfg["secret_key"]
 
-app.config["JWT_SECRET_KEY"] = cfg[
-    "secret_key"
-]  # Change this "super secret" with something else!
+app.config[
+    "JWT_SECRET_KEY"
+] = "sdfasdfadsfaafduhsdmfjkadshfmasdf53562524j35hm43l5j4m35j43m5l43j5m43l54m5lj43m5l4j35l435h42l5h43"  # Change this "super secret" with something else!
 jwt = JWTManager(app)
 
 db.init_app(app)
@@ -48,7 +48,7 @@ def __repr__(self):
 
 @app.errorhandler(404)
 def page_not_found(error):
-    return jsonify({"message": "resource not found"}), 404
+    return jsonify({"message": f"{error}, path: {request.path}"}), 404
 
 
 if __name__ == "__main__":
