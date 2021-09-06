@@ -1,0 +1,38 @@
+{
+    "db_host": "vityah1.mysql.tools",
+    "db_user": "vityah1_db",
+    "db_passwd": "8QhVlu7R",
+    "db_db": "vityah1_db",
+    "ftp_host": "vityah1.ftp.tools",
+    "ftp_usr": "vityah1_1",
+    "ftp_passwd": "AmU80fz8GxI0",
+    "apark": {
+        "login": "vityah1@yandex.ru",
+        "passwd": "eposhta"
+    },
+    "tel": {
+        "tel_token": "461986981:AAGHyTw5Na_o_9ln1GXjPV5zhwU6mR52Svc",
+        "token_track_bot": "384301132:AAGgoFZsijbh9Hx2RPEXcJHM6ERn9DFZHiA",
+        "token_orders_bot": "505357562:AAHratIZB5W7TiRPwGFS3aLrPx6f4JrF5EA",
+        "token_sms_bot": "391498892:AAEOU7HuldMbFrf8d7YmaH2BIK_WZezlJTE",
+        "chat_id_vik": "190722186",
+        "chat_id_tato": "608714556"
+    },
+    "apikeynp": "ef7505939912d0d357fbfc2f23b6b9a0",
+    "apitr24": "eb55947d9f9240895378e401bf0afeba",
+    "apipost2go": "aa47304cedf91054cd0b35c870f2c0b77488898f4911086d1e0965c7af5bbcd4ba488c23028ff66d",
+    "apigp": "67c3b4748a5d9b8e31f02b2f29f53e3c54ad03fffc858a5ef0487f1e2ef2bf69d971b75ef9b6a3b",
+    "apiblackbox": "5adc70dd9b0732c3b431a6412fc38391",
+    "secret_key": "sdfasdfadsfaafduhsdmfjkadshfmasdf53562524j35hm43l5j4m35j43m5l43j5m43l54m5lj43m5l4j35l435h42l5h43l",
+    "card_for_pay": "6762462619311506",
+    "main_email": "support@kt.if.ua",
+    "main_email_password": "Eposhta12",
+    "smtp_server": "mail.adm.tools",
+    "phone_life": "093-542-00-56",
+    "semysms": {
+        "device": "156289",
+        "token": "1c182726c7ced5695d9e42a4d1ca1b80"
+    },
+    "PATH_KIT_GADGET": "/home/vityah1/kit-gadget.com.ua/www/",
+    "HOME_kit_gadget": "/home/vityah1/kit-gadget.com.ua/www"
+}
