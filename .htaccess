@@ -1,3 +1,4 @@
+#WSGIPassAuthorization On
 #Options -Indexes +ExecCGI
 AddHandler cgi-script .py
 DirectoryIndex main.py
@@ -7,3 +8,8 @@ RewriteEngine On
 RewriteBase /
 RewriteCond %{REQUEST_FILENAME} !-f 
 RewriteRule ^(.*)$ finman_api/main.py/$1 [L]
+
+
+#RewriteEngine on
+RewriteCond %{HTTP:Authorization} ^(.*)
+RewriteRule .* - [e=HTTP_AUTHORIZATION:%1]
