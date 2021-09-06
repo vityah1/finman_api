@@ -40,23 +40,19 @@ dict_phones = {
 @api_bp.route("/api/cats/", methods=["GET"])
 @cross_origin()
 def spr_cat():
-    try:
-        res = do_sql_cmd(
-            f"""select distinct a.id,a.cat as name
+    sql = f"""select distinct a.id,a.cat as name
 from myBudj_spr_cat a
 /*left join 
 myBudj_sub_cat b 
 on a.id=b.id_cat */
 where a.ord!=0
-order by a.ord""",
-            False,
-        )
-        if len(res) < 1:
-            return [{"id": "-1", "name": "result sql<1"}]
+order by a.ord"""
+
+    try:
+        return jsonify([dict(row) for row in do_sql_sel(sql)])
     except Exception as e:
         # myLog(f"{e}")
-        return [{"id": "-1", "name": "error execute sql. check api.log for detail"}]
-    return jsonify(res["data"])
+        return [{"id": "-1", "name": f"error {e}"}]
 
 
 @api_bp.route("/api/subcats/", methods=["GET"])
@@ -252,7 +248,7 @@ def upd_cost(id):
 @cross_origin()
 def about():
     try:
-        with open("app/rozhody/txt/about.html", encoding="utf8") as f:
+        with open("rozhody/txt/about.html", encoding="utf8") as f:
             data = f.read()
     except:
         return jsonify({"status": "error", "data": "error open about file"})
