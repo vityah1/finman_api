@@ -18,17 +18,26 @@ app = Flask(__name__)
 CORS(app, support_credentials=True)
 from func import cfg
 
-# from func import rand
+
+@app.before_request
+def log_request_info():
+    with open("fin_man_debugger.log", "a", encoding="utf8") as f:
+        try:
+            f.write(f"Headers: {request.headers}\n")
+            f.write(f"Body: {request.get_data()}\n")
+        except Exception as e:
+            with open("error.log", "a", encoding="utf8") as err:
+                err.write(f"{e}\n")
+
 
 app.config[
     "SQLALCHEMY_DATABASE_URI"
 ] = f"""mysql+pymysql://{cfg['db_user']}:{cfg['db_passwd']}@{cfg['db_host']}/{cfg['db_db']}"""
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["SECRET_KEY"] = cfg["secret_key"]
+app.config["PROPAGATE_EXCEPTIONS"] = True
+app.config["JWT_SECRET_KEY"] = cfg["secret_key"]
 
-app.config[
-    "JWT_SECRET_KEY"
-] = "sdfasdfadsfaafduhsdmfjkadshfmasdf53562524j35hm43l5j4m35j43m5l43j5m43l54m5lj43m5l4j35l435h42l5h43"  # Change this "super secret" with something else!
 jwt = JWTManager(app)
 
 db.init_app(app)
