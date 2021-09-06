@@ -28,3 +28,22 @@ def check_user():
         identity=username, expires_delta=timedelta(days=30)
     )
     return jsonify({"accessToken": access_token, "username": username})
+
+
+@auth_bp.route("/api/auth/signup", methods=["POST"])
+# @cross_origin()
+# @app.route("/token", methods=["POST"])
+def create_user():
+    username = request.json.get("username", None)
+    password = request.json.get("password", None)
+    # Query your database for username and password
+    # print(f"username:{username}, password:{password}")
+    sql = f"""insert into myBudj_users (user,password) values ('{username}','{password}') """
+    if do_sql_cmd(sql)["rowcount"] < 1:
+        return jsonify({"msg": "error create username"}), 401
+
+    # create a new token with the user id inside
+    access_token = create_access_token(
+        identity=username, expires_delta=timedelta(days=30)
+    )
+    return jsonify({"accessToken": access_token, "username": username})
