@@ -1,15 +1,20 @@
-Small and compact back-end rest-api for front-end Vue.Js 3.1 financial manger writen flask and using jwt auth.
+Financial manager 0.0.1
+
+Small and compact back-end rest-api written on flask with jwt auth.  
+Also I created Front-end part written on Vue.Js 3.1
 
 Instalation:
-# requirements
+## Requirements
 This is not ideal code but this is simple solution and practise for use flask, jwt tehnologies
 
-# Instalation:
+## Instalation:
 
 1. pip3 install -r requirements.txt
 
-# configuration and setting
-2. create and edit simple txt finman_config.json file with next structur: 
+## Configuration and setting
+2. create and edit simple txt finman_config.json file with next structure:
+
+```json
 {
 "db_host": "your_db_host",
 "db_user": "db_user",
@@ -20,16 +25,17 @@ This is not ideal code but this is simple solution and practise for use flask, j
 "not_sub_cat":["AliExpress"],
 "not_cat":["Грошові перекази"]
 }
+```
 
-# create database tables
+## Create database tables
 3. You must execute sqls from sql directory for create working tables:
 
 
-# for local run
+## Local run
 4. python app.app if you run it localy
 
-# for virtual apache shared hosting
-5. edit .htaccess file with your directories
-6. main.py
+## Virtual apache shared hosting
+5. edit .htaccess file according to your paths
+
 
 
