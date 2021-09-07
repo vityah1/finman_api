@@ -1,1 +1,3 @@
-func.json
+*.json
+*.cmd
+*.pyc
