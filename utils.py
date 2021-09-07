@@ -2,7 +2,6 @@ import re
 from mydb import db, text
 from func import cfg
 from datetime import datetime
-from loguru import logger
 
 
 def do_sql_cmd(sql="", data=None):
@@ -120,20 +119,3 @@ def send_telegram(
             )
 
     return status_code, content
-
-
-def do_sql_arr(sql):
-    result = do_sql_cmd(sql)
-
-    if result["rowcount"] < 0:
-        logger.info(f"""error exec sql. error: {result['data']} """)
-        return []
-    if result["rowcount"] == 0:
-        logger.info(f"""empty result. error: {result['data']} """)
-        return []
-
-    try:
-        return [dict(row) for row in result["data"]]
-    except Exception as e:
-        logger.info(f"""error return json. error: {e} """)
-        return []
