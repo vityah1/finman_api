@@ -1,6 +1,8 @@
-Small and compact back-end rest-api for front-end Vue.Js 3.1 financial manger writen flask and using jwt auth
+Small and compact back-end rest-api for front-end Vue.Js 3.1 financial manger writen flask and using jwt auth.
 
-Instalation:
+This is not ideal code but this is simple solution and practise for use flask, jwt tehnologies
+
+# Instalation:
 
 1. pip3 install -r requirements.txt
 
