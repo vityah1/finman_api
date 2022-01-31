@@ -13,7 +13,7 @@ if cfg.get("not_sub_cat"):
 
 um_cat = ""
 if cfg.get("not_cat"):
-    um_sub_cat = f"""
+    um_cat = f"""
     and cat not in ('{"','".join(cfg.get("not_cat"))}')
     """
 

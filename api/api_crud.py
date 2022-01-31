@@ -11,7 +11,7 @@ api_crud_bp = Blueprint(
 )
 
 
-dict_phones = cfg.get("dict_phone")
+dict_phones = cfg.get("dict_phones")
 
 
 @api_crud_bp.route("/api/costs", methods=["POST"])
@@ -78,8 +78,11 @@ def ret_costs():
     else:
         um.append(f" and extract(MONTH from rdate)=extract(MONTH from now())")
 
-    if cat:
+    if cat and cat != "last":
         um.append(f" and cat='{cat}'")
+    else:
+        um = []
+        um.append(f" and rdate>=DATE_SUB(CURRENT_DATE, INTERVAL 7 DAY) ")
 
     sql = f"""
 select id,rdate,cat,sub_cat,mydesc,suma
@@ -92,6 +95,8 @@ where 1=1 {' '.join(um)}
     pattern = re.compile(r"(\+38)?0\d{9}", re.MULTILINE)
     phone_number = ""
     res = [dict(row) for row in do_sql_sel(sql)]
+    if res[0].get("rowcount") is not None and res[0].get("rowcount") < 0:
+        return jsonify([{"cat": "Помилки", "mydesc": "Помилка виконання запиту"}])
     for r in res:
         if pattern.search(r["sub_cat"]):
             phone_number = pattern.search(r["sub_cat"]).group(0)
