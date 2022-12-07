@@ -63,6 +63,7 @@ def catcosts():
     """
     year = request.args.get("year", "").zfill(2)
     month = request.args.get("month", "").zfill(2)
+    user = request.args.get("user", "all")
     period = f"""{year}{month}"""
     # #print(f"period: {period}")
     um_period = ""
@@ -70,10 +71,14 @@ def catcosts():
         um_period = "extract(YEAR_MONTH from now())"
     else:
         um_period = f"{period}"
+    um_user = ''
+    if user !='all' or user != '':
+        um_user = f" and owner = '{user}'"
     sql = f"""
 select {cat4zam},convert(sum(suma),UNSIGNED) as suma,count(*) as cnt
 from `myBudj`
 where extract(YEAR_MONTH from rdate)={um_period}
+{um_user}
 {um_not_my_expspense}
 group by {cat4zam.replace(' as cat','')} order by 2 desc
 """
