@@ -68,18 +68,16 @@ def catcosts():
     # #print(f"period: {period}")
     um_period = ""
     if not period or period == "0000":
-        um_period = "extract(YEAR_MONTH from now())"
+        um_period = " and extract(YEAR_MONTH from rdate)=extract(YEAR_MONTH from now())"
     else:
-        um_period = f"{period}"
+        um_period = f" and extract(YEAR_MONTH from rdate)={period}"
     um_user = ''
-    if user !='all' or user != '':
+    if user not in ('all', '', 'undefined'):
         um_user = f" and owner = '{user}'"
     sql = f"""
 select {cat4zam},convert(sum(suma),UNSIGNED) as suma,count(*) as cnt
 from `myBudj`
-where extract(YEAR_MONTH from rdate)={um_period}
-{um_user}
-{um_not_my_expspense}
+where 1=1 {um_period} {um_user} {um_not_my_expspense}
 group by {cat4zam.replace(' as cat','')} order by 2 desc
 """
     # print(sql)
@@ -93,11 +91,15 @@ def years():
     """
     return total costs grouped by years
     """
+    user = request.args.get("user", "all")
+    um_user = ''
+    if user not in ('all', '', 'undefined'):
+        um_user = f" and owner = '{user}'"    
     sql = f"""
 select extract(YEAR from rdate) year,convert(sum(suma),UNSIGNED) as suma,count(*) as cnt
 from `myBudj`
 where 1=1
-{um_not_my_expspense}
+{um_not_my_expspense} {um_user}
 group by extract(YEAR from rdate) order by 1 desc
 """
     # print(sql)
@@ -111,11 +113,15 @@ def months(year):
     """
     return total costs grouped by months in some year
     """
+    user = request.args.get("user", "all")
+    um_user = ''
+    if user not in ('all', '', 'undefined'):
+        um_user = f" and owner = '{user}'"     
     sql = f"""
 select extract(MONTH from rdate) month,convert(sum(suma),UNSIGNED) as suma,count(*) as cnt
 from `myBudj`
 where 1=1 and extract(YEAR from rdate)={year}
-{um_not_my_expspense}
+{um_not_my_expspense} {um_user}
 group by extract(MONTH from rdate) order by 1 desc
 """
     # print(sql)
