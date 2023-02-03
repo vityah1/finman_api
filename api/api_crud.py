@@ -49,6 +49,7 @@ def ret_costs():
     cat = request.args.get("cat", "")
     year = request.args.get("year", "")
     month = request.args.get("month", "")
+    user = request.args.get("user", "all")
     # print(f"sort: {sort}, year: {year}, month: {month}")
 
     um = []
@@ -77,6 +78,9 @@ def ret_costs():
         um.append(f" and extract(MONTH from rdate)={month}")
     else:
         um.append(f" and extract(MONTH from rdate)=extract(MONTH from now())")
+
+    if user and user != 'all':
+        um.append(" and owner = '{}'".format(user))
 
     if cat and cat != "last":
         um.append(f" and cat='{cat}'")

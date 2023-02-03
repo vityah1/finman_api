@@ -46,7 +46,7 @@ def do_sub_cat():
         um_cat = (
             f""" and id_cat in (select id from `myBudj_spr_cat` where cat='{cat}')"""
         )
-    sql = f"""select id,sub_cat as name 
+    sql = f"""select id,sub_cat as name, id_cat 
 from `myBudj_sub_cat` 
 where 1=1 {um_cat}
 order by ord"""
