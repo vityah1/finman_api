@@ -23,6 +23,12 @@ def new_cost():
     input: rdate,cat,sub_cat,mydesc,suma
     """
     req = request.get_json()
+    if req.get('km') and req.get('litres'):
+        req['mydesc'] = '{}км;{}л'.format(req.get('km'), req.get('litres'))
+        if req.get('price_val'):
+            req['mydesc'] += ';{}eur'.format(req.get('price_val'))
+        if req.get('name'):
+            req['mydesc'] += ';{}'.format(req.get('name'))            
     res = do_sql_cmd(
         f"""insert into `myBudj` (rdate,cat,sub_cat,mydesc,suma) 
         values ('{req.get("rdate","")}', '{req['cat']}', '{req.get("sub_cat","")}','{req.get("mydesc","")}',{req['suma']})"""
@@ -123,7 +129,27 @@ def ret_cost(id):
     # for r in res:
     # print(f"{r=}")
     # return jsonify([dict(row) for row in do_sql_sel(sql)])
-    return jsonify([dict(row) for row in res])
+    result = [dict(row) for row in res]
+    for row in  result:
+        if row.get('sub_cat') == 'Заправка':
+            try:
+                row['km'] = re.search('(\d+)км;', row.get('mydesc')).groups(0)
+            except:
+                pass
+            try:
+                row['litres'] = re.search('(\d+)л;', row.get('mydesc')).groups(0)
+            except:
+                pass
+            try:
+                row['price_val'] = re.search('(\d+(\.)?(\d+)?)eur', row.get('mydesc')).group(1)
+            except:
+                pass            
+            try:                
+                row['name'] = row.get('mydesc').split(';')[-1]
+            except:
+                pass                
+
+    return jsonify(result)
 
 
 @api_crud_bp.route("/api/costs/<int:id>", methods=["DELETE"])
