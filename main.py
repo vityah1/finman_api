@@ -1,9 +1,9 @@
-#!/home/vityah1/kt.if.ua/mypy/gapi/bin/python3.6
+#!/home/vityah1/kt.if.ua/www/finman_api/venv/bin/python3.10
 from wsgiref.handlers import CGIHandler
 import os
 import sys
 
-sys.path.insert(0, "/home/vityah1/kt.if.ua/mypy/gapi/lib/python3.6/site-packages")
+sys.path.insert(0, "/home/vityah1/kt.if.ua/www/finman_api/venv/lib/python3.10/site-packages")
 # sys.stdout = codecs.getwriter("utf-8")(sys.stdout.detach())
 
 try:
