@@ -4,6 +4,7 @@ from flask_jwt_extended import jwt_required
 from flask_cors import cross_origin
 from utils import do_sql_cmd, do_sql_sel
 from func import cfg, um_not_my_expspense
+from api.api_funcs import conv_refuel_data_to_desc
 
 api_crud_bp = Blueprint(
     "api_crud_bp",
@@ -22,16 +23,11 @@ def new_cost():
     insert a new cost
     input: rdate,cat,sub_cat,mydesc,suma
     """
-    req = request.get_json()
-    if req.get('km') and req.get('litres'):
-        req['mydesc'] = '{}км;{}л'.format(req.get('km'), req.get('litres'))
-        if req.get('price_val'):
-            req['mydesc'] += ';{}eur'.format(req.get('price_val'))
-        if req.get('name'):
-            req['mydesc'] += ';{}'.format(req.get('name'))            
+    data = conv_refuel_data_to_desc(request.get_json())
     res = do_sql_cmd(
-        f"""insert into `myBudj` (rdate,cat,sub_cat,mydesc,suma) 
-        values ('{req.get("rdate","")}', '{req['cat']}', '{req.get("sub_cat","")}','{req.get("mydesc","")}',{req['suma']})"""
+        """insert into `myBudj` (rdate,cat,sub_cat,mydesc,suma) 
+        values (:rdate, :cat, :sub_cat, :mydesc, :suma,)""",
+        data
     )
     if res["rowcount"] < 1:
         return jsonify({"status": "error", "data": res["data"]})
@@ -175,12 +171,12 @@ def upd_cost(id):
     update a cost
     input: rdate,cat,sub_cat,mydesc,suma,id
     """
-    req = request.get_json()
-    sql = f"""update myBudj set cat='{req['cat']}', rdate='{req['rdate']}', sub_cat='{req.get("sub_cat","")}',mydesc='{req.get("mydesc","")}'
-        ,suma={req['suma']}  
-        where id={id}"""
+    data = conv_refuel_data_to_desc(request.get_json())
+    sql = """update myBudj set cat=:cat, rdate=:rdate, sub_cat=:sub_cat,
+        mydesc=:mydesc, suma=:suma
+        where id=:id"""
     # print(sql)
-    res = do_sql_cmd(sql)
+    res = do_sql_cmd(sql, data)
     if res["rowcount"] < 1:
         return jsonify({"status": "error", "data": res["data"]})
 

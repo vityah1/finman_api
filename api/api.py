@@ -80,8 +80,7 @@ from `myBudj`
 where 1=1 {um_period} {um_user} {um_not_my_expspense}
 group by {cat4zam.replace(' as cat','')} order by 2 desc
 """
-    # print(sql)
-    return jsonify([dict(row) for row in do_sql_sel(sql)])
+    return do_sql_sel(sql)
 
 
 @api_bp.route("/api/years", methods=["GET"])

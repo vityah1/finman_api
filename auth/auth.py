@@ -19,8 +19,8 @@ def check_user():
     password = request.json.get("password", None)
     # Query your database for username and password
     # print(f"username:{username}, password:{password}")
-    sql = f"""select token,token_d_end from myBudj_users where user='{username}' and password='{password}' """
-    if do_sql_cmd(sql)["rowcount"] < 1:
+    sql = """select token,token_d_end from myBudj_users where user=:username and password=:password """
+    if do_sql_cmd(sql, {'username': username, 'password': password})["rowcount"] < 1:
         return jsonify({"msg": "Bad username or password"}), 401
 
     # create a new token with the user id inside
@@ -38,8 +38,8 @@ def create_user():
     password = request.json.get("password", None)
     # Query your database for username and password
     # print(f"username:{username}, password:{password}")
-    sql = f"""insert into myBudj_users (user,password) values ('{username}','{password}') """
-    if do_sql_cmd(sql)["rowcount"] < 1:
+    sql = """insert into myBudj_users (user,password) values (:username, :password) """
+    if do_sql_cmd(sql, {'username': username, 'password': password})["rowcount"] < 1:
         return jsonify({"msg": "error create username"}), 401
 
     # create a new token with the user id inside
