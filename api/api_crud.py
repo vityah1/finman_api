@@ -25,7 +25,7 @@ def new_cost():
     """
     data = conv_refuel_data_to_desc(request.get_json())
     res = do_sql_cmd(
-        """insert into `myBudj` (rdate,cat,sub_cat,mydesc,suma) 
+        """insert into `myBudj` (rdate, cat, sub_cat, mydesc, suma) 
         values (:rdate, :cat, :sub_cat, :mydesc, :suma)""",
         data
     )

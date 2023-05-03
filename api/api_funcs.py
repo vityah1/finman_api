@@ -8,4 +8,6 @@ def conv_refuel_data_to_desc(req: dict) -> dict:
             result['mydesc'] += ';{}'.format(
                 req.get('name') if req.get('name') else req.get('station')
                 )
+    if 'sub_cat' not in result:
+        result['sub_cat'] = ''
     return result
