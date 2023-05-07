@@ -2,8 +2,7 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 
-from config import envcfg
-from func import cfg
+from config import cfg
 from mydb import db
 
 app = Flask(__name__)
@@ -22,11 +21,11 @@ def log_request_info():
                 err.write(f"{e}\n")
 
 
-app.config["SQLALCHEMY_DATABASE_URI"] = envcfg.get('DATABASE_URI')
+app.config["SQLALCHEMY_DATABASE_URI"] = cfg.get('DATABASE_URI')
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-app.config["SECRET_KEY"] = envcfg["SECRET_KEY"]
+app.config["SECRET_KEY"] = cfg["SECRET_KEY"]
 app.config["PROPAGATE_EXCEPTIONS"] = True
-app.config["JWT_SECRET_KEY"] = envcfg["SECRET_KEY"]
+app.config["JWT_SECRET_KEY"] = cfg["SECRET_KEY"]
 
 jwt = JWTManager(app)
 

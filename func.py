@@ -1,8 +1,5 @@
-import json, random
-
-JSON_PATH = "/home/vityah1/kt.if.ua/www/finman_api"
-with open(f"""{JSON_PATH}/finman_config.json""", "r", encoding="utf8") as json_file:
-    cfg = json.load(json_file)
+import random
+from config import cfg
 
 
 um_sub_cat = ""
