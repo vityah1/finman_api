@@ -62,13 +62,16 @@ def new_mono_webhook():
     insert a new webhook from mono
     input: rdate,cat,sub_cat,mydesc,suma
     """
-    result = {}
-    data = request.get_json()
 
-    with open("incomming_post_data.log", "a", encoding="utf-8") as f:
-        f.write(f"{mydatetime()}\n{data}\n\n")
+    if request.method == 'GET':
+        return {'status': 'ok'}
 
     try:
+        data = request.get_json()
+        
+        with open("incomming_post_data.log", "a", encoding="utf-8") as f:
+            f.write(f"{mydatetime()}\n{data}\n\n")
+        
         account = data["data"]["account"]
         id = data["data"]["statementItem"]["id"]
         rdate_mono = data["data"]["statementItem"]["time"]
