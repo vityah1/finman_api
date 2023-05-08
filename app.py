@@ -33,10 +33,12 @@ db.init_app(app)
 from api.api import api_bp
 from api.api_crud import api_crud_bp
 from auth.auth import auth_bp
+from api.mono import mono_bp
 
 app.register_blueprint(api_bp)
 app.register_blueprint(api_crud_bp)
 app.register_blueprint(auth_bp)
+app.register_blueprint(mono_bp)
 
 
 def __repr__(self):

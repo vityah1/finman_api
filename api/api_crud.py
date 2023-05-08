@@ -1,10 +1,13 @@
 import re
+
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required
 from flask_cors import cross_origin
+
 from utils import do_sql_cmd, do_sql_sel
 from func import cfg, um_not_my_expspense
 from api.api_funcs import conv_refuel_data_to_desc
+
 
 api_crud_bp = Blueprint(
     "api_crud_bp",
@@ -75,11 +78,11 @@ def ret_costs():
     if year:
         um.append(f" and extract(YEAR from rdate)={year}")
     else:
-        um.append(f" and extract(YEAR from rdate)=extract(YEAR from now())")
+        um.append(" and extract(YEAR from rdate)=extract(YEAR from now())")
     if month:
         um.append(f" and extract(MONTH from rdate)={month}")
     else:
-        um.append(f" and extract(MONTH from rdate)=extract(MONTH from now())")
+        um.append(" and extract(MONTH from rdate)=extract(MONTH from now())")
 
     if user and user != 'all':
         um.append(" and owner = '{}'".format(user))
@@ -88,7 +91,7 @@ def ret_costs():
         um.append(f" and cat='{cat}'")
     else:
         um = []
-        um.append(f" and rdate>=DATE_SUB(CURRENT_DATE, INTERVAL 7 DAY) ")
+        um.append(" and rdate>=DATE_SUB(CURRENT_DATE, INTERVAL 7 DAY) ")
 
     sql = f"""
 select id,rdate,cat,sub_cat,mydesc,suma
@@ -126,7 +129,7 @@ def ret_cost(id):
     # print(f"{r=}")
     # return jsonify([dict(row) for row in do_sql_sel(sql)])
     result = [dict(row) for row in res]
-    for row in  result:
+    for row in result:
         if row.get('sub_cat') == 'Заправка':
             try:
                 row['km'] = re.search('(\d+)км;', row.get('mydesc')).groups(0)

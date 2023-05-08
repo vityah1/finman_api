@@ -18,7 +18,7 @@ def spr_cat():
     """
     return list of catalogs
     """
-    sql = f"""select distinct a.id,a.cat as name
+    sql = """select distinct a.id,a.cat as name
 from `myBudj_spr_cat` a
 /*left join 
 `myBudj_sub_cat` b 

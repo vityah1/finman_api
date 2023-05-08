@@ -2,5 +2,9 @@ from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.sql import text
 
 db = SQLAlchemy()
+text = text
 
-
+__all__ = [
+    "db",
+    "text"
+]
