@@ -6,7 +6,7 @@ from config import cfg
 from mydb import db
 
 app = Flask(__name__)
-CORS(app, support_credentials=True)
+CORS(app, support_credentials=True, origins='https://kt.if.ua')
 
 
 
