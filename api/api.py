@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required
 from flask_cors import cross_origin
 from utils import do_sql_sel
@@ -29,7 +29,7 @@ order by a.ord"""
     try:
         return jsonify([dict(row) for row in do_sql_sel(sql)])
     except Exception as e:
-        # myLog(f"{e}")
+        current_app.logger.error(f"{e}")
         return [{"id": "-1", "name": f"error {e}"}]
 
 
@@ -41,7 +41,7 @@ def do_sub_cat():
     """
     cat = request.args.get("cat", "")
     um_cat = ""
-    # #print(f"cat: {cat}")
+
     if cat:
         um_cat = (
             f""" and id_cat in (select id from `myBudj_spr_cat` where cat='{cat}')"""
@@ -50,7 +50,7 @@ def do_sub_cat():
 from `myBudj_sub_cat` 
 where 1=1 {um_cat}
 order by ord"""
-    # #print(f"{sql}")
+
     return jsonify([dict(row) for row in do_sql_sel(sql)])
 
 
@@ -65,7 +65,7 @@ def catcosts():
     month = request.args.get("month", "").zfill(2)
     user = request.args.get("user", "all")
     period = f"""{year}{month}"""
-    # #print(f"period: {period}")
+
     um_period = ""
     if not period or period == "0000":
         um_period = " and extract(YEAR_MONTH from rdate)=extract(YEAR_MONTH from now())"
@@ -101,7 +101,7 @@ where 1=1
 {um_not_my_expspense} {um_user}
 group by extract(YEAR from rdate) order by 1 desc
 """
-    # print(sql)
+
     return jsonify([dict(row) for row in do_sql_sel(sql)])
 
 
@@ -123,7 +123,7 @@ where 1=1 and extract(YEAR from rdate)={year}
 {um_not_my_expspense} {um_user}
 group by extract(MONTH from rdate) order by 1 desc
 """
-    # print(sql)
+
     return jsonify([dict(row) for row in do_sql_sel(sql)])
 
 
@@ -137,6 +137,7 @@ def about():
         with open("txt/about.html", encoding="utf8") as f:
             data = f.read()
     except:
+        current_app.logger.error(f"{e}")
         return jsonify({"status": "error", "data": "error open about file"})
 
     return jsonify({"status": "ok", "data": data})

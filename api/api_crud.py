@@ -55,7 +55,6 @@ def ret_costs():
     year = request.args.get("year", "")
     month = request.args.get("month", "")
     user = request.args.get("user", "all")
-    # print(f"sort: {sort}, year: {year}, month: {month}")
 
     um = []
 
@@ -100,7 +99,7 @@ where 1=1 {' '.join(um)}
 {um_not_my_expspense}
 {sort}
 """
-    # print(sql)
+
     pattern = re.compile(r"(\+38)?0\d{9}", re.MULTILINE)
     phone_number = ""
     res = [dict(row) for row in do_sql_sel(sql)]
@@ -125,9 +124,7 @@ def ret_cost(id):
     """
     sql = f"select id,rdate,cat,sub_cat,mydesc,suma from myBudj where id={id}"
     res = do_sql_sel(sql)
-    # for r in res:
-    # print(f"{r=}")
-    # return jsonify([dict(row) for row in do_sql_sel(sql)])
+
     result = [dict(row) for row in res]
     for row in result:
         if row.get('sub_cat') == 'Заправка':
@@ -178,7 +175,7 @@ def upd_cost(id):
     sql = """update myBudj set cat=:cat, rdate=:rdate, sub_cat=:sub_cat,
         mydesc=:mydesc, suma=:suma
         where id=:id"""
-    # print(sql)
+
     res = do_sql_cmd(sql, data)
     if res["rowcount"] < 1:
         return jsonify({"status": "error", "data": res["data"]})

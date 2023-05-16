@@ -1,23 +1,35 @@
-from flask import Flask, jsonify, request
+from logging.config import dictConfig
+
+from flask import Flask, jsonify, request, session
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 
-from config import cfg
+from config import cfg, logger_config
 from mydb import db
+
+from api.api import api_bp
+from api.api_crud import api_crud_bp
+from auth.auth import auth_bp
+from api.mono import mono_bp
+
+
+dictConfig(logger_config)
 
 app = Flask(__name__)
 CORS(app, support_credentials=True, origins='*')
 
 
-@app.before_request
-def log_request_info():
-    with open("fin_man_debugger.log", "a", encoding="utf8") as f:
-        try:
-            f.write(f"Headers: {request.headers}\n")
-            f.write(f"Body: {request.get_data()}\n")
-        except Exception as e:
-            with open("error.log", "a", encoding="utf8") as err:
-                err.write(f"{e}\n")
+# @app.before_request
+@app.after_request
+def log_request_info(response):
+    app.logger.info(
+        "path: %s | method: %s | status: %s | size: %s",
+        request.path,
+        request.method,
+        response.status,
+        response.content_length,
+    )
+    return response
 
 
 app.config["SQLALCHEMY_DATABASE_URI"] = cfg.get('DATABASE_URI')
@@ -29,11 +41,6 @@ app.config["JWT_SECRET_KEY"] = cfg["SECRET_KEY"]
 jwt = JWTManager(app)
 
 db.init_app(app)
-
-from api.api import api_bp
-from api.api_crud import api_crud_bp
-from auth.auth import auth_bp
-from api.mono import mono_bp
 
 app.register_blueprint(api_bp)
 app.register_blueprint(api_crud_bp)
@@ -47,6 +54,7 @@ def __repr__(self):
 
 @app.errorhandler(404)
 def page_not_found(error):
+    app.logger.error(f'Resource not found: {request.path}')
     return jsonify({"message": f"{error}, path: {request.path}"}), 404
 
 

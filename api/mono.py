@@ -1,14 +1,15 @@
 # _*_ coding:UTF-8 _*_
+import logging
 import requests
 import time
 
-from flask import Blueprint, request, abort
+from flask import Blueprint, request, abort, current_app
 from flask_cors import cross_origin
 from flask_jwt_extended import jwt_required
 
 from utils import do_sql_cmd
 from config import cfg, users, mono_api_url, mono_webhook
-from func import mydatetime, send_telegram
+from func import send_telegram
 from api.mono_funcs import _mcc
 
 
@@ -17,6 +18,7 @@ mono_bp = Blueprint(
     __name__,
 )
 
+mono_logger = logging.getLogger('mono')
 
 @mono_bp.route("/api/mono/webhook", methods=["PUT"])
 @cross_origin()
@@ -32,11 +34,11 @@ def set_webhook():
         user = data['user']
         webhook = data.get('webhook', mono_webhook)
     except Exception as err:
+        current_app.logger.error(f"{err}")
         abort(402, f'Not valid data: {err}')
 
     url = f"""{mono_api_url}/personal/webhook"""
 
-    #    print("url2=%s\n<br>" % url)
     for user_ in users:
         if user_.get('name') == user:
             token = user_.get("token")
@@ -50,6 +52,7 @@ def set_webhook():
     try:
         r = requests.post(url, json=data, headers=header)
     except Exception as err:
+        current_app.logger.error(f"{err}")
         abort(400, f'Bad request: {err}\n{r.text}')
 
     return {"status_code": r.status_code, "data": r.text}
@@ -68,10 +71,9 @@ def new_mono_webhook():
 
     try:
         data = request.get_json()
-        
-        with open("incomming_post_data.log", "a", encoding="utf-8") as f:
-            f.write(f"{mydatetime()}\n{data}\n\n")
-        
+
+        mono_logger.info(f'\n{data}\n')
+ 
         account = data["data"]["account"]
         id = data["data"]["statementItem"]["id"]
         rdate_mono = data["data"]["statementItem"]["time"]
@@ -90,12 +92,11 @@ def new_mono_webhook():
             comment = ""
 
     except Exception as err:
-        with open("error.log", "a", encoding="utf8") as err_file:
-            err_file.write(f"""{mydatetime()}, error: {err}\n""")
+        current_app.logger.error(f'{err}')
         abort(422, "Not valid data")
-    
+
     user = None
-    
+
     try:
         suma = round(amount / 100, 2)
         # coment = f"\ncomment: {comment}"
@@ -162,6 +163,5 @@ VALUES
         send_telegram("".join(msg), "HTML", "", "bank")
         return {"status": "ok"}
     except Exception as err:
-        with open("error.log", "a", encoding="utf8") as err_file:
-            err_file.write(f"""{mydatetime()}, error: {err}\n""")
+        current_app.logger.error(f'{err}')
         abort(500, str(err))

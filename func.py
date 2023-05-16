@@ -1,9 +1,11 @@
+import logging
 import random
 import datetime
 import requests
 
 from config import cfg
 
+tel_logger = logging.getLogger('telegram')
 
 um_sub_cat = ""
 if cfg.get("not_sub_cat"):
@@ -37,13 +39,11 @@ def mydatetime(par: str = None):
 
 
 def send_telegram(text: str, parce_mode: str = "HTML", chat_id_in: str = "", token: str = "", chat_id_4send: str = ""):
-    # for telegram
-    # myLog(f"token: {token}")
 
     url = "https://api.telegram.org/bot{}/sendMessage".format(
         cfg["telegram"]["tokens"].get(f"{token}_bot", "tel_token")
     )
-    # myLog(f"url: {url}")
+
     data = {
         "chat_id": cfg["telegram"]["chat_ids"].get(chat_id_in, cfg["telegram"]["chat_ids"].get("vik")),
         "text": text,
@@ -56,9 +56,7 @@ def send_telegram(text: str, parce_mode: str = "HTML", chat_id_in: str = "", tok
     status_code, content = str(r.status_code), r.reason
 
     if status_code != 200:
-        with open("send_tel.log", "a", encoding="utf-8") as f:
-            f.write(
-                f"""{mydatetime()}
+        tel_logger.error(f"""
 error send:\nstatus_code: {status_code}, content:{content}
 url:{url}
 data:{data}

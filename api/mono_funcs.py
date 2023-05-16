@@ -195,10 +195,8 @@ def dt(dt):
         hh = dt[11:13]
         mi = dt[14:16]
         ss = dt[17:19]
-        #        print(f'''Date with Time: {dt} => [{dd}.{mm}.{yy}, {hh} {mi} {ss}]<br>''')
         d = datetime.datetime(int(yy), int(mm), int(dd), int(hh), int(mi), int(ss))
     else:
-        #        print(f'''Only Date: {dt} => [{dd}.{mm}.{yy}]<br>''')
         d = datetime.date(int(yy), int(mm), int(dd))
 
     return int(time.mktime(d.timetuple()))
