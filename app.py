@@ -7,19 +7,36 @@ from flask_jwt_extended import JWTManager
 from config import cfg, logger_config
 from mydb import db
 
-from api.api import api_bp
-from api.api_crud import api_crud_bp
-from auth.auth import auth_bp
-from api.mono import mono_bp
-
 
 dictConfig(logger_config)
 
 app = Flask(__name__)
 CORS(app, support_credentials=True, origins='*')
 
+app.config["SQLALCHEMY_DATABASE_URI"] = cfg.get('DATABASE_URI')
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+app.config["SECRET_KEY"] = cfg["SECRET_KEY"]
+app.config["PROPAGATE_EXCEPTIONS"] = True
+app.config["JWT_SECRET_KEY"] = cfg["SECRET_KEY"]
 
-# @app.before_request
+jwt = JWTManager(app)
+db.init_app(app)
+
+from api.api import api_bp
+from api.api_crud import api_crud_bp
+from auth.auth import auth_bp
+from api.mono import mono_bp
+
+app.register_blueprint(api_bp)
+app.register_blueprint(api_crud_bp)
+app.register_blueprint(auth_bp)
+app.register_blueprint(mono_bp)
+
+
+def __repr__(self):
+    return "<Mysession %r" % self.id
+
+
 @app.after_request
 def log_request_info(response):
     app.logger.info(
@@ -30,26 +47,6 @@ def log_request_info(response):
         response.content_length,
     )
     return response
-
-
-app.config["SQLALCHEMY_DATABASE_URI"] = cfg.get('DATABASE_URI')
-app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-app.config["SECRET_KEY"] = cfg["SECRET_KEY"]
-app.config["PROPAGATE_EXCEPTIONS"] = True
-app.config["JWT_SECRET_KEY"] = cfg["SECRET_KEY"]
-
-jwt = JWTManager(app)
-
-db.init_app(app)
-
-app.register_blueprint(api_bp)
-app.register_blueprint(api_crud_bp)
-app.register_blueprint(auth_bp)
-app.register_blueprint(mono_bp)
-
-
-def __repr__(self):
-    return "<Mysession %r" % self.id
 
 
 @app.teardown_request

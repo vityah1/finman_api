@@ -4,6 +4,7 @@ from flask_jwt_extended import create_access_token
 from flask_cors import cross_origin
 from utils import do_sql_cmd
 
+
 auth_bp = Blueprint(
     "auth_bp",
     __name__,
@@ -12,7 +13,7 @@ auth_bp = Blueprint(
 
 @auth_bp.route("/api/auth/signin", methods=["POST"])
 @cross_origin()
-def check_user():
+def user_login():
     username = request.json.get("username", None)
     password = request.json.get("password", None)
 
