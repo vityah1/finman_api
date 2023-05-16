@@ -52,6 +52,13 @@ def __repr__(self):
     return "<Mysession %r" % self.id
 
 
+@app.teardown_request
+def session_clear(exception=None):
+    db.session.remove()
+    if exception and db.session.is_active:
+        db.session.rollback()
+
+
 @app.errorhandler(404)
 def page_not_found(error):
     app.logger.error(f'Resource not found: {request.path}')
