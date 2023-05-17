@@ -10,7 +10,7 @@ from flask_jwt_extended import jwt_required
 from utils import do_sql_cmd
 from config import cfg, users, mono_api_url, mono_webhook
 from func import send_telegram
-from api.mono_funcs import _mcc
+from api.mono_funcs import _mcc, process_mono_data_pmts
 
 
 mono_bp = Blueprint(
@@ -206,3 +206,33 @@ VALUES
     except Exception as err:
         current_app.logger.error(f'{err}')
         abort(500, str(err))
+
+
+@mono_bp.route("/api/mono/payments", methods=["GET", "POST"])
+@cross_origin()
+def get_mono_data_pmts():
+    input_data = {}
+    if request.method == 'GET':
+        try:
+            input_data = dict(request.args)
+        except Exception as err:
+            current_app.logger.error(f'bad request: {err}')
+            abort(400, 'Bad request')
+    else:
+        try:
+            input_data = request.get_json()
+        except Exception as err:
+            current_app.logger.error(f'bad request: {err}')
+            abort(400, 'Bad request')
+
+    user = input_data.get('user')
+    if not user:
+        current_app.logger.error(f'bad request: {err}')
+        abort(400, 'Bad request')
+
+    start_date = input_data.get('start_date')
+    end_date = input_data.get('end_date')
+
+    if request.method == 'GET':
+        return process_mono_data_pmts(start_date, end_date, user)
+    return process_mono_data_pmts(start_date, end_date, user, 'import')

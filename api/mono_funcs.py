@@ -1,8 +1,17 @@
 # _*_ coding:UTF-8 _*_
+import logging
 import time
 import datetime
+import random
 
+import requests
 
+from flask import current_app
+
+from config import users, mono_api_url
+from utils import do_sql_cmd
+
+mono_logger = logging.getLogger('mono')
 """
 url for webhook:
 https://script.google.com/macros/s/AKfycbxq8R2y9ugmDmfYDAp9rf5MEUs_5lf2SNT_Cc0u_R3KYTfYMPvc/exec
@@ -181,22 +190,133 @@ def _mcc(mcc):
         return "Інше"
 
 
-def dt(dt):
-    # функція повертає юнікс формат часу (як хоче моно) з нормального YYYYMMDD
-    #    yy=dt[6:10]
-    #    mm=dt[3:5]
-    #    dd=dt[0:2]
+def convert_dates(start_date: str = None, end_date: str = None):
+    if not start_date:
+        start_date = datetime.datetime.today().strftime("%d.%m.%Y") + " 00:00:01"
+    elif len(start_date) < 11:
+        start_date += " 00:00:01"
 
-    yy = dt[0:4]
-    mm = dt[5:7]
-    dd = dt[8:10]
+    if not end_date:
+        end_date = datetime.datetime.today().strftime("%d.%m.%Y") + " 23:59:59"
+    elif len(end_date) < 11:
+        end_date += " 23:59:59"
 
-    if len(dt) > 10:
-        hh = dt[11:13]
-        mi = dt[14:16]
-        ss = dt[17:19]
-        d = datetime.datetime(int(yy), int(mm), int(dd), int(hh), int(mi), int(ss))
-    else:
-        d = datetime.date(int(yy), int(mm), int(dd))
+    start_date_unix = int(
+        time.mktime(
+            datetime.datetime.strptime(
+                start_date, "%d.%m.%Y %H:%M:%S"
+            ).timetuple()
+        )
+    )
+    end_date_unix = int(
+        time.mktime(
+            datetime.datetime.strptime(
+                end_date, "%d.%m.%Y %H:%M:%S"
+            ).timetuple()
+        )
+    )
+    return start_date_unix, end_date_unix    
 
-    return int(time.mktime(d.timetuple()))
+def get_mono_pmts(start_date: str = "", end_date: str = "", user: str = "vik"):
+
+    result = []
+    token = None
+    accounts = []
+
+    for user_ in users:
+        if user_.get('name') == user:
+            token = user_.get("token")
+            accounts = user_.get("account")
+    
+    if not any([token, accounts]):
+        current_app.logger.error('Not find mono token')
+        return result
+
+    start_date_unix, end_date_unix = convert_dates(start_date, end_date)
+
+    for account in accounts:
+        url = f"""{mono_api_url}/personal/statement/{account}/{start_date_unix}/{end_date_unix}"""
+        header = {"X-Token": token}
+
+        r = requests.get(url, headers=header)
+
+        err_cnn = 0
+        while r.status_code != 200:
+            err_cnn += 1
+            Time2Sleep = 10 + random.randint(10, 30)
+            current_app.logger.warning(
+                f"""Status request code: {r.status_code}
+                <br>Wait {Time2Sleep}s..."""
+            )
+            time.sleep(Time2Sleep)
+            r = requests.get(url, headers=header)
+            if err_cnn > 2:
+                current_app.logger.error("Error connection more then 2")
+                return result
+
+        result.extend(r.json())
+    
+    if len(result) < 1:
+        current_app.logger.info("No rows returned from Request..")
+
+    return result
+
+
+def process_mono_data_pmts(
+        start_date: str = None,
+        end_date: str = None,
+        user: str = "vik",
+        mode: str = None
+    ):
+
+    result = []
+    result_html = 'Data not found'
+    total_in = 0
+    total_out = 0
+
+    mono_pmts = get_mono_pmts(start_date, end_date, user)
+    if not mono_pmts:
+        return result_html
+    
+    result.append(
+            """
+<table class="table table-bordered"><tr><th>Дата</th><th>Опис</th><th>Розділ</th><th>Сума</th></tr>"""
+        )
+
+    for item in mono_pmts:
+        data = {}
+        data['end_date_'] = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(item["time"]))
+        data['id'] = item["id"]
+        data['desc'] = item["description"]
+        data['mcc'] = item["mcc"]
+        data['cat'] = _mcc(item.get('mcc'))
+        data['suma'] = -1 * item["amount"] / 100
+        data['val'] = item["currencyCode"]
+        data['bal'] = item["balance"]
+        data['user'] = user
+
+        if item["amount"] > 0:
+            total_in += item["amount"]
+        elif item["amount"] < 0:
+            total_out += item["amount"]
+
+        data['descnew'] = data['desc'].replace("\n", " ")
+        mono_logger.info(f"{data}")
+
+        if mode == "import":
+            data['descnew'] = data['descnew'].replace("'", "")
+            sql = """INSERT INTO `myBudj`  
+(`rdate`, `id_bank`, `sub_cat`, `cat`, `mcc`, `suma`, `type_payment`, `source`, `owner`) 
+VALUES 
+(:end_date_, :id, :descnew, :cat, :mcc, :suma, 'CARD', 'mono', :user)"""
+            do_sql_cmd(sql, data)
+    
+        result.append(
+            f"""<tr><td>{data['end_date_']} </td><td> {data['descnew']}</td><td> {data['cat']}</td><td> {data['suma']}</td></tr>"""
+        )
+
+    result.append("</table>")
+    result.append(f'total in: {int(total_in / 100)}, totsl out: {int(total_out / 100)}')
+    result_html = '\n'.join(result)
+
+    return result_html

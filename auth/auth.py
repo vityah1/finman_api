@@ -14,29 +14,79 @@ auth_bp = Blueprint(
 @auth_bp.route("/api/auth/signin", methods=["POST"])
 @cross_origin()
 def user_login():
-    username = request.json.get("username", None)
-    password = request.json.get("password", None)
+    data = request.get_json()
 
-    sql = """select token,token_d_end from myBudj_users where user=:username and password=:password """
-    if do_sql_cmd(sql, {'username': username, 'password': password})["rowcount"] < 1:
+    sql = """select id, token,token_d_end, fullname, phone, email 
+from myBudj_users 
+where user=:username and password=:password """
+
+    res = do_sql_cmd(sql, data)
+    if res.get("rowcount") < 1:
         return jsonify({"msg": "Bad username or password"}), 401
 
     access_token = create_access_token(
-        identity=username, expires_delta=timedelta(days=30)
+        identity=data.get('username'), expires_delta=timedelta(days=30)
     )
-    return jsonify({"accessToken": access_token, "username": username})
+    user = res.get('data')[0]
+    return {
+        "user_id": res.get('data')[0][0],
+        "accessToken": access_token,
+        "username": data.get('username'),
+        "fullname": user[3],
+        "phone": user[4],
+        "email": user[5],
+    }
 
 
 @auth_bp.route("/api/auth/signup", methods=["POST"])
 def create_user():
-    username = request.json.get("username", None)
-    password = request.json.get("password", None)
+    data = request.get_json()
 
-    sql = """insert into myBudj_users (user,password) values (:username, :password) """
-    if do_sql_cmd(sql, {'username': username, 'password': password})["rowcount"] < 1:
+    sql = """insert into myBudj_users 
+(user, password, fullname, phone, email) 
+values (:username, :password, :fullname, :phone, :email) """
+    
+    res = do_sql_cmd(sql, data)
+    if res["rowcount"] < 1:
         return jsonify({"msg": "error create username"}), 401
 
     access_token = create_access_token(
-        identity=username, expires_delta=timedelta(days=30)
+        identity=data.get('username'), expires_delta=timedelta(days=30)
     )
-    return jsonify({"accessToken": access_token, "username": username})
+
+    return {
+        "user_id": res.get('data'),
+        "accessToken": access_token,
+        "username": data.get('username'),
+        "fullname": data.get('fullname'),
+        "phone": data.get('phone'),
+        "email": data.get('email'),
+    }
+
+
+@auth_bp.route("/api/users/<user_id>", methods=["PATCH"])
+def edit_user(user_id):
+    data = request.get_json()
+    data['user_id'] = user_id
+
+    sql = """update myBudj_users 
+set user = :username, password = :password, fullname = :fullname, phone = :phone, email = :email 
+where id = :user_id """
+    
+    res = do_sql_cmd(sql, data)
+    if res["rowcount"] < 1:
+        return jsonify({"message": "error edit user"}), 401
+
+    access_token = create_access_token(
+        identity=data.get('username'), expires_delta=timedelta(days=30)
+    )
+
+    return {
+        "user_id": data.get('user_id'),
+        "accessToken": access_token,
+        "username": data.get('username'),
+        "fullname": data.get('fullname'),
+        "phone": data.get('phone'),
+        "email": data.get('email'),
+    }
+
