@@ -20,6 +20,47 @@ mono_bp = Blueprint(
 
 mono_logger = logging.getLogger('mono')
 
+
+@mono_bp.route("/api/mono/webhook/<user>", methods=["GET"])
+@cross_origin()
+@jwt_required()
+def get_webhook(user):
+    """
+    set a new webhook on mono
+    """
+    token = None
+    result = {}
+
+    if not user:
+        current_app.logger.error('Not valid data')
+        abort(402, 'Not valid data')        
+
+    for user_ in users:
+        if user_.get('name') == user:
+            token = user_.get("token")
+            break
+    
+    if not token:
+        current_app.logger.error(f'Token not found: {user}')
+        abort(401, f'Token not found: {user}')
+
+    header = {"X-Token": token}
+
+    url = f"{mono_api_url}/personal/client-info"
+
+    try:
+        r = requests.get(url, headers=header)
+    except Exception as err:
+        current_app.logger.error(f"{err}")
+        abort(400, f'Bad request: {err}\n{r.text}')
+
+    result = r.json()
+    result['this_api_webhook'] = request.host_url + 'api/mono/webhook'
+    result['user'] = user
+
+    return result
+
+
 @mono_bp.route("/api/mono/webhook", methods=["PUT"])
 @cross_origin()
 @jwt_required()
@@ -35,7 +76,7 @@ def set_webhook():
         webhook = data.get('webhook', mono_webhook)
     except Exception as err:
         current_app.logger.error(f"{err}")
-        abort(402, f'Not valid data: {err}')
+        abort(400, f'Not valid data: {err}')
 
     url = f"""{mono_api_url}/personal/webhook"""
 
