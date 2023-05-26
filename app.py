@@ -3,13 +3,15 @@ from logging.config import dictConfig
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
+from flask_migrate import Migrate
 
 from config import cfg, logger_config
 from mydb import db
+from models import *
 
 
 dictConfig(logger_config)
-
+migrate = Migrate()
 app = Flask(__name__)
 CORS(app, support_credentials=True, origins='*')
 
@@ -22,15 +24,19 @@ app.config["JWT_SECRET_KEY"] = cfg["SECRET_KEY"]
 jwt = JWTManager(app)
 db.init_app(app)
 
+migrate.init_app(app, db)
+
 from api.api import api_bp
 from api.api_crud import api_crud_bp
 from auth.auth import auth_bp
 from api.mono import mono_bp
+from api.mono_users import mono_users_bp
 
 app.register_blueprint(api_bp)
 app.register_blueprint(api_crud_bp)
 app.register_blueprint(auth_bp)
 app.register_blueprint(mono_bp)
+app.register_blueprint(mono_users_bp)
 
 
 def __repr__(self):

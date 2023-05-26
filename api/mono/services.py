@@ -1,30 +1,20 @@
 # _*_ coding:UTF-8 _*_
 import logging
-import requests
 import time
+import requests
 
-from flask import Blueprint, request, abort, current_app
-from flask_cors import cross_origin
-from flask_jwt_extended import jwt_required
+from flask import request, abort, current_app
 
 from utils import do_sql_cmd
 from config import cfg, users, mono_api_url, mono_webhook
 from func import send_telegram
-from api.mono_funcs import _mcc, process_mono_data_pmts
+from api.mono.funcs import _mcc, process_mono_data_pmts
 
-
-mono_bp = Blueprint(
-    "mono_bp",
-    __name__,
-)
 
 mono_logger = logging.getLogger('mono')
 
 
-@mono_bp.route("/api/mono/webhook/<user>", methods=["GET"])
-@cross_origin()
-@jwt_required()
-def get_webhook(user):
+def get_webhook_(user):
     """
     set a new webhook on mono
     """
@@ -39,7 +29,7 @@ def get_webhook(user):
         if user_.get('name') == user:
             token = user_.get("token")
             break
-    
+
     if not token:
         current_app.logger.error(f'Token not found: {user}')
         abort(401, f'Token not found: {user}')
@@ -61,10 +51,7 @@ def get_webhook(user):
     return result
 
 
-@mono_bp.route("/api/mono/webhook", methods=["PUT"])
-@cross_origin()
-@jwt_required()
-def set_webhook():
+def set_webhook_():
     """
     set a new webhook on mono
     """
@@ -99,9 +86,7 @@ def set_webhook():
     return {"status_code": r.status_code, "data": r.text}
 
 
-@mono_bp.route("/api/mono/webhook", methods=["POST", "GET"])
-@cross_origin()
-def new_mono_webhook():
+def new_mono_webhook_():
     """
     insert a new webhook from mono
     input: rdate,cat,sub_cat,mydesc,suma
@@ -208,9 +193,7 @@ VALUES
         abort(500, str(err))
 
 
-@mono_bp.route("/api/mono/payments", methods=["GET", "POST"])
-@cross_origin()
-def get_mono_data_pmts():
+def get_mono_data_pmts_():
     input_data = {}
     if request.method == 'GET':
         try:

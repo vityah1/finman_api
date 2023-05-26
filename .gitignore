@@ -5,3 +5,5 @@ venv/
 *.log
 *.code-workspace
 .env
+migrations
+instance/finman.db
