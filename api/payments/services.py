@@ -1,48 +1,34 @@
 import re
 
-from flask import Blueprint, request, jsonify
-from flask_jwt_extended import jwt_required
-from flask_cors import cross_origin
+from flask import request, jsonify
 
 from utils import do_sql_cmd, do_sql_sel
 from func import cfg, um_not_my_expspense
-from api.api_funcs import conv_refuel_data_to_desc
-
-
-api_crud_bp = Blueprint(
-    "api_crud_bp",
-    __name__,
-)
+from api.payments.payments_funcs import conv_refuel_data_to_desc
+from mydb import db
+from models import Payment
 
 
 dict_phones = cfg.get("dict_phones")
 
 
-@api_crud_bp.route("/api/costs", methods=["POST"])
-@cross_origin()
-@jwt_required()
-def new_cost():
+def add_payment_():
     """
     insert a new cost
     input: rdate,cat,sub_cat,mydesc,suma
     """
     data = conv_refuel_data_to_desc(request.get_json())
-    res = do_sql_cmd(
-        """insert into `myBudj` (rdate, cat, sub_cat, mydesc, suma) 
-        values (:rdate, :cat, :sub_cat, :mydesc, :suma)""",
-        data
-    )
-    if res["rowcount"] < 1:
-        return jsonify({"status": "error", "data": res["data"]})
+    payment = Payment()
+    payment.from_dict(data)
+    try:
+        db.session().commit()
+    except Exception as err:
+        return jsonify({"status": "error", "data": str(err)})
 
-    return jsonify({"status": "ok", "data": res["data"], "id": res["rowcount"]})
+    return payment.to_dict()
 
 
-@api_crud_bp.route("/api/costs/", methods=["GET"])
-# @cross_origin(supports_credentials=True)
-@cross_origin()
-@jwt_required()
-def ret_costs():
+def get_payments_():
     """
     list or search all costs.
     if not set conditions year and month then get current year and month
@@ -114,70 +100,62 @@ where 1=1 {' '.join(um)}
     return jsonify(res)
 
 
-@api_crud_bp.route("/api/costs/<int:id>", methods=["GET"])
-@cross_origin()
-@jwt_required()
-def ret_cost(id):
+def get_payment_(payment_id: int):
     """
     get info about cost
     input: id
     """
-    sql = f"select id,rdate,cat,sub_cat,mydesc,suma from myBudj where id={id}"
-    res = do_sql_sel(sql)
+    payment = db.session().query(Payment).get(payment_id)
+    row = payment.to_dict()
 
-    result = [dict(row) for row in res]
-    for row in result:
-        if row.get('sub_cat') == 'Заправка':
-            try:
-                row['km'] = re.search('(\d+)км;', row.get('mydesc')).groups(0)
-            except:
-                pass
-            try:
-                row['litres'] = re.search('(\d+)л;', row.get('mydesc')).groups(0)
-            except:
-                pass
-            try:
-                row['price_val'] = re.search('(\d+(\.)?(\d+)?)eur', row.get('mydesc')).group(1)
-            except:
-                pass            
-            try:                
-                row['name'] = row.get('mydesc').split(';')[-1]
-            except:
-                pass                
+    if row.get('sub_cat') == 'Заправка':
+        try:
+            row['km'] = re.search('(\d+)км;', row.get('mydesc')).groups(0)
+        except:
+            pass
+        try:
+            row['litres'] = re.search('(\d+)л;', row.get('mydesc')).groups(0)
+        except:
+            pass
+        try:
+            row['price_val'] = re.search('(\d+(\.)?(\d+)?)eur', row.get('mydesc')).group(1)
+        except:
+            pass            
+        try:                
+            row['name'] = row.get('mydesc').split(';')[-1]
+        except:
+            pass                
 
-    return jsonify(result)
+    return row
 
 
-@api_crud_bp.route("/api/costs/<int:id>", methods=["DELETE"])
-@cross_origin()
-@jwt_required()
-def del_cost(id):
+def del_payment_(payment_id: int):
     """
     mark delete cost
     input: id
     """
-    res = do_sql_cmd(f"update myBudj set deleted=1 where id={id}")
-    if res["rowcount"] < 1:
-        return jsonify({"status": "error", "data": res["data"]})
+    payment = db.session().query(Payment).get(payment_id)
+    payment.is_deleted = True
+    try:
+        db.session().commit()
+    except Exception as err:
+        return jsonify({"status": "error", "data": str(err)})
 
-    return jsonify({"status": "ok", "data": res["data"]})
+    return jsonify({"status": "ok"})
 
 
-@api_crud_bp.route("/api/costs/<id>", methods=["PUT"])
-@cross_origin()
-@jwt_required()
-def upd_cost(id):
+def upd_payment_(payment_id):
     """
     update a cost
     input: rdate,cat,sub_cat,mydesc,suma,id
     """
     data = conv_refuel_data_to_desc(request.get_json())
-    sql = """update myBudj set cat=:cat, rdate=:rdate, sub_cat=:sub_cat,
-        mydesc=:mydesc, suma=:suma
-        where id=:id"""
+    data["id"] = payment_id
+    payment = db.session().query(Payment).get(payment_id)
+    try:
+        payment.from_dict(data)
+        db.session().commit
+    except Exception as err:
+        return jsonify({"status": "error", "data": str(err)})
 
-    res = do_sql_cmd(sql, data)
-    if res["rowcount"] < 1:
-        return jsonify({"status": "error", "data": res["data"]})
-
-    return jsonify({"status": "ok", "data": res["data"]})
+    return payment.to_dict()

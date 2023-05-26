@@ -136,8 +136,8 @@ def about():
     try:
         with open("txt/about.html", encoding="utf8") as f:
             data = f.read()
-    except:
-        current_app.logger.error(f"{e}")
+    except Exception as err:
+        current_app.logger.error(f"{err}")
         return jsonify({"status": "error", "data": "error open about file"})
 
     return jsonify({"status": "ok", "data": data})

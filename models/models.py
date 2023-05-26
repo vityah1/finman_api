@@ -1,8 +1,9 @@
 import uuid
 import datetime
+
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Index, Boolean
 from sqlalchemy.orm import relationship
-# from mydb import db
+
 from . base import BaseModel
 
 
@@ -190,6 +191,7 @@ class Payment(Base):
     __tablename__ = 'payments'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+    rdate = Column(DateTime, default=datetime.datetime.utcnow, comment="payment date")    
     cat = Column(String(99), ForeignKey('spr_cat.cat'))
     sub_cat = Column(String(99), ForeignKey('spr_sub_cat.sub_cat'))
     mydesc = Column(String(150))
