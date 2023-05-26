@@ -22,6 +22,9 @@ class SprSource(Base):
     created = Column(DateTime, default=datetime.datetime.utcnow)
     updated = Column(DateTime)
 
+    _default_fields = [
+        "source",
+    ]  
 
 class SprTypePayment(Base):
     __tablename__ = 'spr_type_payments'
@@ -31,6 +34,10 @@ class SprTypePayment(Base):
     created = Column(DateTime, default=datetime.datetime.utcnow)
     updated = Column(DateTime)
 
+    _default_fields = [
+        "type_payment",
+    ]      
+
 
 class NewCategory(Base):
     __tablename__ = 'spr_categories'
@@ -39,10 +46,17 @@ class NewCategory(Base):
     name = Column(String(49))
     parent_id = Column(Integer)
     ord = Column(Integer)
-    pok = Column(Integer)
+    is_visible = Column(Boolean, nullable=False, default=False,)
     user_id = Column(Integer, ForeignKey('users.id'))
     created = Column(DateTime, default=datetime.datetime.utcnow)
     updated = Column(DateTime)
+
+    _default_fields = [
+        "name",
+        "parent_id",
+        "ord",
+        "is_visible"
+    ]    
 
     __table_args__ = (
         Index(
@@ -60,10 +74,17 @@ class Category(Base):
     cat = Column(String(49))
     is_sub_cat = Column(Boolean, default=False, nullable=True)
     ord = Column(Integer)
-    pok = Column(Integer)
+    is_visible = Column(Boolean, nullable=False, default=False, comment="if show")
     user_id = Column(Integer, ForeignKey('users.id'))
     created = Column(DateTime, default=datetime.datetime.utcnow)
     updated = Column(DateTime)
+
+    _default_fields = [
+        "cat",
+        "is_sub_cat",
+        "ord",
+        "is_visible"
+    ]
 
     __table_args__ = (
         Index(
@@ -86,6 +107,13 @@ class SubCategory(Base):
     user_id = Column(Integer, ForeignKey('users.id'))
     created = Column(DateTime, default=datetime.datetime.utcnow)
     updated = Column(DateTime)
+
+    _default_fields = [
+        "cat_id",
+        "sub_cat",
+        "ord",
+    ]
+
 
     __table_args__ = (
         Index(
@@ -166,6 +194,11 @@ class SprTypeSetting(Base):
     created = Column(DateTime, default=datetime.datetime.utcnow)
     updated = Column(DateTime)
 
+    _default_fields = [
+        "type_data",
+        "name_type",
+    ]
+
 
 class Config(Base):
     __tablename__ = 'config'
@@ -176,6 +209,18 @@ class Config(Base):
     value_data = Column(String(255))
     created = Column(DateTime, default=datetime.datetime.utcnow)
     updated = Column(DateTime)
+
+    _default_fields = [
+        "type_data",
+        "value_data",
+    ]
+
+    _hidden_fields = [
+        "password",
+    ]
+    _readonly_fields = [
+        "created",
+    ]
 
     __table_args__ = (
         Index(
@@ -194,7 +239,7 @@ class Payment(Base):
     rdate = Column(DateTime, default=datetime.datetime.utcnow, comment="payment date")    
     cat = Column(String(99), ForeignKey('spr_cat.cat'))
     sub_cat = Column(String(99), ForeignKey('spr_sub_cat.sub_cat'))
-    mydesc = Column(String(150))
+    desc = Column(String(150))
     suma = Column(Integer)
     currencyCode = Column(Integer)
     mcc = Column(Integer, comment="code mcc point")
@@ -214,5 +259,21 @@ class Payment(Base):
             unique=True
         ),
     )
+
+    _default_fields = [
+        "rdate",
+        "cat",
+        "sub_cat",
+        "desc",
+        "suma",
+        "currencyCode",
+    ]
+
+    _hidden_fields = [
+        "password",
+    ]
+    _readonly_fields = [
+        "created",
+    ]      
 
 Payment.comment = 'Список витрат'
