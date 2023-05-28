@@ -7,3 +7,4 @@ venv/
 .env
 migrations
 instance/finman.db
+instance/myBudj.sql
