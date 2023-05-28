@@ -2,8 +2,8 @@ from .models import (
     SprSource, 
     SprTypePayment, 
     SprTypeSetting,
-    NewCategory,
-    Category, 
+    Category,
+    Category_, 
     SubCategory, 
     User,
     MonoUser,
@@ -12,14 +12,14 @@ from .models import (
 )
 
 __all__ = [
-    "SprSource", 
-    "SprTypePayment", 
+    "SprSource",
+    "SprTypePayment",
     "SprTypeSetting",
-    "NewCategory",
-    "Category", 
-    "SubCategory", 
+    "Category",
+    "Category_",
+    "SubCategory",
     "User",
     "MonoUser",
-    "Config", 
+    "Config",
     "Payment"
 ]

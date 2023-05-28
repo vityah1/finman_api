@@ -5,18 +5,22 @@ import requests
 
 from flask import request, abort, current_app
 
-from utils import do_sql_cmd
 from config import cfg, users, mono_api_url, mono_webhook
 from func import send_telegram
-from api.mono.funcs import _mcc, process_mono_data_pmts
-
+from api.mono.funcs import (
+    _mcc,
+    process_mono_data_pmts,
+    get_user_id,
+    get_category_id,
+    add_new_mono_payment,
+)
 
 mono_logger = logging.getLogger('mono')
 
 
 def get_webhook_(user):
     """
-    set a new webhook on mono
+    get current webhook from mono
     """
     token = None
     result = {}
@@ -86,10 +90,9 @@ def set_webhook_():
     return {"status_code": r.status_code, "data": r.text}
 
 
-def new_mono_webhook_():
+def mono_webhook_handler_():
     """
     insert a new webhook from mono
-    input: rdate,cat,sub_cat,mydesc,suma
     """
 
     if request.method == 'GET':
@@ -122,69 +125,57 @@ def new_mono_webhook_():
         abort(422, "Not valid data")
 
     user = None
+    user_id = 999999
 
     try:
-        suma = round(amount / 100, 2)
-        # coment = f"\ncomment: {comment}"
-        for user_ in users:
-            if account in user_["account"]:
-                user = user_.get('name')
-                break
-
-        if not user:
-            user = "unknown"
-
+        user_id = get_user_id(account)
+        
         cat = _mcc(mcc)
         msg = []
         msg.append(
             f"""<b>{cat}</b>
-    user: {user}
+    user: {mono_account.user.login}
     time: {dt}
     description: {description} {comment}
     mcc: {mcc}
-    amount: {suma}
+    amount: {amount / 100:.2f}
     currencyCode: {currencyCode}
     balance: {balance}
     """
         )
 
-        deleted = 0
+        is_deleted = 0
         name_rozhid = ""
         for dlt in cfg["isDeleted"]:
             if description.find(dlt[0]) > -1:
-                deleted = 1
+                is_deleted = 1
                 name_rozhid = dlt[1]
                 break
 
+# for replace name cat according to rules
         for cat1 in cfg["Category"]:
             if len(cat1) > 2 and description.find(cat1[2]) > -1:
                 cat = cat1[0]
                 comment = description
                 description = cat1[1]
                 break
+        
+        category_id = get_category_id(user_id, cat)
 
         data_ = {
-            'cat': cat, 'sub_cat': description, 'mydesc': comment,
-            'suma': -1 * suma, 'currencyCode': currencyCode, 'mcc': mcc,
-            'rdate': t2mysql, 'type_payment': 'CARD', 'id_bank': id,
-            'owner': user, 'source': 'mono', 'deleted': deleted
+            'category_id': category_id, 'description': comment,
+            'amount': -1 * amount, 'currencyCode': currencyCode, 'mcc': mcc,
+            'rdate': t2mysql, 'type_payment': 'card', 'bank_payment_id': id,
+            'user_id': user_id, 'source': 'mono', 'is_deleted': is_deleted
         }
 
-        if suma < 0:
-            sql = """INSERT IGNORE INTO `myBudj` 
-(`cat`, `sub_cat`, `mydesc`, `suma`, `currencyCode`, `mcc`, 
-`rdate`, `type_payment`, `id_bank`, `owner`, `source`, `deleted`) 
-VALUES 
-(:cat, :sub_cat, :mydesc, :suma, :currencyCode, :mcc, :rdate,
- 'CARD', :id_bank, :owner, :source, :deleted)
-"""
+        if amount < 0:
+            result = add_new_mono_payment(data_)
 
-            res = do_sql_cmd(sql, data_)
-
-            if res["rowcount"] < 1:
+            if not result:
                 msg.append(f"\nerror. [{res}]\n{sql}")
             else:
-                msg.append(f"\ninsert to myBudj Ok. [{res}]")
+                msg.append(f"\ninsert to `payments` Ok. [{result.get('id')}]")
 
         send_telegram("".join(msg), "HTML", "", "bank")
         return {"status": "ok"}

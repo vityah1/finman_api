@@ -2,7 +2,7 @@ import re
 
 from flask import request, jsonify
 
-from utils import do_sql_cmd, do_sql_sel
+from utils import do_sql_sel
 from func import cfg, um_not_my_expspense
 from api.payments.payments_funcs import conv_refuel_data_to_desc
 from mydb import db

@@ -2,6 +2,7 @@ from datetime import timedelta
 from flask import Blueprint, request, jsonify, abort
 from flask_jwt_extended import create_access_token
 from flask_cors import cross_origin
+from sqlalchemy import and_
 from utils import do_sql_cmd
 from mydb import db
 from models import User
@@ -16,28 +17,64 @@ auth_bp = Blueprint(
 @auth_bp.route("/api/auth/signin", methods=["POST"])
 @cross_origin()
 def user_login():
+    result = {}
     data = request.get_json()
 
-    sql = """select id, token,token_d_end, fullname, phone, email 
-from myBudj_users 
-where user=:username and password=:password """
-
-    res = do_sql_cmd(sql, data)
-    if res.get("rowcount") < 1:
-        return jsonify({"msg": "Bad username or password"}), 401
+    user = db.session().query(User).filter(
+        and_(
+            User.login == data.get('login'),
+            User.password == data.get('password')
+        )
+    ).one_or_none()
+    if not user:
+        abort(401, "Bad username or password")
 
     access_token = create_access_token(
-        identity=data.get('username'), expires_delta=timedelta(days=30)
+        identity={
+            'login': user.login,
+            'id': user.id
+        },
+        expires_delta=timedelta(days=45)
     )
-    user = res.get('data')[0]
-    return {
-        "user_id": res.get('data')[0][0],
-        "accessToken": access_token,
-        "username": data.get('username'),
-        "fullname": user[3],
-        "phone": user[4],
-        "email": user[5],
-    }
+    result = user.to_dict()
+    result['accessToken'] = access_token
+    return result
+
+
+@auth_bp.route("/api/auth/signup", methods=["POST"])
+def create_user():
+    result = {}
+    data = request.get_json()
+
+    user = User(**data)
+    try:
+        db.session().add(user)
+        db.session().commit()
+    except Exception as err:
+        abort(500, f"create user failed {err}")
+
+    access_token = create_access_token(
+        identity={
+            'login': user.login,
+            'id': user.id
+        },
+        expires_delta=timedelta(days=45)
+    )
+    result = user.to_dict()
+    result["accessToken"] = access_token
+    return result
+
+
+@auth_bp.route("/api/users/<user_id>", methods=["GET"])
+def get_user(user_id):
+    """
+    get user
+    """
+    user = db.session().query(User).get(user_id)
+    if not user:
+        abort(404, 'User not found')
+
+    return user.to_dict()
 
 
 @auth_bp.route("/api/users/<user_id>", methods=["DELETE"])
@@ -53,38 +90,6 @@ def delete_user(user_id):
 
     result["result"] = "ok"
     return result
-
-
-@auth_bp.route("/api/auth/signup", methods=["POST"])
-def create_user():
-    result = {}
-    data = request.get_json()
-
-    user = User(**data)
-    try:
-        db.session().add(user)
-        db.session().commit()
-    except Exception as err:
-        abort(500, f"user create failed {err}")
-
-    access_token = create_access_token(
-        identity=data.get('username'), expires_delta=timedelta(days=30)
-    )
-    result = user.to_dict()
-    result["accessToken"] = access_token
-    return result
-
-
-@auth_bp.route("/api/users/<user_id>", methods=["GET"])
-def get_user(user_id):
-    """
-    get user
-    """
-    user = db.session().query(User).get(user_id)
-    if not user:
-        abort(404, 'Not found users')
-
-    return user.to_dict()
 
 
 @auth_bp.route("/api/users", methods=["GET"])

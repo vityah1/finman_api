@@ -3,10 +3,14 @@ import logging
 import time
 import datetime
 import random
+from tkinter import E
 
 import requests
 
 from flask import current_app
+from sqlalchemy import and_
+from mydb import db
+from models.models import Category, Config, Payment, User
 
 from config import users, mono_api_url
 from utils import do_sql_cmd
@@ -321,3 +325,46 @@ VALUES
     result_html = '\n'.join(result)
 
     return result_html
+
+def get_user_id(account: str) -> int:
+    user_id = 999999
+    mono_account = db.session().query(Config).join(User).filter(
+        Config.type_data == 'mono_account'
+    ).filter(Config.value_data == account).one_or_none()
+
+    if mono_account:
+        user_id = mono_account.user_id
+    return user_id 
+
+
+def get_category_id(user_id: int, cat: str) -> int:
+    category = db.session().query(Category).filter(
+        and_(
+            Category.name == cat,
+            Category.user_id == user_id,
+            Category.parent_id == 0,
+        )
+    ).one_or_none()
+    
+    if category:
+        category_id = category.id
+    else:
+        new_category = Category()
+        new_category.from_dict({"name": cat, "parent_id": 0, "user_id": user_id})
+        db.session().add(new_category)
+        db.session().commit()
+        category_id = new_category.id
+    return category_id
+
+def add_new_mono_payment(data) -> dict:
+    result = None
+    try:
+        new_payment = Payment()
+        new_payment.from_dict(data)
+        db.session().add(new_payment)
+        db.session().commit()
+        result = new_payment.to_dict()
+    except Exception as err:
+        pass
+    return result
+

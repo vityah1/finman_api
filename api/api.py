@@ -1,6 +1,8 @@
-from flask import Blueprint, request, jsonify, current_app
-from flask_jwt_extended import jwt_required
+from flask import Blueprint, request, jsonify, current_app, abort
+from flask_jwt_extended import jwt_required, get_jwt_identity
 from flask_cors import cross_origin
+from mydb import db
+from models.models import Category
 from utils import do_sql_sel
 from func import um_not_my_expspense, cat4zam
 
@@ -11,120 +13,121 @@ api_bp = Blueprint(
     static_folder="static",
 )
 
-
-@api_bp.route("/api/cats/", methods=["GET"])
+@api_bp.route("/api/categories/", methods=["GET"])
 @cross_origin()
-def spr_cat():
+@jwt_required()
+def get_categories():
     """
-    return list of catalogs
+    return  categories
     """
-    sql = """select distinct a.id,a.cat as name
-from `myBudj_spr_cat` a
-/*left join 
-`myBudj_sub_cat` b 
-on a.id=b.id_cat */
-where a.ord!=0
-order by a.ord"""
-
+    current_user = get_jwt_identity()
+    categories = db.session().query(Category).filter_by(
+        user_id=current_user.get('id')
+    ).all()
     try:
-        return jsonify([dict(row) for row in do_sql_sel(sql)])
-    except Exception as e:
-        current_app.logger.error(f"{e}")
-        return [{"id": "-1", "name": f"error {e}"}]
+        return [category.to_dict() for category in categories]
+    except Exception as err:
+        current_app.logger.error(f"{err}")
+        abort(500, f"{err}")
 
 
-@api_bp.route("/api/subcats/", methods=["GET"])
-@cross_origin()
-def do_sub_cat():
-    """
-    return list of sub_catalogs
-    """
-    cat = request.args.get("cat", "")
-    um_cat = ""
 
-    if cat:
-        um_cat = (
-            f""" and id_cat in (select id from `myBudj_spr_cat` where cat='{cat}')"""
-        )
-    sql = f"""select id,sub_cat as name, id_cat 
-from `myBudj_sub_cat` 
-where 1=1 {um_cat}
-order by ord"""
-
-    return jsonify([dict(row) for row in do_sql_sel(sql)])
-
-
-@api_bp.route("/api/catcosts", methods=["GET"])
+@api_bp.route("/api/payments/period", methods=["GET"])
 @cross_origin()
 @jwt_required()
 def catcosts():
     """
-    return costs grouped by cat in some period (year, month)
+    return payments grouped by categories in some period (year, month)
     """
+    current_user = get_jwt_identity()
     year = request.args.get("year", "").zfill(2)
     month = request.args.get("month", "").zfill(2)
-    user = request.args.get("user", "all")
+    mono_user_id = request.args.get("mono_user_id")
     period = f"""{year}{month}"""
 
     um_period = ""
     if not period or period == "0000":
-        um_period = " and extract(YEAR_MONTH from rdate)=extract(YEAR_MONTH from now())"
+        um_period = " and extract(YEAR_MONTH from rdate) = extract(YEAR_MONTH from now())"
     else:
-        um_period = f" and extract(YEAR_MONTH from rdate)={period}"
+        um_period = " and extract(YEAR_MONTH from rdate) = :period"
+    
     um_user = ''
-    if user not in ('all', '', 'undefined'):
-        um_user = f" and owner = '{user}'"
+    if mono_user_id:
+        um_user = " and mono_user_id = :mono_user_id"
+
+    data = {"period": period, "mono_user_id": mono_user_id, "user_id": current_user.get('id')}
+
     sql = f"""
-select {cat4zam},convert(sum(suma),UNSIGNED) as suma,count(*) as cnt
-from `myBudj`
-where 1=1 {um_period} {um_user} {um_not_my_expspense}
-group by {cat4zam.replace(' as cat','')} order by 2 desc
+select p.category_id, c.name,convert(sum(`amount`),UNSIGNED) as amount,
+count(*) as cnt
+from `payments` p left join `categories` c
+on p.categoy_id = c.id
+where 1=1 
+and p.user_id = :user_id
+{um_period} {um_user} 
+and `is_deleted` = 0
+and `amount` > 0
+group by p.category_id, c.name order by 2 desc
 """
-    return do_sql_sel(sql)
+    return do_sql_sel(sql, data)
 
 
-@api_bp.route("/api/years", methods=["GET"])
+@api_bp.route("/api/paymetns/years", methods=["GET"])
 @cross_origin()
 @jwt_required()
 def years():
     """
-    return total costs grouped by years
+    return total payments grouped by years
     """
-    user = request.args.get("user", "all")
-    um_user = ''
-    if user not in ('all', '', 'undefined'):
-        um_user = f" and owner = '{user}'"    
+    current_user = get_jwt_identity()
+    mono_user_id = request.args.get("mono_user_id")
+    um_mono_user = ''
+    if mono_user_id:
+        um_mono_user = " and mono_user_id = :mono_user_id"
+    data = {"mono_user_id": mono_user_id, "user_id": current_user.get('id')}
     sql = f"""
-select extract(YEAR from rdate) year,convert(sum(suma),UNSIGNED) as suma,count(*) as cnt
-from `myBudj`
+select extract(YEAR from rdate) year,convert(sum(amount),UNSIGNED) as amount,count(*) as cnt
+from `payments`
 where 1=1
-{um_not_my_expspense} {um_user}
+and `user_id` = :user_id
+and `is_deleted` = 0
+and `amount` > 0
+{um_mono_user}
 group by extract(YEAR from rdate) order by 1 desc
 """
 
-    return jsonify([dict(row) for row in do_sql_sel(sql)])
+    return jsonify([dict(row) for row in do_sql_sel(sql, data)])
 
 
-@api_bp.route("/api/months/<int:year>", methods=["GET"])
+@api_bp.route("/api/payments/years/<int:year>", methods=["GET"])
 @cross_origin()
 @jwt_required()
 def months(year):
     """
-    return total costs grouped by months in some year
+    return total payments grouped by months in year
     """
-    user = request.args.get("user", "all")
-    um_user = ''
-    if user not in ('all', '', 'undefined'):
-        um_user = f" and owner = '{user}'"     
+    current_user = get_jwt_identity()
+    mono_user_id = request.args.get("mono_user_id")
+    um_mono_user = ''
+    if mono_user_id:
+        um_mono_user = " and mono_user_id = :mono_user_id"
+    data = {
+        "mono_user_id": mono_user_id,
+        "user_id": current_user.get('id'),
+        "year": year
+    }
+    
     sql = f"""
-select extract(MONTH from rdate) month,convert(sum(suma),UNSIGNED) as suma,count(*) as cnt
-from `myBudj`
-where 1=1 and extract(YEAR from rdate)={year}
-{um_not_my_expspense} {um_user}
+select 
+extract(MONTH from rdate) month,convert(sum(amount),UNSIGNED) as amount,
+count(*) as cnt
+from `payments`
+where 1=1 and extract(YEAR from rdate) = :year
+{um_mono_user}
 group by extract(MONTH from rdate) order by 1 desc
 """
 
-    return jsonify([dict(row) for row in do_sql_sel(sql)])
+    return jsonify([dict(row) for row in do_sql_sel(sql, data)])
 
 
 @api_bp.route("/api/about", methods=["GET"])

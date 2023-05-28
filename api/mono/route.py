@@ -8,7 +8,7 @@ from flask_jwt_extended import jwt_required
 from api.mono.services import (
     get_webhook_,
     set_webhook_,
-    new_mono_webhook_,
+    mono_webhook_handler_,
     get_mono_data_pmts_,
 )
 
@@ -26,7 +26,7 @@ mono_logger = logging.getLogger('mono')
 @jwt_required()
 def get_webhook(user):
     """
-    set a new webhook on mono
+    get current webhook from mono
     """
     return get_webhook_(user)
 
@@ -43,12 +43,12 @@ def set_webhook():
 
 @mono_bp.route("/api/mono/webhook", methods=["POST", "GET"])
 @cross_origin()
-def new_mono_webhook():
+def mono_webhook_handler():
     """
     insert a new webhook from mono
     input: rdate,cat,sub_cat,mydesc,suma
     """
-    return new_mono_webhook_()
+    return mono_webhook_handler_()
 
 
 @mono_bp.route("/api/mono/payments", methods=["GET", "POST"])

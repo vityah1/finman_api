@@ -21,6 +21,7 @@ def add_mono_user_(user_id: int) -> MonoUser:
         data = request.get_json()
     except Exception as err:
         abort(500, f'user add failed {err}')
+    data['user_id'] = user_id
     mono_user = MonoUser()
     mono_user.from_dict(**data)
     try:
@@ -44,10 +45,6 @@ def edit_mono_user_(mono_user_id: int) -> MonoUser:
     mono_user = db.session().query(MonoUser).get(mono_user_id)
     if not mono_user:
         abort(404, 'Not found mono users')
-
-    # mono_user.name = data.get('name')
-    # mono_user.token = data.get('token')
-    # mono_user.account = data.get('account')
 
     mono_user.from_dict(**data)
 

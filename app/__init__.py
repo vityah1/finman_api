@@ -22,9 +22,10 @@ app.config["PROPAGATE_EXCEPTIONS"] = True
 app.config["JWT_SECRET_KEY"] = cfg["SECRET_KEY"]
 
 jwt = JWTManager(app)
+
 db.init_app(app)
 
-migrate.init_app(app, db)
+migrate.init_app(app, db, render_as_batch=True)
 
 from api.api import api_bp
 from api.payments import payments_bp
