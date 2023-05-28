@@ -19,7 +19,7 @@ mono_users_bp = Blueprint(
 )
 
 
-@mono_users_bp.route("/api/users/<user_id>/mono/users", methods=["GET"])
+@mono_users_bp.route("/api/users/<int:user_id>/mono/users", methods=["GET"])
 @cross_origin()
 @jwt_required()
 def get_mono_users(user_id):
@@ -29,7 +29,7 @@ def get_mono_users(user_id):
     return get_mono_users_(user_id)
 
 
-@mono_users_bp.route("/api/users/<user_id>/mono/users", methods=["POST"])
+@mono_users_bp.route("/api/users/<int:user_id>/mono/users", methods=["POST"])
 @cross_origin()
 @jwt_required()
 def add_mono_user(user_id):

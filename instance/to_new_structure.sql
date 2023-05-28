@@ -14,22 +14,22 @@ select * from myBudj where (rdate,owner,cat,sub_cat,suma,deleted,3) in
 order by rdate,owner,cat,sub_cat,suma,deleted;
 
 INSERT INTO payments (
-                         rdate,
-                         category_id,
-                         description,
-                         amount,
-                         currencyCode,
-                         mcc,
-                         type_payment,
-                         bank_payment_id,
-                         user_id,
-                         source,
-                         is_deleted,
-                         created,
-                         updated,
-                         mono_user_id
-                     )
-                     SELECT rdate,
+     rdate,
+     category_id,
+     description,
+     amount,
+     currencyCode,
+     mcc,
+     type_payment,
+     bank_payment_id,
+     user_id,
+     source,
+     is_deleted,
+     created,
+     updated,
+     mono_user_id
+     )
+ SELECT rdate,
      case 
      when 
      b.sub_cat !="" 
@@ -126,3 +126,14 @@ SELECT rdate,
        end as mono_user_id
   FROM myBudj b;
 --   where cat = 'Авто та АЗС';
+
+
+select * from payments where bank_payment_id = 'doMFEu_RC5HgiKx9-3';
+select * from categories;
+
+select * from myBudj where cat = 'Поповнення мобільного';
+
+select * from myBudj where sub_cat = 'Заправка' and rdate > '2023-01-01';
+select * from payments where rdate > '2023-01-01' and category_id in (select id from categories where name = 'Заправка');
+
+-- where id = 26;

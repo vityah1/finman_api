@@ -1,7 +1,16 @@
 import uuid
 import datetime
 
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Index, Boolean
+from sqlalchemy import (
+    Column,
+    Integer,
+    String,
+    DateTime,
+    ForeignKey,
+    Index,
+    Boolean,
+    Text,
+)
 from sqlalchemy.orm import relationship
 
 from . base import BaseModel
@@ -129,6 +138,7 @@ class User(Base):
     created = Column(DateTime, default=datetime.datetime.utcnow)
     updated = Column(DateTime)
     config = relationship("Config", back_populates="user")
+    mono_users = relationship("MonoUser", back_populates="user")
 
     _default_fields = [
         "login",
@@ -153,37 +163,40 @@ class MonoUser(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    user = relationship('User', back_populates='mono_users')
     name = Column(String(29), nullable=False)
-    mono_token = Column(String(255), nullable=False, unique=True)
-    mono_account = Column(String(99))
+    token = Column(String(255), nullable=False, unique=True)
     payments = relationship('Payment', back_populates='mono_user')
     created = Column(DateTime, default=datetime.datetime.utcnow)
     updated = Column(DateTime)
 
-    _default_fields = ["user_id", "name", "mono_token", "created"]
+    _default_fields = ["user_id", "name", "token", "created"]
 
     __table_args__ = (
         Index(
             None,
-            user_id, mono_account,
+            user_id, name,
             unique=True
         ),
     )
 
 
-class SprTypeSetting(Base):
-    __tablename__ = 'spr_type_settings'
+class SprConfigTypes(Base):
+    __tablename__ = 'spr_config_types'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     type_data = Column(String(29), unique=True)
-    name_type = Column(String(255))
+    name = Column(String(255))
     is_multiple = Column(Boolean, nullable=True, default=False)
+    is_need_add_value = Column(Boolean, nullable=True, default=False)
     created = Column(DateTime, default=datetime.datetime.utcnow)
     updated = Column(DateTime)
 
     _default_fields = [
         "type_data",
         "name_type",
+        "is_multiple",
+        "is_need_add_value"
     ]
 
 
@@ -193,8 +206,10 @@ class Config(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(String(20), ForeignKey('users.id'))
     user = relationship("User", back_populates="config")
-    type_data = Column(String(29), ForeignKey('spr_type_settings.type_data'))
+    type_data = Column(String(29), ForeignKey('spr_config_types.type_data'))
     value_data = Column(String(255))
+    json_data = Column(Text)
+    add_value = Column(String(255))
     created = Column(DateTime, default=datetime.datetime.utcnow)
     updated = Column(DateTime)
 
@@ -202,6 +217,7 @@ class Config(Base):
         "user_id",
         "type_data",
         "value_data",
+        "add_value",
     ]
 
     _hidden_fields = [

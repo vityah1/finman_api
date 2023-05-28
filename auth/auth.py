@@ -1,3 +1,4 @@
+import logging
 from datetime import timedelta
 from flask import Blueprint, request, jsonify, abort
 from flask_jwt_extended import create_access_token
@@ -7,6 +8,8 @@ from utils import do_sql_cmd
 from mydb import db
 from models import User
 
+
+logger = logging.getLogger()
 
 auth_bp = Blueprint(
     "auth_bp",
@@ -51,7 +54,9 @@ def create_user():
         db.session().add(user)
         db.session().commit()
     except Exception as err:
-        abort(500, f"create user failed {err}")
+        db.session().rollback()
+        logger.error(f'create user failed {err}')        
+        abort(500, "create user failed")
 
     access_token = create_access_token(
         identity={
@@ -65,7 +70,7 @@ def create_user():
     return result
 
 
-@auth_bp.route("/api/users/<user_id>", methods=["GET"])
+@auth_bp.route("/api/users/<int:user_id>", methods=["GET"])
 def get_user(user_id):
     """
     get user
@@ -77,7 +82,7 @@ def get_user(user_id):
     return user.to_dict()
 
 
-@auth_bp.route("/api/users/<user_id>", methods=["DELETE"])
+@auth_bp.route("/api/users/<int:user_id>", methods=["DELETE"])
 def delete_user(user_id):
     result = {}
 
@@ -86,7 +91,9 @@ def delete_user(user_id):
         db.session().delete(user)
         db.session().commit()
     except Exception as err:
-        abort(500, f"user delete failed {err}")
+        db.session().rollback()
+        logger.error(f'user delete failed {err}')
+        abort(500, "user delete failed")
 
     result["result"] = "ok"
     return result
@@ -104,7 +111,7 @@ def get_users():
     return [item.to_dict() for item in users]
 
 
-@auth_bp.route("/api/users/<user_id>", methods=["PATCH"])
+@auth_bp.route("/api/users/<int:user_id>", methods=["PATCH"])
 def edit_user(user_id):
     data = request.get_json()
     data['user_id'] = user_id

@@ -4,7 +4,7 @@ from flask_cors import cross_origin
 from mydb import db
 from models.models import Category
 from utils import do_sql_sel
-from func import um_not_my_expspense, cat4zam
+
 
 api_bp = Blueprint(
     "api_bp",

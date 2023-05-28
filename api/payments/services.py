@@ -1,15 +1,19 @@
+import logging
 import re
 
-from flask import request, jsonify
+from flask import request, jsonify, abort
 
-from utils import do_sql_sel
-from func import cfg, um_not_my_expspense
-from api.payments.payments_funcs import conv_refuel_data_to_desc
 from mydb import db
 from models import Payment
+from utils import do_sql_sel
+from api.payments.funcs import (
+    conv_refuel_data_to_desc,
+    convert_desc_to_refuel_data,
+    get_user_phones_from_config,
+)
 
 
-dict_phones = cfg.get("dict_phones")
+logger = logging.getLogger()
 
 
 def add_payment_():
@@ -17,72 +21,76 @@ def add_payment_():
     insert a new cost
     input: rdate,cat,sub_cat,mydesc,suma
     """
-    data = conv_refuel_data_to_desc(request.get_json())
+    data = request.get_json()
+    if data.get('km') and data.get('litres'):
+        result = conv_refuel_data_to_desc(data)
+        if result:
+            data = result
     payment = Payment()
-    payment.from_dict(data)
+    payment.from_dict(**data)
     try:
         db.session().commit()
     except Exception as err:
-        return jsonify({"status": "error", "data": str(err)})
+        db.session().rollback()
+        logger.error(f'payment add failed {err}') 
+        abort(500, 'payment add failed')
 
     return payment.to_dict()
 
 
-def get_payments_():
+def get_payments_(user_id: int) -> list[dict]:
     """
-    list or search all costs.
+    list or search all payments.
     if not set conditions year and month then get current year and month
     if set q then do search
-    input: q,cat,year,month
     """
     q = request.args.get("q", "")
     sort = request.args.get("sort", "")
-    cat = request.args.get("cat", "")
+    category_id = request.args.get("category_id")
     year = request.args.get("year", "")
     month = request.args.get("month", "")
-    user = request.args.get("user", "all")
+    mono_user_id = request.args.get("mono_user_id")
 
     um = []
 
     if q:
         um.append(
-            f" and (`cat` like '%{q}%' or  `sub_cat` like '%{q}%' or  `mydesc` like '%{q}%' or `owner` like '%{q}%')"
+            f" and (c.`name` like '%{q}%' or `descript` like '%{q}%')"
         )
 
     if not sort:
-        sort = "order by suma desc"
+        sort = "order by `amount` desc"
     elif sort == "1":
-        sort = "order by rdate desc"
+        sort = "order by `rdate` desc"
     elif sort == "2":
-        sort = "order by cat"
+        sort = "order by `category_id`"
     elif sort == "3":
-        sort = "order by suma desc"
+        sort = "order by `amount` desc"
     else:
-        sort = "order by  suma desc"
+        sort = "order by `amount` desc"
 
     if year:
-        um.append(f" and extract(YEAR from rdate)={year}")
+        um.append(f" and extract(YEAR from `rdate`) = {year}")
     else:
-        um.append(" and extract(YEAR from rdate)=extract(YEAR from now())")
+        um.append(" and extract(YEAR from `rdate`) = extract(YEAR from now())")
     if month:
-        um.append(f" and extract(MONTH from rdate)={month}")
+        um.append(f" and extract(MONTH from `rdate`) = {month}")
     else:
-        um.append(" and extract(MONTH from rdate)=extract(MONTH from now())")
+        um.append(" and extract(MONTH from `rdate`) = extract(MONTH from now())")
 
-    if user and user != 'all':
-        um.append(" and owner = '{}'".format(user))
+    if mono_user_id:
+        um.append(" and `mono_user_id` = '{}'".format(mono_user_id))
 
-    if cat and cat != "last":
-        um.append(f" and cat='{cat}'")
+    if category_id:
+        um.append(f" and `category_id` = {category_id}")
     else:
         um = []
-        um.append(" and rdate>=DATE_SUB(CURRENT_DATE, INTERVAL 7 DAY) ")
+        um.append(" and rdate >= DATE_SUB(CURRENT_DATE, INTERVAL 7 DAY) ")
 
     sql = f"""
-select id,rdate,cat,sub_cat,mydesc,suma
-from `myBudj`
+select p.id, p.rdate, p.category_id, c.name, descript, amount
+from `payments` p left join categories c on p.category_id = c.id
 where 1=1 {' '.join(um)}
-{um_not_my_expspense}
 {sort}
 """
 
@@ -91,55 +99,49 @@ where 1=1 {' '.join(um)}
     res = [dict(row) for row in do_sql_sel(sql)]
     if res[0].get("rowcount") is not None and res[0].get("rowcount") < 0:
         return jsonify([{"cat": "Помилки", "mydesc": "Помилка виконання запиту"}])
+    user_phones = get_user_phones_from_config(user_id)
     for r in res:
-        if pattern.search(r["sub_cat"]):
-            phone_number = pattern.search(r["sub_cat"]).group(0)
-            if phone_number in dict_phones:
-                r["mydesc"] += dict_phones[phone_number]
+        if pattern.search(r["descript"]):
+            phone_number = pattern.search(r["descript"]).group(0)
+            if phone_number in user_phones:
+                r["descript"] += user_phones[phone_number]
 
     return jsonify(res)
 
 
 def get_payment_(payment_id: int):
     """
-    get info about cost
-    input: id
+    get info about payment
     """
+    result = {}
     payment = db.session().query(Payment).get(payment_id)
-    row = payment.to_dict()
+    
+    if not payment:
+        abort(404, 'payment not found')
 
-    if row.get('sub_cat') == 'Заправка':
-        try:
-            row['km'] = re.search('(\d+)км;', row.get('mydesc')).groups(0)
-        except:
-            pass
-        try:
-            row['litres'] = re.search('(\d+)л;', row.get('mydesc')).groups(0)
-        except:
-            pass
-        try:
-            row['price_val'] = re.search('(\d+(\.)?(\d+)?)eur', row.get('mydesc')).group(1)
-        except:
-            pass            
-        try:                
-            row['name'] = row.get('mydesc').split(';')[-1]
-        except:
-            pass                
+    refuel_data = {}
 
-    return row
+    if payment.category.name == 'Заправка':
+        refuel_data = convert_desc_to_refuel_data(payment.description)
+    result = payment.to_dict()
+    if refuel_data:
+        result.update(refuel_data)
+
+    return result
 
 
 def del_payment_(payment_id: int):
     """
-    mark delete cost
-    input: id
+    mark delete payment
     """
     payment = db.session().query(Payment).get(payment_id)
     payment.is_deleted = True
     try:
         db.session().commit()
     except Exception as err:
-        return jsonify({"status": "error", "data": str(err)})
+        db.session().rollback()
+        logger.error(f'set payment as deleted failed {err}')
+        abort(500, 'set payment as deleted failed')
 
     return jsonify({"status": "ok"})
 
@@ -153,9 +155,11 @@ def upd_payment_(payment_id):
     data["id"] = payment_id
     payment = db.session().query(Payment).get(payment_id)
     try:
-        payment.from_dict(data)
+        payment.from_dict(**data)
         db.session().commit
     except Exception as err:
-        return jsonify({"status": "error", "data": str(err)})
+        db.session().rollback()
+        logger.error(f'payment edit failed {err}')
+        abort(500, 'payment edit failed')
 
     return payment.to_dict()

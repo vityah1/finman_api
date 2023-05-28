@@ -1,6 +1,12 @@
+import logging
+
 from flask import request, abort
+
 from mydb import db
 from models import MonoUser
+
+logger = logging.getLogger()
+
 
 def get_mono_users_(user_id):
     """
@@ -28,7 +34,10 @@ def add_mono_user_(user_id: int) -> MonoUser:
         db.session().add(mono_user)
         db.session().commit()
     except Exception as err:
-        abort(500, f'user add failed {err}')
+        logger.error(f'user add failed {err}')
+        abort(500, 'user add failed')
+
+    # result += add_mono_accounts_to_config(user_id)
 
     return mono_user.to_dict()
 
@@ -51,7 +60,9 @@ def edit_mono_user_(mono_user_id: int) -> MonoUser:
     try:
         db.session().commit()
     except Exception as err:
-        abort(500, f'user edit failed {err}')
+        db.session().rollback()
+        logger.error(f'user edit failed {err}')        
+        abort(500, 'user edit failed')
 
     return mono_user.to_dict()
 
@@ -69,7 +80,9 @@ def delete_mono_user_(mono_user_id: int) -> MonoUser:
         db.session().delete(mono_user)
         db.session().commit()
     except Exception as err:
-        abort(500, f'user delete failed {err}')
+        db.session().rollback()
+        logger.error(f'user delete failed {err}')        
+        abort(500, 'user delete failed')
 
     return {"result": "ok"}
 

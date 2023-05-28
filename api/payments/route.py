@@ -2,7 +2,7 @@
 
 from flask import Blueprint
 from flask_cors import cross_origin
-from flask_jwt_extended import jwt_required
+from flask_jwt_extended import jwt_required, get_jwt_identity
 
 from api.payments.services import (
     add_payment_,
@@ -24,8 +24,7 @@ payments_bp = Blueprint(
 @jwt_required()
 def add_payment():
     """
-    insert a new cost
-    input: rdate,cat,sub_cat,mydesc,suma
+    insert a new cash payment
     """
     return add_payment_()
 
@@ -36,42 +35,42 @@ def add_payment():
 @jwt_required()
 def get_payments():
     """
-    list or search all costs.
+    list or search payments by conditions.
     if not set conditions year and month then get current year and month
     if set q then do search
-    input: q,cat,year,month
     """
-    return get_payments_()
+    current_user = get_jwt_identity()
+    user_id = current_user.get('user_id')
+    return get_payments_(user_id)
 
 
-@payments_bp.route("/api/payments/<int:id>", methods=["GET"])
+@payments_bp.route("/api/payments/<int:payment_id>", methods=["GET"])
 @cross_origin()
 @jwt_required()
-def get_payment(id):
+def get_payment(payment_id):
     """
-    get info about cost
+    get info about payment
     input: id
     """
-    return get_payment_(id)
+    return get_payment_(payment_id)
 
 
-@payments_bp.route("/api/payments/<int:id>", methods=["DELETE"])
+@payments_bp.route("/api/payments/<int:payment_id>", methods=["DELETE"])
 @cross_origin()
 @jwt_required()
-def del_payment(id):
+def del_payment(payment_id: int):
     """
     mark delete cost
     input: id
     """
-    return del_payment_(id)
+    return del_payment_(payment_id)
 
 
-@payments_bp.route("/api/payments/<id>", methods=["PATCH"])
+@payments_bp.route("/api/payments/<int:payment_id>", methods=["PATCH"])
 @cross_origin()
 @jwt_required()
-def upd_payment(id):
+def upd_payment(payment_id):
     """
-    update a cost
-    input: rdate,cat,sub_cat,mydesc,suma,id
+    update payment
     """
-    return upd_payment_(id)
+    return upd_payment_(payment_id)
