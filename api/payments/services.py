@@ -1,5 +1,6 @@
 import logging
 import re
+import datetime
 
 from flask import request, jsonify, abort
 
@@ -44,11 +45,11 @@ def get_payments_(user_id: int) -> list[dict]:
     if not set conditions year and month then get current year and month
     if set q then do search
     """
-    q = request.args.get("q", "")
-    sort = request.args.get("sort", "")
+    q = request.args.get("q")
+    sort = request.args.get("sort")
     category_id = request.args.get("category_id")
-    year = request.args.get("year", "")
-    month = request.args.get("month", "")
+    year = request.args.get("year")
+    month = request.args.get("month")
     mono_user_id = request.args.get("mono_user_id")
 
     um = []
@@ -69,44 +70,52 @@ def get_payments_(user_id: int) -> list[dict]:
     else:
         sort = "order by `amount` desc"
 
-    if year:
-        um.append(f" and extract(YEAR from `rdate`) = {year}")
-    else:
-        um.append(" and extract(YEAR from `rdate`) = extract(YEAR from now())")
-    if month:
-        um.append(f" and extract(MONTH from `rdate`) = {month}")
-    else:
-        um.append(" and extract(MONTH from `rdate`) = extract(MONTH from now())")
+    curr_date = datetime.datetime.now()
+    if not year:
+        year = f'{curr_date:%Y}'
+    if not month:
+        month = f'{curr_date:%m}'
+
+    start_date = f'{year}-{int(month):02d}-01'
+    end_date = f'{year if int(month) < 12 else int(year) + 1}-{int(month) + 1 if int(month) < 12 else 1:02d}-01'
+    um.append(f" and p.`rdate` >= '{start_date}' and p.`rdate` < '{end_date}'")
 
     if mono_user_id:
-        um.append(" and `mono_user_id` = '{}'".format(mono_user_id))
+        um.append(f" and p.`mono_user_id` = {mono_user_id}")
 
     if category_id:
-        um.append(f" and `category_id` = {category_id}")
+        um.append(f" and p.`category_id` = {category_id}")
     else:
         um = []
-        um.append(" and rdate >= DATE_SUB(CURRENT_DATE, INTERVAL 7 DAY) ")
+        um.append(f" and p.rdate >= '{curr_date - datetime.timedelta(days=7):%Y-%m-%d}'")
 
     sql = f"""
-select p.id, p.rdate, p.category_id, c.name, descript, amount
+select p.id, p.rdate, p.category_id, 
+case 
+    when c.parent_id = 0 then c.name
+    else (select name from categories where id=c.parent_id)
+end as name_category
+, c.parent_id, p.description, p.amount
 from `payments` p left join categories c on p.category_id = c.id
-where 1=1 {' '.join(um)}
+where 1=1 and p.is_deleted = 0
+{' '.join(um)}
 {sort}
 """
 
     pattern = re.compile(r"(\+38)?0\d{9}", re.MULTILINE)
     phone_number = ""
-    res = [dict(row) for row in do_sql_sel(sql)]
-    if res[0].get("rowcount") is not None and res[0].get("rowcount") < 0:
-        return jsonify([{"cat": "Помилки", "mydesc": "Помилка виконання запиту"}])
+    result = do_sql_sel(sql)
+    if not result:
+        return []
     user_phones = get_user_phones_from_config(user_id)
-    for r in res:
-        if pattern.search(r["descript"]):
-            phone_number = pattern.search(r["descript"]).group(0)
+    for row in result:
+        if pattern.search(row["description"]):
+            phone_number = pattern.search(row["description"]).group(0)
+            phone_number = f'+38{phone_number}' if not phone_number.startswith('+38') else phone_number
             if phone_number in user_phones:
-                r["descript"] += user_phones[phone_number]
+                row["description"] += f' [{user_phones[phone_number]}]'
 
-    return jsonify(res)
+    return result
 
 
 def get_payment_(payment_id: int):
@@ -148,8 +157,7 @@ def del_payment_(payment_id: int):
 
 def upd_payment_(payment_id):
     """
-    update a cost
-    input: rdate,cat,sub_cat,mydesc,suma,id
+    update payment
     """
     data = conv_refuel_data_to_desc(request.get_json())
     data["id"] = payment_id

@@ -40,12 +40,12 @@ def get_user_phones_from_config(user_id: int) -> list[dict]:
     user_phones = {}
     user_config = db.session().query(
         Config.value_data,
-        Config.add_value
-        ).filter(
-            and_(
-                Config.user_id == user_id,
-                Config.type_data == ConfigTypes.PHONE_TO_NAME,
-            )
+        Config.add_value,
+    ).filter(
+        and_(
+            Config.user_id == user_id,
+            Config.type_data == ConfigTypes.PHONE_TO_NAME.value,
+        )
     ).all()
     for config in user_config:
         user_phones[config.value_data] = config.add_value

@@ -136,4 +136,35 @@ select * from myBudj where cat = 'Поповнення мобільного';
 select * from myBudj where sub_cat = 'Заправка' and rdate > '2023-01-01';
 select * from payments where rdate > '2023-01-01' and category_id in (select id from categories where name = 'Заправка');
 
--- where id = 26;
+select p.id, p.rdate, p.category_id, c.name, p.description, p.amount from `payments` p 
+left join categories c on p.category_id = c.id
+where 1=1  and p.rdate >= '2023-01-22' order by `amount` desc;
+
+select * from config;
+
+SELECT config.value_data AS config_value_data, config.add_value AS config_add_value 
+FROM config 
+WHERE config.user_id = 1 AND config.type_data = 'phone_to_name';
+
+select p.id, p.rdate, p.category_id,
+case
+    when c.parent_id = 0 then c.name
+    else (select name from categories where id=c.parent_id)
+end as name_category
+, c.parent_id, p.description, p.amount
+from `payments` p left join categories c on p.category_id = c.id
+where 1=1 and p.is_deleted = 0
+ and p.`rdate` >= '2023-01-01' and p.`rdate` < '2023-02-01'  
+-- and p.`category_id` = 14
+order by `amount` desc;
+
+select strftime('%Y', `rdate`) as year, CAST(sum(`amount`) AS INTEGER) as amount, count(*) as cnt
+from `payments`
+where 1=1
+and `user_id` = 1 and `is_deleted` = 0 and `amount` > 0
+group by strftime('%Y', `rdate`) order by 1 desc;
+
+select strftime('%m', `rdate`) as month, CAST(sum(`amount`) AS INTEGER) as amount, count(*) as cnt
+from `payments`
+where 1=1 and strftime('%Y', `rdate`) = '2023'
+group by strftime('%m', `rdate`) order by 1 desc;

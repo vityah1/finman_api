@@ -129,7 +129,7 @@ class User(Base):
     __tablename__ = 'users'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    payments = relationship('Payment', back_populates='user')
+    payments = relationship('Payment', back_populates='user', lazy=True)
     login = Column(String(20), unique=True)
     password = Column(String(29))
     fullname = Column(String(39))
@@ -137,8 +137,8 @@ class User(Base):
     email = Column(String(99), unique=True)
     created = Column(DateTime, default=datetime.datetime.utcnow)
     updated = Column(DateTime)
-    config = relationship("Config", back_populates="user")
-    mono_users = relationship("MonoUser", back_populates="user")
+    config = relationship("Config", back_populates="user", lazy=True)
+    mono_users = relationship("MonoUser", back_populates="user", lazy=True)
 
     _default_fields = [
         "login",
@@ -163,10 +163,10 @@ class MonoUser(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
-    user = relationship('User', back_populates='mono_users')
+    user = relationship('User', back_populates='mono_users', lazy=True)
     name = Column(String(29), nullable=False)
     token = Column(String(255), nullable=False, unique=True)
-    payments = relationship('Payment', back_populates='mono_user')
+    payments = relationship('Payment', back_populates='mono_user', lazy=True)
     created = Column(DateTime, default=datetime.datetime.utcnow)
     updated = Column(DateTime)
 
@@ -205,7 +205,7 @@ class Config(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(String(20), ForeignKey('users.id'))
-    user = relationship("User", back_populates="config")
+    user = relationship("User", back_populates="config", lazy=True)
     type_data = Column(String(29), ForeignKey('spr_config_types.type_data'))
     value_data = Column(String(255))
     json_data = Column(Text)

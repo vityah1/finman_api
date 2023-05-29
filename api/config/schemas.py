@@ -4,7 +4,7 @@ class ConfigTypes(Enum):
     MONO_ACCOUNT = 'mono_account'
     TELEGRAM_TOKEN = 'telegram_token'
     TELEGRAM_CHAT_ID = 'telegram_chat_id'
-    PHONE_TO_NAME = 'phone_name'
+    PHONE_TO_NAME = 'phone_to_name'
     CATEGORY_REPLACE = 'category_replace'
     EXCLUDE_FROM_STAT = 'exclude_from_stat'
     IS_DELETED_BY_DESCRIPTION = 'is_deleted_by_description'
