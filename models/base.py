@@ -1,5 +1,4 @@
 from flask import json
-from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.sql.expression import not_
 from sqlalchemy.orm.attributes import QueryableAttribute
 
@@ -21,7 +20,7 @@ class BaseModel(db.Model):
         if hasattr(self, "_hidden_fields"):
             readonly += self._hidden_fields
 
-        readonly += ["id", "created_at", "modified_at"]
+        readonly += ["id", "created", "updated"]
 
         columns = self.__table__.columns.keys()
         relationships = self.__mapper__.relationships.keys()
@@ -120,7 +119,7 @@ class BaseModel(db.Model):
 
         hidden = self._hidden_fields if hasattr(self, "_hidden_fields") else []
         default = self._default_fields if hasattr(self, "_default_fields") else []
-        default.extend(['id', 'modified_at', 'created_at'])
+        default.extend(['id', 'updated', 'created'])
 
         if not _path:
             _path = self.__tablename__.lower()

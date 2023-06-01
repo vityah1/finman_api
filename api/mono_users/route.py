@@ -2,7 +2,7 @@
 
 from flask import Blueprint
 from flask_cors import cross_origin
-from flask_jwt_extended import jwt_required
+from flask_jwt_extended import jwt_required, get_jwt_identity
 
 from api.mono_users.services import (
     get_mono_users_,
@@ -19,23 +19,27 @@ mono_users_bp = Blueprint(
 )
 
 
-@mono_users_bp.route("/api/users/<int:user_id>/mono/users", methods=["GET"])
+@mono_users_bp.route("/api/mono/users", methods=["GET"])
 @cross_origin()
 @jwt_required()
-def get_mono_users(user_id):
+def get_mono_users():
     """
     get mono users
     """
+    current_user = get_jwt_identity()
+    user_id = current_user.get('user_id')
     return get_mono_users_(user_id)
 
 
-@mono_users_bp.route("/api/users/<int:user_id>/mono/users", methods=["POST"])
+@mono_users_bp.route("/api/mono/users", methods=["POST"])
 @cross_origin()
 @jwt_required()
-def add_mono_user(user_id):
+def add_mono_user():
     """
     get mono users
     """
+    current_user = get_jwt_identity()
+    user_id = current_user.get('user_id')
     return add_mono_user_(user_id)
 
 
@@ -56,7 +60,9 @@ def edit_mono_user(mono_user_id):
     """
     edit mono users
     """
-    return edit_mono_user_(mono_user_id)
+    current_user = get_jwt_identity()
+    user_id = current_user.get('user_id')
+    return edit_mono_user_(user_id, mono_user_id)
 
 
 @mono_users_bp.route("/api/mono/users/<mono_user_id>", methods=["GET"])

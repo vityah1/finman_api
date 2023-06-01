@@ -84,17 +84,17 @@ def get_payments_(user_id: int) -> list[dict]:
         um.append(f" and p.`mono_user_id` = {mono_user_id}")
 
     if category_id:
-        um.append(f" and p.`category_id` = {category_id}")
+        um.append(f" and (p.`category_id` = {category_id} or c.parent_id = {category_id})")
     else:
         um = []
         um.append(f" and p.rdate >= '{curr_date - datetime.timedelta(days=7):%Y-%m-%d}'")
 
     sql = f"""
-select p.id, p.rdate, p.category_id, 
-case 
+select p.id, p.rdate, p.category_id, c.name as category_name
+/*case 
     when c.parent_id = 0 then c.name
     else (select name from categories where id=c.parent_id)
-end as name_category
+end as category_name */
 , c.parent_id, p.description, p.amount
 from `payments` p left join categories c on p.category_id = c.id
 where 1=1 and p.is_deleted = 0
@@ -124,17 +124,18 @@ def get_payment_(payment_id: int):
     """
     result = {}
     payment = db.session().query(Payment).get(payment_id)
-    
+
     if not payment:
         abort(404, 'payment not found')
 
-    refuel_data = {}
+    result = payment.to_dict()
+    result['category_name'] = payment.category.name
 
+    refuel_data = {}
     if payment.category.name == 'Заправка':
         refuel_data = convert_desc_to_refuel_data(payment.description)
-    result = payment.to_dict()
     if refuel_data:
-        result.update(refuel_data)
+        result['refuel_data'] = refuel_data
 
     return result
 
@@ -159,15 +160,19 @@ def upd_payment_(payment_id):
     """
     update payment
     """
-    data = conv_refuel_data_to_desc(request.get_json())
+    data = request.get_json()
+    if 'refuel_data' in data:
+        data['description'] = conv_refuel_data_to_desc(data['refuel_data'])
     data["id"] = payment_id
     payment = db.session().query(Payment).get(payment_id)
+    data['rdate'] = datetime.datetime.strptime(data['rdate'], '%Y-%m-%d')
     try:
         payment.from_dict(**data)
-        db.session().commit
+        db.session().commit()
     except Exception as err:
         db.session().rollback()
         logger.error(f'payment edit failed {err}')
         abort(500, 'payment edit failed')
 
-    return payment.to_dict()
+    # return payment.to_dict()
+    return get_payment_(payment_id)

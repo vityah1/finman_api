@@ -3,6 +3,7 @@ import datetime
 from flask import Blueprint, request, jsonify, current_app, abort
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from flask_cors import cross_origin
+from sqlalchemy import and_
 
 from mydb import db
 from models.models import Category
@@ -16,16 +17,64 @@ api_bp = Blueprint(
     static_folder="static",
 )
 
-@api_bp.route("/api/categories/", methods=["GET"])
+
+@api_bp.route("/api/categories", methods=["GET"])
 @cross_origin()
 @jwt_required()
 def get_categories():
     """
-    return  categories
+    return  all user categories
     """
     current_user = get_jwt_identity()
-    categories = db.session().query(Category).filter_by(
-        user_id=current_user.get('user_id')
+    categories = db.session().query(Category).filter(
+        Category.user_id == current_user.get('user_id')
+    ).all()
+    try:
+        return [category.to_dict() for category in categories]
+    except Exception as err:
+        current_app.logger.error(f"{err}")
+        abort(500, f"{err}")
+
+
+@api_bp.route("/api/categories/<string:mode>", methods=["GET"])
+@cross_origin()
+@jwt_required()
+def get_childs_categories(mode: str) -> list[dict]:
+    """
+    return child | parent categories
+    """
+    current_user = get_jwt_identity()
+    query = db.session().query(Category).filter(
+        Category.user_id == current_user.get('user_id')
+    )
+    if mode == 'child':
+        query = query.filter(Category.parent_id != 0)
+    elif mode == 'parent':
+        query = query.filter(Category.parent_id == 0)
+    else:
+        abort(400, 'bad request')
+
+    categories = query.all()
+
+    try:
+        return [category.to_dict() for category in categories]
+    except Exception as err:
+        current_app.logger.error(f"{err}")
+        abort(500, f"{err}")
+
+@api_bp.route("/api/categories/<int:category_id>", methods=["GET"])
+@cross_origin()
+@jwt_required()
+def get_child_categories(category_id: int) -> list[dict]:
+    """
+    return  child categories
+    """
+    current_user = get_jwt_identity()
+    categories = db.session().query(Category).filter(
+        and_(
+            Category.user_id == current_user.get('user_id'),
+            Category.parent_id == category_id,
+        )
     ).all()
     try:
         return [category.to_dict() for category in categories]
@@ -67,17 +116,45 @@ def payments_for_period():
         "user_id": current_user.get('user_id')
     }
 
+    dialect_name = db.engine.dialect.name
+
+    if dialect_name == 'sqlite':
+        amount_func = "CAST(sum(`amount`) AS INTEGER)"
+    elif dialect_name == 'mysql':
+        amount_func = 'convert(sum(`amount`), UNSIGNED)'
+    else:
+        abort(400, f"Substring function not implemented for dialect: {dialect_name}")
+
+
     sql = f"""
-select p.category_id, c.name,convert(sum(`amount`),UNSIGNED) as amount,
+select 
+case 
+    when c.parent_id = 0 then p.category_id
+    else (select id from categories where id=c.parent_id)
+end as category_id
+, 
+case 
+    when c.parent_id = 0 then c.name
+    else (select name from categories where id=c.parent_id)
+end as name
+, {amount_func} as amount,
 count(*) as cnt
 from `payments` p left join `categories` c
-on p.categoy_id = c.id
+on p.category_id = c.id
 where 1=1 
 and p.user_id = :user_id
 and `is_deleted` = 0
 and `amount` > 0
 {' '.join(condition)}
-group by p.category_id, c.name order by 3 desc
+group by case 
+    when c.parent_id = 0 then p.category_id
+    else (select id from categories where id=c.parent_id)
+end
+, 
+case 
+    when c.parent_id = 0 then c.name
+    else (select name from categories where id=c.parent_id)
+end order by 3 desc
 """
     return do_sql_sel(sql, data)
 
@@ -85,7 +162,7 @@ group by p.category_id, c.name order by 3 desc
 @api_bp.route("/api/payments/years", methods=["GET"])
 @cross_origin()
 @jwt_required()
-def payment_by_years():
+def payments_by_years():
     """
     return total payments grouped by years
     """
@@ -124,7 +201,7 @@ group by {substring_func} order by 1 desc
 @api_bp.route("/api/payments/years/<int:year>", methods=["GET"])
 @cross_origin()
 @jwt_required()
-def months(year):
+def payment_by_months(year):
     """
     return total payments grouped by months in year
     """

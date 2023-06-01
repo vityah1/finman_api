@@ -244,7 +244,7 @@ class Payment(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     rdate = Column(DateTime, default=datetime.datetime.utcnow, comment="payment date")
     category_id = Column(Integer, ForeignKey('categories.id'))
-    category = relationship('Category', back_populates='payments', lazy=True)
+    category = relationship('Category', back_populates='payments')
     description = Column(String(150))
     amount = Column(Integer)
     currencyCode = Column(Integer)
@@ -270,17 +270,15 @@ class Payment(Base):
 
     _default_fields = [
         "rdate",
-        "category",
+        "category_id",
         "description",
         "amount",
         "currencyCode",
+        "category",
     ]
 
-    _hidden_fields = [
-        "password",
-    ]
     _readonly_fields = [
-        "created",
+        "category",
     ]      
 
 Payment.comment = 'Список витрат'

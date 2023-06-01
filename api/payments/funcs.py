@@ -18,20 +18,20 @@ def convert_desc_to_refuel_data(description: str) -> dict:
         elif r := re.search(r'(\d+(\.)?(\d+)?)eur', item):
             refuel_data['price_val'] = r.group(1)
         else:
-            refuel_data['name'] = item
+            refuel_data['station_name'] = item
 
     return refuel_data
 
 
 def conv_refuel_data_to_desc(data: dict) -> dict:
-    result = data.copy()
+    result = ''
     if data.get('km') and data.get('litres'):
-        result['description'] = '{}км;{}л'.format(data.get('km'), data.get('litres'))
+        result = '{}км;{}л'.format(data.get('km'), data.get('litres'))
         if data.get('price_val'):
-            result['description'] += ';{}eur'.format(data.get('price_val'))
-        if data.get('name') or data.get('station'):
-            result['description'] += ';{}'.format(
-                data.get('name') if data.get('name') else data.get('station')
+            result += ';{}eur'.format(data.get('price_val'))
+        if data.get('station_name'):
+            result += ';{}'.format(
+                data.get('station_name')
             )
     return result
 

@@ -150,7 +150,7 @@ select p.id, p.rdate, p.category_id,
 case
     when c.parent_id = 0 then c.name
     else (select name from categories where id=c.parent_id)
-end as name_category
+end as category_name
 , c.parent_id, p.description, p.amount
 from `payments` p left join categories c on p.category_id = c.id
 where 1=1 and p.is_deleted = 0

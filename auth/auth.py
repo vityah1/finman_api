@@ -35,7 +35,7 @@ def user_login():
     access_token = create_access_token(
         identity={
             'login': user.login,
-            'id': user.id
+            'user_id': user.id
         },
         expires_delta=timedelta(days=45)
     )

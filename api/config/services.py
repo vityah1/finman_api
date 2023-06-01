@@ -1,22 +1,50 @@
 import logging
 from flask import request, abort
+from sqlalchemy.orm import aliased
 
 from .schemas import ConfigTypes
-from models.models import Config
+from models.models import Config, SprConfigTypes
 from mydb import db
 from .funcs import add_new_config_row
 
 logger = logging.getLogger()
 
+
+def get_config_types_() -> list:
+    """
+    get config types
+    """
+    config_types = db.session().query(SprConfigTypes).all()
+    if not config_types:
+        abort(404, 'Not found configs')
+
+    return [item.to_dict() for item in config_types]
+
+
 def get_user_config_(user_id: int) -> list[dict]:
     """
     get configs
     """
-    configs = db.session().query(Config).filter_by(user_id=user_id).all()
+
+    subquery = db.session().query(Config).filter(Config.user_id == user_id).subquery()
+    user_config = aliased(Config, subquery)
+    configs = db.session().query(
+        SprConfigTypes.name,
+        SprConfigTypes.is_need_add_value,
+        SprConfigTypes.is_multiple,
+        user_config.id,
+        user_config.type_data,
+        user_config.value_data,
+        user_config.add_value
+    ).outerjoin(
+        user_config,
+        SprConfigTypes.type_data == user_config.type_data,
+    ).all()
+
     if not configs:
         abort(404, 'Not found configs')
 
-    return [item.to_dict() for item in configs]
+    return [item._asdict() for item in configs]
 
 
 def add_config_(user_id: int) -> dict:

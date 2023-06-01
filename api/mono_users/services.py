@@ -8,7 +8,7 @@ from models import MonoUser
 logger = logging.getLogger()
 
 
-def get_mono_users_(user_id):
+def get_mono_users_(user_id) -> list[dict]:
     """
     get mono users
     """
@@ -19,7 +19,7 @@ def get_mono_users_(user_id):
     return [item.to_dict() for item in mono_users]
 
 
-def add_mono_user_(user_id: int) -> MonoUser:
+def add_mono_user_(user_id: int) -> dict:
     """
     add mono user
     """
@@ -37,12 +37,10 @@ def add_mono_user_(user_id: int) -> MonoUser:
         logger.error(f'user add failed {err}')
         abort(500, 'user add failed')
 
-    # result += add_mono_accounts_to_config(user_id)
-
     return mono_user.to_dict()
 
 
-def edit_mono_user_(mono_user_id: int) -> MonoUser:
+def edit_mono_user_(user_id, mono_user_id: int) -> dict:
     """
     edit mono user
     """
@@ -54,7 +52,7 @@ def edit_mono_user_(mono_user_id: int) -> MonoUser:
     mono_user = db.session().query(MonoUser).get(mono_user_id)
     if not mono_user:
         abort(404, 'Not found mono users')
-
+    data['user_id'] = user_id
     mono_user.from_dict(**data)
 
     try:
@@ -67,7 +65,7 @@ def edit_mono_user_(mono_user_id: int) -> MonoUser:
     return mono_user.to_dict()
 
 
-def delete_mono_user_(mono_user_id: int) -> MonoUser:
+def delete_mono_user_(mono_user_id: int) -> dict:
     """
     delete mono user
     """
@@ -87,7 +85,7 @@ def delete_mono_user_(mono_user_id: int) -> MonoUser:
     return {"result": "ok"}
 
 
-def get_mono_user_(mono_user_id: int) -> MonoUser:
+def get_mono_user_(mono_user_id: int) -> dict:
     """
     get mono user
     """

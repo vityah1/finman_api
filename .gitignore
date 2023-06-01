@@ -8,3 +8,4 @@ venv/
 migrations
 instance/finman.db
 instance/myBudj.sql
+finman.log.*
