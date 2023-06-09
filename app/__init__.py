@@ -16,6 +16,7 @@ app = Flask(__name__)
 CORS(app, support_credentials=True, origins='*')
 
 app.config["SQLALCHEMY_DATABASE_URI"] = cfg.get('DATABASE_URI')
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {'connect_args': {'ssl': {'fake_flag_to_enable_tls': True}}}
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["SECRET_KEY"] = cfg["SECRET_KEY"]
 app.config["PROPAGATE_EXCEPTIONS"] = True
