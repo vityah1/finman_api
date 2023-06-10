@@ -15,7 +15,6 @@ This is not ideal code but this is simple solution and practise for use flask, j
 2. create and edit simple txt .env file with next data:
 
 ```
-BASE_API = https://your_site_api_url
 DATABASE_URI = mysql+pymysql://user:password@host:post/database
 SECRET_KEY = your_super_secret_string
 ```
