@@ -95,7 +95,7 @@ select p.id, p.rdate, p.category_id, c.name as category_name
     when c.parent_id = 0 then c.name
     else (select name from categories where id=c.parent_id)
 end as category_name */
-, c.parent_id, p.description, p.amount
+, c.parent_id, p.mydesc, p.amount
 from `payments` p left join categories c on p.category_id = c.id
 where 1=1 and p.is_deleted = 0
 {' '.join(um)}
@@ -109,11 +109,11 @@ where 1=1 and p.is_deleted = 0
         return []
     user_phones = get_user_phones_from_config(user_id)
     for row in result:
-        if pattern.search(row["description"]):
-            phone_number = pattern.search(row["description"]).group(0)
+        if pattern.search(row["mydesc"]):
+            phone_number = pattern.search(row["mydesc"]).group(0)
             phone_number = f'+38{phone_number}' if not phone_number.startswith('+38') else phone_number
             if phone_number in user_phones:
-                row["description"] += f' [{user_phones[phone_number]}]'
+                row["mydesc"] += f' [{user_phones[phone_number]}]'
 
     return result
 
@@ -133,7 +133,7 @@ def get_payment_(payment_id: int):
 
     refuel_data = {}
     if payment.category.name == 'Заправка':
-        refuel_data = convert_desc_to_refuel_data(payment.description)
+        refuel_data = convert_desc_to_refuel_data(payment.mydesc)
     if refuel_data:
         result['refuel_data'] = refuel_data
 
@@ -162,7 +162,7 @@ def upd_payment_(payment_id):
     """
     data = request.get_json()
     if 'refuel_data' in data:
-        data['description'] = conv_refuel_data_to_desc(data['refuel_data'])
+        data['mydesc'] = conv_refuel_data_to_desc(data['refuel_data'])
     data["id"] = payment_id
     payment = db.session().query(Payment).get(payment_id)
     data['rdate'] = datetime.datetime.strptime(data['rdate'], '%Y-%m-%d')

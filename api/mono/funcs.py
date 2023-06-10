@@ -6,15 +6,16 @@ import random
 
 import requests
 
-from flask import current_app
+from flask import current_app, request
 from sqlalchemy import and_
 
 from api.config.schemas import ConfigTypes
+from api.mono.services import get_mono_users_
 from mydb import db
 from models.models import Category, Config, MonoUser, Payment, User
 
-from config import users, mono_api_url
-from utils import do_sql_cmd
+from config import mono_api_url
+
 
 mono_logger = logging.getLogger('mono')
 """
@@ -27,6 +28,32 @@ POST /personal/webhook
   "webHookUrl": "string"
 }
 """
+
+def get_mono_user_info__(mono_user_id: int):
+    mono_user_token = None
+    result = {}
+
+    mono_user_token = get_mono_user_token(mono_user_id)
+
+    if not mono_user_token:
+        current_app.logger.error(f'Token not found. mono_user_id: {mono_user_id}')
+        abort(401, f'Token not found. mono_user_id:{mono_user_id}')
+
+    header = {"X-Token": mono_user_token}
+
+    url = f"{mono_api_url}/personal/client-info"
+
+    try:
+        r = requests.get(url, headers=header)
+    except Exception as err:
+        current_app.logger.error(f"{err}")
+        abort(400, f'Bad request: {err}\n{r.text}')
+
+    result = r.json()
+    result['this_api_webhook'] = request.url_root + f'/api/mono/users/{mono_user_id}/webhook'
+    result['mono_user_id'] = mono_user_id
+
+    return result
 
 
 def _mcc(mcc):
@@ -223,38 +250,103 @@ def convert_dates(start_date: str = None, end_date: str = None):
     return start_date_unix, end_date_unix    
 
 
-def get_mono_pmts(start_date: str = "", end_date: str = "", user: str = "vik"):
+def convert_mono_to_pmts(mono_user_id: int, data: dict) -> dict:
+    data_ = {}
+    try:
+        account = data["data"]["account"]
+        id = data["data"]["statementItem"]["id"]
+        rdate_mono = data["data"]["statementItem"]["time"]
+        rdate = datetime.datetime.fromtimestamp(rdate_mono)
+        dt = f"{rdate:%d.%m.%Y %H:%M:%S}"
+        description = data["data"]["statementItem"]["description"].replace("'", "")
+        mcc = data["data"]["statementItem"]["mcc"]
+        amount = data["data"]["statementItem"]["amount"]
+        # operationAmount = data["data"]["statementItem"]["operationAmount"]
+        currencyCode = data["data"]["statementItem"]["currencyCode"]
+        balance = data["data"]["statementItem"]["balance"]
+        # hold = data["data"]["statementItem"]["hold"]
+        if "comment" in data["data"]["statementItem"]:
+            comment = data["data"]["statementItem"]["comment"].replace("'", "")
+        else:
+            comment = ""
+
+    except Exception as err:
+        current_app.logger.error(f'{err}')
+        return data_
+
+    user_id = 999999
+
+    try:
+        mono_user = get_mono_user(mono_user_id)
+        user_id = mono_user.user_id
+
+        category_name = _mcc(mcc)
+
+        is_deleted = 0
+        category_id = None
+        user_config = mono_user.user.config
+        for config_row in user_config:
+            # set as deleted according to rules
+            if config_row.type_data == ConfigTypes.IS_DELETED_BY_DESCRIPTION.value:
+                if description.find(config_row.value_data) > -1:
+                    is_deleted = 1
+            # for replace category according to rules
+            if config_row.type_data == ConfigTypes.CATEGORY_REPLACE.value:
+                if config_row.add_value and description.find(config_row.value_data) > -1:
+                    try:
+                        category_id, description = int(config_row.add_value), category_name
+                        comment = description
+                        break
+                    except Exception as err:
+                        mono_logger.warning('can not set category id for cat: {cat}, {err}')
+
+        if not category_id:
+            category_id = get_category_id(user_id, category_name)
+
+        data_ = {
+            'category_id': category_id, 'mydesc': comment,
+            'amount': -1 * amount, 'currencyCode': currencyCode, 'mcc': mcc,
+            'rdate': rdate, 'type_payment': 'card', 'bank_payment_id': id,
+            'user_id': user_id, 'source': 'mono', 'account': account,
+            'mono_user_id': mono_user_id, 'is_deleted': is_deleted,
+            "momo_user_name": mono_user.name, "category_name": category_name,
+            "balance": balance,
+        }
+    except Exception as err:
+        mono_logger.error(f'convert mono data to pmts failed. {err}')
+
+    return data_
+
+
+def get_mono_pmts(start_date: str = "", end_date: str = "", mono_user_id: int = None):
 
     result = []
     token = None
     accounts = []
 
-    for user_ in users:
-        if user_.get('name') == user:
-            token = user_.get("token")
-            accounts = user_.get("account")
-    
-    if not any([token, accounts]):
-        current_app.logger.error('Not find mono token')
-        return result
+    mono_user_info = get_mono_user_info__(mono_user_id)
+    mono_user_token = get_mono_user_token(mono_user_id)
+    accounts = mono_user_info.get('accounts')
 
     start_date_unix, end_date_unix = convert_dates(start_date, end_date)
 
     for account in accounts:
-        url = f"""{mono_api_url}/personal/statement/{account}/{start_date_unix}/{end_date_unix}"""
-        header = {"X-Token": token}
+        if account.get('balance') < 1:
+            continue
+        
+        url = f"""{mono_api_url}/personal/statement/{account.get('id')}/{start_date_unix}/{end_date_unix}"""
+        header = {"X-Token": mono_user_token}
 
         r = requests.get(url, headers=header)
 
         err_cnn = 0
         while r.status_code != 200:
             err_cnn += 1
-            Time2Sleep = 10 + random.randint(10, 30)
+            time_to_sleep = 15 + random.randint(10, 40)
             current_app.logger.warning(
-                f"""Status request code: {r.status_code}
-                <br>Wait {Time2Sleep}s..."""
+                f"""Status request code: {r.status_code}\nWait {time_to_sleep}s..."""
             )
-            time.sleep(Time2Sleep)
+            time.sleep(time_to_sleep)
             r = requests.get(url, headers=header)
             if err_cnn > 2:
                 current_app.logger.error("Error connection more then 2")
@@ -269,9 +361,10 @@ def get_mono_pmts(start_date: str = "", end_date: str = "", user: str = "vik"):
 
 
 def process_mono_data_pmts(
+        user_id: int,
         start_date: str = None,
         end_date: str = None,
-        user: str = "vik",
+        mono_user_id: str = None,
         mode: str = None
     ):
 
@@ -279,51 +372,51 @@ def process_mono_data_pmts(
     result_html = 'Data not found'
     total_in = 0
     total_out = 0
-
-    mono_pmts = get_mono_pmts(start_date, end_date, user)
-    if not mono_pmts:
-        return result_html
-    
-    result.append(
-            """
-<table class="table table-bordered"><tr><th>Дата</th><th>Опис</th><th>Розділ</th><th>Сума</th></tr>"""
-        )
-
-    for item in mono_pmts:
-        data = {}
-        data['end_date_'] = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(item["time"]))
-        data['id'] = item["id"]
-        data['desc'] = item["description"]
-        data['mcc'] = item["mcc"]
-        data['cat'] = _mcc(item.get('mcc'))
-        data['suma'] = -1 * item["amount"] / 100
-        data['val'] = item["currencyCode"]
-        data['bal'] = item["balance"]
-        data['user'] = user
-
-        if item["amount"] > 0:
-            total_in += item["amount"]
-        elif item["amount"] < 0:
-            total_out += item["amount"]
-
-        data['descnew'] = data['desc'].replace("\n", " ")
-        mono_logger.info(f"{data}")
-
-        if mode == "import":
-            data['descnew'] = data['descnew'].replace("'", "")
-            sql = """INSERT INTO `myBudj`  
-(`rdate`, `id_bank`, `sub_cat`, `cat`, `mcc`, `suma`, `type_payment`, `source`, `owner`) 
-VALUES 
-(:end_date_, :id, :descnew, :cat, :mcc, :suma, 'CARD', 'mono', :user)"""
-            do_sql_cmd(sql, data)
-    
+    if not mono_user_id:
+        mono_users = get_mono_users_(user_id)
+    else:
+        mono_users = [{"id": mono_user_id}]
+    for mono_user in mono_users:
+        mono_pmts = get_mono_pmts(start_date, end_date, mono_user.get('id'))
+        if not mono_pmts:
+            return result_html
+        
         result.append(
-            f"""<tr><td>{data['end_date_']} </td><td> {data['descnew']}</td><td> {data['cat']}</td><td> {data['suma']}</td></tr>"""
-        )
+                """
+    <table class="table table-bordered"><tr><th>Дата</th><th>Опис</th><th>Розділ</th><th>Сума</th></tr>"""
+            )
 
-    result.append("</table>")
-    result.append(f'total in: {int(total_in / 100)}, totsl out: {int(total_out / 100)}')
-    result_html = '\n'.join(result)
+        for item in mono_pmts:
+            data = {}
+            data['end_date_'] = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(item["time"]))
+            data['id'] = item["id"]
+            data['desc'] = item["description"]
+            data['mcc'] = item["mcc"]
+            data['cat'] = _mcc(item.get('mcc'))
+            data['suma'] = -1 * item["amount"] / 100
+            data['val'] = item["currencyCode"]
+            data['bal'] = item["balance"]
+            data['user'] = user_id
+
+            if item["amount"] > 0:
+                total_in += item["amount"]
+            elif item["amount"] < 0:
+                total_out += item["amount"]
+
+            data['descnew'] = data['desc'].replace("\n", " ")
+            mono_logger.info(f"{data}")
+
+            if mode == "import":
+                data_ = convert_mono_to_pmts(mono_user_id, data)
+                add_new_mono_payment(data_)
+        
+            result.append(
+                f"""<tr><td>{data['end_date_']} </td><td> {data['descnew']}</td><td> {data['cat']}</td><td> {data['suma']}</td></tr>"""
+            )
+
+        result.append("</table>")
+        result.append(f'total in: {int(total_in / 100)}, totsl out: {int(total_out / 100)}')
+        result_html = '\n'.join(result)
 
     return result_html
 

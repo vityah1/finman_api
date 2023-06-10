@@ -1,8 +1,8 @@
 from api.config.schemas import ConfigTypes
 from api.config.funcs import add_new_config_row
-from api.mono.services import get_mono_user_info_
+# from api.mono.services import get_mono_user_info_
 
-def add_mono_accounts_to_config(user_id: int) -> list[dict]:
+# def add_mono_accounts_to_config(user_id: int) -> list[dict]:
     result = []
     mono_user_info = get_mono_user_info_(user_id)
     if not mono_user_info:

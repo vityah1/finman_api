@@ -3,7 +3,7 @@ import logging
 
 from flask import Blueprint
 from flask_cors import cross_origin
-from flask_jwt_extended import jwt_required
+from flask_jwt_extended import jwt_required, get_jwt_identity
 
 from api.mono.services import (
     get_mono_user_info_,
@@ -66,4 +66,6 @@ def mono_webhook_handler(mono_user_id: int):
 @cross_origin()
 @jwt_required()
 def get_mono_data_pmts():
-    return get_mono_data_pmts_()
+    current_user = get_jwt_identity()
+    user_id = current_user.get('user_id')
+    return get_mono_data_pmts_(user_id)

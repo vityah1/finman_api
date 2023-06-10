@@ -7,10 +7,10 @@ from mydb import db
 from models import Config
 
 
-def convert_desc_to_refuel_data(description: str) -> dict:
+def convert_desc_to_refuel_data(mydesc: str) -> dict:
     refuel_data = {}
 
-    for item in description.split(';'):
+    for item in mydesc.split(';'):
         if r := re.search(r'(\d+)км', item):
             refuel_data['km'] = r.group(1)
         elif r := re.search(r'(\d+)л', item):
