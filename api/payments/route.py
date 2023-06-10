@@ -29,7 +29,7 @@ def add_payment():
     return add_payment_()
 
 
-@payments_bp.route("/api/payments/", methods=["GET"])
+@payments_bp.route("/api/payments", methods=["GET"])
 # @cross_origin(supports_credentials=True)
 @cross_origin()
 @jwt_required()
