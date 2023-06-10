@@ -33,7 +33,7 @@ def get_user_config_(user_id: int) -> list[dict]:
         SprConfigTypes.is_need_add_value,
         SprConfigTypes.is_multiple,
         user_config.id,
-        user_config.type_data,
+        SprConfigTypes.type_data,
         user_config.value_data,
         user_config.add_value
     ).outerjoin(

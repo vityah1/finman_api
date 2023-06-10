@@ -5,6 +5,8 @@ import requests
 
 from flask import request, abort, current_app
 from api.config.schemas import ConfigTypes
+from api.mono_users.route import get_mono_users
+from api.mono_users.services import get_mono_users_
 
 from config import mono_api_url
 from api.mono.funcs import (
@@ -22,7 +24,7 @@ from api.config.services import get_user_config_
 mono_logger = logging.getLogger('mono')
 
 
-def get_mono_user_info_(mono_user_id: int):
+def get_mono_user_info_(mono_user_id: int) -> dict:
     """
     get current webhook from mono
     """
@@ -52,17 +54,31 @@ def get_mono_user_info_(mono_user_id: int):
     return result
 
 
-def set_webhook_(mono_user_id: int):
+def get_mono_users_info_(user_id: int) -> list[dict]:
+    """
+    get all mono users info from mono
+    """
+    result = []
+    for mono_user in get_mono_users_(user_id):
+        result.append(get_mono_user_info_(mono_user.get('id')))
+
+    return result
+
+
+def set_webhook_(mono_user_id: int) -> dict:
     """
     set a new webhook for mono user
     """
-
+    data = request.get_json()
+    mono_webHookUrl = data.get('webHookUrl')
     mono_token = get_mono_user_token(mono_user_id)
-    mono_webhook = request.url_root + f'/api/mono/users/{mono_user_id}/webhook'
+    # mono_webhook = request.url_root + f'/api/mono/users/{mono_user_id}/webhook'
+
     url = f"{mono_api_url}/personal/webhook"
 
     header = {"X-Token": mono_token}
-    data = {"webHookUrl": mono_webhook}
+    data = {"webHookUrl": mono_webHookUrl}
+    return {'status': 'ok', 'data': data}
 
     try:
         r = requests.post(url, json=data, headers=header)

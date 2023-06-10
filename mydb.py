@@ -1,6 +1,7 @@
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.sql import text
 from sqlalchemy import MetaData
+from sqlalchemy.pool import QueuePool
 
 
 convention = {
@@ -12,8 +13,7 @@ convention = {
 }
 
 metadata = MetaData(naming_convention=convention)
-
-db = SQLAlchemy(metadata=metadata)
+db = SQLAlchemy(metadata=metadata, engine_options={"pool_size": 10, "poolclass": QueuePool, "pool_pre_ping": True})
 text = text
 
 __all__ = [

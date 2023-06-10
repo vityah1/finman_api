@@ -384,7 +384,7 @@ def add_new_mono_payment(data) -> dict:
 
 
 def get_mono_user_token(mono_user_id: int) -> str:
-    mono_user = db.session().query(MonoUser).get(mono_user_id).one_or_none()
+    mono_user = db.session().query(MonoUser).get(mono_user_id)
     
     return mono_user.token
 

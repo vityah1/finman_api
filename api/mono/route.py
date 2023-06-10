@@ -7,6 +7,7 @@ from flask_jwt_extended import jwt_required
 
 from api.mono.services import (
     get_mono_user_info_,
+    get_mono_users_info_,
     set_webhook_,
     mono_webhook_handler_,
     get_mono_data_pmts_,
@@ -24,11 +25,21 @@ mono_logger = logging.getLogger('mono')
 @mono_bp.route("/api/users/<int:user_id>/mono/info/", methods=["GET"])
 @cross_origin()
 @jwt_required()
-def get_mono_user_info(user_id: int):
+def get_mono_users_info(user_id: int):
     """
     get current webhook from mono
     """
-    return get_mono_user_info_(user_id)
+    return get_mono_users_info_(user_id)
+
+
+@mono_bp.route("/api/mono/users/<int:mono_user_id>/info/", methods=["GET"])
+@cross_origin()
+@jwt_required()
+def get_mono_user_info(mono_user_id: int):
+    """
+    get current webhook from mono
+    """
+    return get_mono_user_info_(mono_user_id)
 
 
 @mono_bp.route("/api/mono/users/<int:mono_user_id>/webhook", methods=["PUT"])
