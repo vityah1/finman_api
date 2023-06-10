@@ -52,7 +52,13 @@ def set_webhook(mono_user_id: int):
     return set_webhook_(mono_user_id)
 
 
-@mono_bp.route("/api/mono/users/<int:mono_user_id>/webhook", methods=["POST", "GET"])
+@mono_bp.route("/api/mono/users/<int:mono_user_id>/webhook", methods=["GET"])
+@cross_origin()
+def mono_webhook_test_handler(mono_user_id: int):
+    return {'status': 'ok', "mono_user_id": mono_user_id}
+
+
+@mono_bp.route("/api/mono/users/<int:mono_user_id>/webhook", methods=["POST"])
 @cross_origin()
 def mono_webhook_handler(mono_user_id: int):
     """

@@ -9,3 +9,7 @@ migrations
 instance/finman.db
 instance/myBudj.sql
 finman.log.*
+*.csv
+*.pem
+*.gz
+*.sql

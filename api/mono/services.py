@@ -12,6 +12,7 @@ from api.mono.funcs import (
     get_mono_user_token,
     convert_mono_to_pmts,
     get_mono_user_info__,
+    get_mono_user,
 )
 from func import send_telegram
 
@@ -65,43 +66,49 @@ def mono_webhook_handler_(mono_user_id: int):
     """
     insert a new webhook from mono
     """
-
-    if request.method == 'GET':
-        return {'status': 'ok'}
-
-    data = request.get_json()
-    data_ = convert_mono_to_pmts(mono_user_id, data)
-    if not data_:
-        # abort(422, "Not valid data")
-        return {'status': 'empty data'}
-
-    msg = []
-    msg.append(
-        f"""<b>{data_['category_name']}</b>
-user: {data_['mono_user_name']}
-time: {data_['rdate']}
+    result = None
+    try:
+        data = request.get_json()
+        mono_logger.info(data)
+        mono_user = get_mono_user(mono_user_id)
+        if not mono_user:
+            mono_logger.error(f'mono_user_id {mono_user_id} not found')
+            raise Exception("mono user not found")
+        user_id = mono_user.user_id
+        data_ = convert_mono_to_pmts(mono_user, data)
+        if not data_:
+            mono_logger.error(f'Not valid data')
+            raise Exception("Not valid data")
+        
+        msg = []
+        msg.append(
+            f"""<b>{data_['category_name']}</b>
+user: {mono_user.name}
+time: {data_['rdate']:%H:%M:%S}
 description: {data_['mydesc']}
 mcc: {data_['mcc']}
 amount: {data_['amount'] / 100:.2f}
 currencyCode: {data_['currencyCode']}
 balance: {data_['balance']}
 """
-)
+        )
 
-    if data_['amount'] > 0:
-        result = add_new_mono_payment(data_)
+        if data_['amount'] > 0:
+            result = add_new_mono_payment(data_)
 
-        if not result:
-            msg.append("\nAdd mono webhook <b>FAILED</b>")
-        else:
-            msg.append(f"\nAdd mono webhook Ok. [{result.id}]")
+            if not result:
+                msg.append("\nAdd mono webhook <b>FAILED</b>")
+            else:
+                msg.append(f"\nAdd mono webhook Ok. [{result.id}]")
 
-    send_telegram(data_['user_id'], "".join(msg))
-    return {"status": "ok"}
-    # except Exception as err:
-    #     current_app.logger.error(f'{err}')
-    #     send_telegram(user_id, f'Add mono webhook failed...\n{err}')
-    #     abort(200, str(err))
+        send_telegram(user_id, "".join(msg))
+        result = "ok"
+    except Exception as err:
+        mono_logger.logger.error(f'{err}')
+        if user_id:
+            send_telegram(user_id, f'Add mono webhook failed...\n{err}')
+        result = "failed"
+    return {"status": result}
 
 
 def get_mono_data_pmts_(user_id: int):
@@ -120,10 +127,6 @@ def get_mono_data_pmts_(user_id: int):
             abort(400, 'Bad request')
 
     mono_user_id = input_data.get('mono_user_id')
-    # if not mono_user_id:
-    #     current_app.logger.warning(f'user not found in input data:\n{input_data}')
-    #     # abort(400, 'Bad request')
-    #     mono_user_id = None
 
     start_date = input_data.get('start_date')
     end_date = input_data.get('end_date')

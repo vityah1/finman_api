@@ -50,7 +50,7 @@ def get_mono_user_info__(mono_user_id: int):
         abort(400, f'Bad request: {err}\n{r.text}')
 
     result = r.json()
-    result['this_api_webhook'] = request.url_root + f'/api/mono/users/{mono_user_id}/webhook'
+    result['this_api_webhook'] = request.url_root + f'api/mono/users/{mono_user_id}/webhook'
     result['mono_user_id'] = mono_user_id
 
     return result
@@ -250,7 +250,7 @@ def convert_dates(start_date: str = None, end_date: str = None):
     return start_date_unix, end_date_unix    
 
 
-def convert_mono_to_pmts(mono_user_id: int, data: dict) -> dict:
+def convert_mono_to_pmts(mono_user: MonoUser, data: dict) -> dict:
     data_ = {}
     try:
         account = data["data"]["account"]
@@ -277,7 +277,6 @@ def convert_mono_to_pmts(mono_user_id: int, data: dict) -> dict:
     user_id = 999999
 
     try:
-        mono_user = get_mono_user(mono_user_id)
         user_id = mono_user.user_id
 
         category_name = _mcc(mcc)
@@ -308,9 +307,8 @@ def convert_mono_to_pmts(mono_user_id: int, data: dict) -> dict:
             'amount': -1 * amount, 'currencyCode': currencyCode, 'mcc': mcc,
             'rdate': rdate, 'type_payment': 'card', 'bank_payment_id': id,
             'user_id': user_id, 'source': 'mono', 'account': account,
-            'mono_user_id': mono_user_id, 'is_deleted': is_deleted,
-            "momo_user_name": mono_user.name, "category_name": category_name,
-            "balance": balance,
+            'mono_user_id': mono_user.id, 'is_deleted': is_deleted,
+             "category_name": category_name, "balance": balance,
         }
     except Exception as err:
         mono_logger.error(f'convert mono data to pmts failed. {err}')
@@ -472,7 +470,6 @@ def add_new_mono_payment(data) -> dict:
         db.session().rollback()
         db.session().flush()
         mono_logger.error(f'add new mono webhook FAILED:\n{err}')
-        pass
     return result
 
 
@@ -480,4 +477,3 @@ def get_mono_user_token(mono_user_id: int) -> str:
     mono_user = db.session().query(MonoUser).get(mono_user_id)
     
     return mono_user.token
-

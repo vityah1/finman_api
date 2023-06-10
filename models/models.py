@@ -245,7 +245,7 @@ class Payment(Base):
     rdate = Column(DateTime, default=datetime.datetime.utcnow, comment="payment date")
     category_id = Column(Integer, ForeignKey('categories.id'))
     category = relationship('Category', back_populates='payments')
-    description = Column(String(150))
+    mydesc = Column(String(150))
     amount = Column(Integer)
     currencyCode = Column(Integer)
     mcc = Column(Integer, comment="code mcc point")
@@ -263,7 +263,7 @@ class Payment(Base):
 
     __table_args__ = (
         Index(
-            None, rdate, user_id, category_id, description, amount, is_deleted,
+            None, rdate, user_id, category_id, mydesc, amount, is_deleted,
             unique=True
         ),
     )
@@ -271,7 +271,7 @@ class Payment(Base):
     _default_fields = [
         "rdate",
         "category_id",
-        "description",
+        "mydesc",
         "amount",
         "currencyCode",
         "category",
