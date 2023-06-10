@@ -204,7 +204,7 @@ class Config(Base):
     __tablename__ = 'config'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(String(20), ForeignKey('users.id'))
+    user_id = Column(Integer, ForeignKey('users.id'))
     user = relationship("User", back_populates="config", lazy=True)
     type_data = Column(String(29), ForeignKey('spr_config_types.type_data'))
     value_data = Column(String(255))
@@ -251,10 +251,10 @@ class Payment(Base):
     mcc = Column(Integer, comment="code mcc point")
     type_payment = Column(String(29), ForeignKey('spr_type_payments.type_payment'), comment="Cash|Card")
     bank_payment_id = Column(String(20), unique=True, default=generate_uuid4, comment="id payment from bank")
-    user_id = Column(String(19), ForeignKey('users.id'))
+    user_id = Column(Integer, ForeignKey('users.id'))
     # user = relationship('User', foreign_keys=[user_id], primaryjoin='User.id == Payment.user_id', lazy=True)
     user = relationship('User', back_populates='payments', lazy=True)
-    mono_user_id = Column(String(19), ForeignKey('mono_users.id'))
+    mono_user_id = Column(Integer, ForeignKey('mono_users.id'))
     mono_user = relationship('MonoUser', back_populates='payments', lazy=True)
     source = Column(String(29), ForeignKey('spr_sources.source'), comment="mono|pryvat|webapp")
     is_deleted = Column(Boolean, default=False, nullable=True)

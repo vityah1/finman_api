@@ -1,6 +1,7 @@
 import logging
 from flask import abort
 from sqlalchemy import func
+from sqlalchemy import inspect
 
 from .schemas import ConfigTypes
 from models.models import SprConfigTypes, Config
@@ -10,7 +11,11 @@ from mydb import db
 logger = logging.getLogger()
 
 
-def check_and_fill_spr_config_table():
+def check_exsists_table(model) -> bool:
+    return inspect(db.engine).has_table(model.__tablename__)
+
+
+def check_and_fill_spr_config_table() -> bool:
     record_count = db.session.query(func.count()).select_from(SprConfigTypes).scalar()
     if record_count == len(list(ConfigTypes)):
         return True

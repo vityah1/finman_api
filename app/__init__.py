@@ -41,11 +41,14 @@ app.register_blueprint(payments_bp)
 app.register_blueprint(mono_bp)
 app.register_blueprint(mono_users_bp)
 
-from api.config.funcs import check_and_fill_spr_config_table
+from api.config.funcs import check_and_fill_spr_config_table, check_exsists_table
 with app.app_context():
+    if not check_exsists_table(SprConfigTypes):
+        db.create_all()
     check_result = check_and_fill_spr_config_table()
     if not check_result:
         raise Exception('Config table not valid')
+
 
 def __repr__(self):
     return "<Mysession %r" % self.id
