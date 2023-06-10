@@ -6,7 +6,7 @@ import random
 
 import requests
 
-from flask import current_app, request
+from flask import current_app, request, abort
 from sqlalchemy import and_
 
 from api.config.schemas import ConfigTypes
@@ -14,20 +14,9 @@ from api.mono.services import get_mono_users_
 from mydb import db
 from models.models import Category, Config, MonoUser, Payment, User
 
-from config import mono_api_url
-
 
 mono_logger = logging.getLogger('mono')
-"""
-url for webhook:
-https://script.google.com/macros/s/AKfycbxq8R2y9ugmDmfYDAp9rf5MEUs_5lf2SNT_Cc0u_R3KYTfYMPvc/exec
 
-https://api.monobank.ua/
-POST /personal/webhook
-{
-  "webHookUrl": "string"
-}
-"""
 
 def get_mono_user_info__(mono_user_id: int):
     mono_user_token = None
@@ -41,7 +30,7 @@ def get_mono_user_info__(mono_user_id: int):
 
     header = {"X-Token": mono_user_token}
 
-    url = f"{mono_api_url}/personal/client-info"
+    url = f"{current_app.get('MONO_API_URL')}/personal/client-info"
 
     try:
         r = requests.get(url, headers=header)
@@ -332,7 +321,7 @@ def get_mono_pmts(start_date: str = "", end_date: str = "", mono_user_id: int = 
         if account.get('balance') < 1:
             continue
         
-        url = f"""{mono_api_url}/personal/statement/{account.get('id')}/{start_date_unix}/{end_date_unix}"""
+        url = f"""{current_app.get('MONO_API_URL')}/personal/statement/{account.get('id')}/{start_date_unix}/{end_date_unix}"""
         header = {"X-Token": mono_user_token}
 
         r = requests.get(url, headers=header)

@@ -5,7 +5,7 @@ from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 from flask_migrate import Migrate
 
-from config import cfg, logger_config
+from app.config import logger_config
 from mydb import db
 from models import *
 
@@ -15,12 +15,13 @@ migrate = Migrate()
 app = Flask(__name__)
 CORS(app, support_credentials=True, origins='*')
 
-app.config["SQLALCHEMY_DATABASE_URI"] = cfg.get('DATABASE_URI')
+app.config.from_pyfile('config.py')
+# app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URI
 app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {'connect_args': {'ssl': {'fake_flag_to_enable_tls': True}}}
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-app.config["SECRET_KEY"] = cfg["SECRET_KEY"]
+# app.config["SECRET_KEY"] = SECRET_KEY
 app.config["PROPAGATE_EXCEPTIONS"] = True
-app.config["JWT_SECRET_KEY"] = cfg["SECRET_KEY"]
+# app.config["JWT_SECRET_KEY"] = SECRET_KEY
 
 jwt = JWTManager(app)
 

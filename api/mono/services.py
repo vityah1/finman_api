@@ -5,7 +5,6 @@ import requests
 from flask import request, abort, current_app
 from api.mono_users.services import get_mono_users_
 
-from config import mono_api_url
 from api.mono.funcs import (
     process_mono_data_pmts,
     add_new_mono_payment,
@@ -47,7 +46,7 @@ def set_webhook_(mono_user_id: int) -> dict:
     mono_token = get_mono_user_token(mono_user_id)
     # mono_webhook = request.url_root + f'/api/mono/users/{mono_user_id}/webhook'
 
-    url = f"{mono_api_url}/personal/webhook"
+    url = f"{current_app.get('MONO_API_URL')}/personal/webhook"
 
     header = {"X-Token": mono_token}
     data = {"webHookUrl": mono_webHookUrl}

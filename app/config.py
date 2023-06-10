@@ -3,6 +3,11 @@ import dotenv
 
 dotenv.load_dotenv()
 
+SECRET_KEY = environ["SECRET_KEY"]
+JWT_SECRET_KEY = SECRET_KEY
+SQLALCHEMY_DATABASE_URI = environ["DATABASE_URI"]
+MONO_API_URL = "https://api.monobank.ua"
+
 cfg = {
     "dict_phones": {
         "+380638457475": "Vik Life",
@@ -39,7 +44,6 @@ cfg = {
     "car": {
         "first_probig": "181299км;0л",
     },
-    "CurrencyCode": {"980": "грн", "840": "USD", "978": "EUR"},
     "Category": [
         ["Авто та АЗС", "Мийка", "Оплата консултационных услуг wayforpay"],
         ["Авто та АЗС", "Мийка", "WFP.CONSULT1"],
@@ -50,13 +54,6 @@ cfg = {
     "isDeleted": [["Portmone", "olx"], ["Укрпошта", "мито"]],
 }
 
-cfg["SECRET_KEY"] = environ["SECRET_KEY"]
-cfg["DATABASE_URI"] = environ["DATABASE_URI"]
-
-webhook = cfg["webhook"]
-CurrencyCode = cfg["CurrencyCode"]
-
-mono_api_url = "https://api.monobank.ua"
 
 logger_config = {
     "version": 1,
