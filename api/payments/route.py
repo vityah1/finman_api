@@ -24,9 +24,11 @@ payments_bp = Blueprint(
 @jwt_required()
 def add_payment():
     """
-    insert a new cash payment
+    add a new payment from app
     """
-    return add_payment_()
+    current_user = get_jwt_identity()
+    user_id = current_user.get('user_id')
+    return add_payment_(user_id)
 
 
 @payments_bp.route("/api/payments", methods=["GET"])

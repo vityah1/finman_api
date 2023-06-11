@@ -7,6 +7,10 @@ from mydb import db
 from models import Config
 
 
+def create_bank_payment_id(data):
+    return f"{data['rdate']}{data['user_id']}{data['category_id']}{data['mydesc']}{data['amount']}0"
+
+
 def convert_desc_to_refuel_data(mydesc: str) -> dict:
     refuel_data = {}
 

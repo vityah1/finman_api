@@ -45,8 +45,21 @@ class SprTypePayment(Base):
 
     _default_fields = [
         "type_payment",
-    ]      
+    ]
 
+class SprCurrency(Base):
+    __tablename__ = 'spr_currencies'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    currencyCode = Column(Integer)
+    currency = Column(String(29), unique=True)
+    created = Column(DateTime, default=datetime.datetime.utcnow)
+    updated = Column(DateTime)
+
+    _default_fields = [
+        "currency",
+        "currencyCode"
+    ]
 
 class Category(Base):
     __tablename__ = 'categories'
@@ -250,7 +263,7 @@ class Payment(Base):
     currencyCode = Column(Integer)
     mcc = Column(Integer, comment="code mcc point")
     type_payment = Column(String(29), ForeignKey('spr_type_payments.type_payment'), comment="Cash|Card")
-    bank_payment_id = Column(String(20), unique=True, default=generate_uuid4, comment="id payment from bank")
+    bank_payment_id = Column(String(36), unique=True, default=generate_uuid4, comment="id payment from bank")
     user_id = Column(Integer, ForeignKey('users.id'))
     # user = relationship('User', foreign_keys=[user_id], primaryjoin='User.id == Payment.user_id', lazy=True)
     user = relationship('User', back_populates='payments', lazy=True)
@@ -275,6 +288,8 @@ class Payment(Base):
         "amount",
         "currencyCode",
         "category",
+        "source",
+        "mono_user",
     ]
 
     _readonly_fields = [

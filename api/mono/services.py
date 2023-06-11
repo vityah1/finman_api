@@ -46,7 +46,7 @@ def set_webhook_(mono_user_id: int) -> dict:
     mono_token = get_mono_user_token(mono_user_id)
     # mono_webhook = request.url_root + f'/api/mono/users/{mono_user_id}/webhook'
 
-    url = f"{current_app.get('MONO_API_URL')}/personal/webhook"
+    url = f"{current_app.config.get('MONO_API_URL')}/personal/webhook"
 
     header = {"X-Token": mono_token}
     data = {"webHookUrl": mono_webHookUrl}

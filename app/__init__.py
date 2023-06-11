@@ -6,6 +6,7 @@ from flask_jwt_extended import JWTManager
 from flask_migrate import Migrate
 
 from app.config import logger_config
+from models.models import SprCurrency
 from mydb import db
 from models import *
 
@@ -34,6 +35,7 @@ from api.api import api_bp
 from api.payments import payments_bp
 from api.mono import mono_bp
 from api.mono_users import mono_users_bp
+from api.sprs import sprs_bp
 
 app.register_blueprint(config_bp)
 app.register_blueprint(auth_bp)
@@ -41,6 +43,7 @@ app.register_blueprint(api_bp)
 app.register_blueprint(payments_bp)
 app.register_blueprint(mono_bp)
 app.register_blueprint(mono_users_bp)
+app.register_blueprint(sprs_bp)
 
 from api.config.funcs import check_and_fill_spr_config_table, check_exsists_table
 with app.app_context():
@@ -49,6 +52,8 @@ with app.app_context():
     check_result = check_and_fill_spr_config_table()
     if not check_result:
         raise Exception('Config table not valid')
+    if not check_exsists_table(SprCurrency):
+        SprCurrency.__table__.create(db.engine)
 
 
 def __repr__(self):

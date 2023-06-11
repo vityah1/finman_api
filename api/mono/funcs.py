@@ -30,7 +30,7 @@ def get_mono_user_info__(mono_user_id: int):
 
     header = {"X-Token": mono_user_token}
 
-    url = f"{current_app.get('MONO_API_URL')}/personal/client-info"
+    url = f"{current_app.config.get('MONO_API_URL')}/personal/client-info"
 
     try:
         r = requests.get(url, headers=header)
@@ -41,6 +41,7 @@ def get_mono_user_info__(mono_user_id: int):
     result = r.json()
     result['this_api_webhook'] = request.url_root + f'api/mono/users/{mono_user_id}/webhook'
     result['mono_user_id'] = mono_user_id
+    result['mono_user_token'] = mono_user_token
 
     return result
 
@@ -312,7 +313,7 @@ def get_mono_pmts(start_date: str = "", end_date: str = "", mono_user_id: int = 
     accounts = []
 
     mono_user_info = get_mono_user_info__(mono_user_id)
-    mono_user_token = get_mono_user_token(mono_user_id)
+    mono_user_token = mono_user_info['mono_user_token']
     accounts = mono_user_info.get('accounts')
 
     start_date_unix, end_date_unix = convert_dates(start_date, end_date)
@@ -321,7 +322,7 @@ def get_mono_pmts(start_date: str = "", end_date: str = "", mono_user_id: int = 
         if account.get('balance') < 1:
             continue
         
-        url = f"""{current_app.get('MONO_API_URL')}/personal/statement/{account.get('id')}/{start_date_unix}/{end_date_unix}"""
+        url = f"""{current_app.config.get('MONO_API_URL')}/personal/statement/{account.get('id')}/{start_date_unix}/{end_date_unix}"""
         header = {"X-Token": mono_user_token}
 
         r = requests.get(url, headers=header)
@@ -435,12 +436,12 @@ def get_category_id(user_id: int, category_name: str) -> int:
             Category.parent_id == 0,
         )
     ).one_or_none()
-    
+
     if category:
         category_id = category.id
     else:
         new_category = Category()
-        new_category.from_dict({"name": cat, "parent_id": 0, "user_id": user_id})
+        new_category.from_dict({"name": category_name, "parent_id": 0, "user_id": user_id})
         db.session().add(new_category)
         db.session().commit()
         category_id = new_category.id

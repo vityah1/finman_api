@@ -11,30 +11,34 @@ from api.payments.funcs import (
     conv_refuel_data_to_desc,
     convert_desc_to_refuel_data,
     get_user_phones_from_config,
+    create_bank_payment_id,
 )
 
 
 logger = logging.getLogger()
 
 
-def add_payment_():
+def add_payment_(user_id: int):
     """
-    insert a new cost
+    insert a new payment
     input: rdate,cat,sub_cat,mydesc,suma
     """
     data = request.get_json()
-    if data.get('km') and data.get('litres'):
-        result = conv_refuel_data_to_desc(data)
+    data['user_id'] = user_id
+    if data.get("refuel_data"):
+        result = conv_refuel_data_to_desc(data["refuel_data"])
         if result:
-            data = result
+            data['mydesc'] = result
+    data['bank_payment_id'] = create_bank_payment_id(data)
     payment = Payment()
     payment.from_dict(**data)
     try:
+        db.session().add(payment)
         db.session().commit()
     except Exception as err:
         db.session().rollback()
-        logger.error(f'payment add failed {err}') 
-        abort(500, 'payment add failed')
+        logger.error(f"payment add failed {err}")
+        abort(500, "payment add failed")
 
     return payment.to_dict()
 
@@ -55,9 +59,7 @@ def get_payments_(user_id: int) -> list[dict]:
     um = []
 
     if q:
-        um.append(
-            f" and (c.`name` like '%{q}%' or `descript` like '%{q}%')"
-        )
+        um.append(f" and (c.`name` like '%{q}%' or `descript` like '%{q}%')")
 
     if not sort:
         sort = "order by `amount` desc"
@@ -72,12 +74,12 @@ def get_payments_(user_id: int) -> list[dict]:
 
     curr_date = datetime.datetime.now()
     if not year:
-        year = f'{curr_date:%Y}'
+        year = f"{curr_date:%Y}"
     if not month:
-        month = f'{curr_date:%m}'
+        month = f"{curr_date:%m}"
 
-    start_date = f'{year}-{int(month):02d}-01'
-    end_date = f'{year if int(month) < 12 else int(year) + 1}-{int(month) + 1 if int(month) < 12 else 1:02d}-01'
+    start_date = f"{year}-{int(month):02d}-01"
+    end_date = f"{year if int(month) < 12 else int(year) + 1}-{int(month) + 1 if int(month) < 12 else 1:02d}-01"
     um.append(f" and p.`rdate` >= '{start_date}' and p.`rdate` < '{end_date}'")
 
     if mono_user_id:
@@ -95,9 +97,11 @@ select p.id, p.rdate, p.category_id, c.name as category_name
     when c.parent_id = 0 then c.name
     else (select name from categories where id=c.parent_id)
 end as category_name */
-, c.parent_id, p.mydesc, p.amount
-from `payments` p left join categories c on p.category_id = c.id
-where 1=1 and p.is_deleted = 0
+, c.parent_id, p.mydesc, p.amount, m.name as mono_user_name
+from `payments` p 
+left join categories c on p.category_id = c.id
+left outer join mono_users m on p.mono_user_id = m.id
+where 1=1 and p.user_id = {user_id} and p.is_deleted = 0 
 {' '.join(um)}
 {sort}
 """
@@ -111,9 +115,9 @@ where 1=1 and p.is_deleted = 0
     for row in result:
         if pattern.search(row["mydesc"]):
             phone_number = pattern.search(row["mydesc"]).group(0)
-            phone_number = f'+38{phone_number}' if not phone_number.startswith('+38') else phone_number
+            phone_number = f"+38{phone_number}" if not phone_number.startswith("+38") else phone_number
             if phone_number in user_phones:
-                row["mydesc"] += f' [{user_phones[phone_number]}]'
+                row["mydesc"] += f" [{user_phones[phone_number]}]"
 
     return result
 
@@ -126,16 +130,16 @@ def get_payment_(payment_id: int):
     payment = db.session().query(Payment).get(payment_id)
 
     if not payment:
-        abort(404, 'payment not found')
+        abort(404, "payment not found")
 
     result = payment.to_dict()
-    result['category_name'] = payment.category.name
+    result["category_name"] = payment.category.name
 
     refuel_data = {}
-    if payment.category.name == 'Заправка':
+    if payment.category.name == "Заправка":
         refuel_data = convert_desc_to_refuel_data(payment.mydesc)
     if refuel_data:
-        result['refuel_data'] = refuel_data
+        result["refuel_data"] = refuel_data
 
     return result
 
@@ -150,8 +154,8 @@ def del_payment_(payment_id: int):
         db.session().commit()
     except Exception as err:
         db.session().rollback()
-        logger.error(f'set payment as deleted failed {err}')
-        abort(500, 'set payment as deleted failed')
+        logger.error(f"set payment as deleted failed {err}")
+        abort(500, "set payment as deleted failed")
 
     return jsonify({"status": "ok"})
 
@@ -161,18 +165,18 @@ def upd_payment_(payment_id):
     update payment
     """
     data = request.get_json()
-    if 'refuel_data' in data:
-        data['mydesc'] = conv_refuel_data_to_desc(data['refuel_data'])
+    if "refuel_data" in data:
+        data["mydesc"] = conv_refuel_data_to_desc(data["refuel_data"])
     data["id"] = payment_id
     payment = db.session().query(Payment).get(payment_id)
-    data['rdate'] = datetime.datetime.strptime(data['rdate'], '%Y-%m-%d')
+    data["rdate"] = datetime.datetime.strptime(data["rdate"], "%Y-%m-%d")
     try:
         payment.from_dict(**data)
         db.session().commit()
     except Exception as err:
         db.session().rollback()
-        logger.error(f'payment edit failed {err}')
-        abort(500, 'payment edit failed')
+        logger.error(f"payment edit failed {err}")
+        abort(500, "payment edit failed")
 
     # return payment.to_dict()
     return get_payment_(payment_id)
