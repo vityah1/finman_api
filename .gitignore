@@ -13,3 +13,5 @@ finman.log.*
 *.pem
 *.gz
 *.sql
+r.txt
+*.xlsx
