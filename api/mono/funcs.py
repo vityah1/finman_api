@@ -18,6 +18,28 @@ from models.models import Category, Config, MonoUser, Payment, User
 mono_logger = logging.getLogger('mono')
 
 
+def find_category(user: User, description):
+    category_id = None
+    user_config = user.config
+    for config_row in user_config:
+        # set as deleted according to rules
+        if config_row.type_data == ConfigTypes.IS_DELETED_BY_DESCRIPTION.value:
+            if description.find(config_row.value_data) > -1:
+                is_deleted = 1
+        # for replace category according to rules
+        if config_row.type_data == ConfigTypes.CATEGORY_REPLACE.value:
+            if config_row.add_value and description.find(config_row.value_data) > -1:
+                try:
+                    category_id = int(config_row.add_value)
+                    break
+                except Exception as err:
+                    logger.warning('can not set category id for cat: {cat}, {err}')
+
+    if not category_id:
+        category_id = get_category_id(user.id, description)
+    return category_id
+
+
 def get_mono_user_info__(mono_user_id: int):
     mono_user_token = None
     result = {}
@@ -396,7 +418,7 @@ def process_mono_data_pmts(
 
             if mode == "import":
                 data_ = convert_mono_to_pmts(mono_user_id, data)
-                add_new_mono_payment(data_)
+                add_new_payment(data_)
         
             result.append(
                 f"""<tr><td>{data['end_date_']} </td><td> {data['descnew']}</td><td> {data['cat']}</td><td> {data['suma']}</td></tr>"""
@@ -440,15 +462,17 @@ def get_category_id(user_id: int, category_name: str) -> int:
     if category:
         category_id = category.id
     else:
-        new_category = Category()
-        new_category.from_dict({"name": category_name, "parent_id": 0, "user_id": user_id})
-        db.session().add(new_category)
-        db.session().commit()
-        category_id = new_category.id
+        # new_category = Category()
+        # data = {"name": category_name, "parent_id": 0, "user_id": user_id}
+        # new_category.from_dict(**data)
+        # db.session().add(new_category)
+        # db.session().commit()
+        # category_id = new_category.id
+        category_id = 17  # Інші #TODO: need to do another something
     return category_id
 
 
-def add_new_mono_payment(data) -> dict:
+def add_new_payment(data) -> dict:
     result = None
     try:
         new_payment = Payment()

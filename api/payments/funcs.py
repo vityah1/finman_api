@@ -1,4 +1,6 @@
 import re
+from datetime import datetime
+from pandas import Timestamp
 
 from sqlalchemy import and_
 
@@ -8,7 +10,13 @@ from models import Config
 
 
 def create_bank_payment_id(data):
-    return f"{data['rdate']}{data['user_id']}{data['category_id']}{data['mydesc']}{data['amount']}0"
+    if isinstance(data['rdate'], (Timestamp, datetime)):
+        rdate_ = f"{data['rdate']:%Y%m%d%H%M%S}"
+    else:
+        rdate_ = data['rdate']
+    bank_payment_id = f"{rdate_}{data['user_id']}{data['category_id']}{data['mydesc']}{data['amount']}0"
+    bank_payment_id = bank_payment_id.replace('-', '').replace(':', '').replace(' ', '').replace('.', '')
+    return bank_payment_id
 
 
 def convert_desc_to_refuel_data(mydesc: str) -> dict:

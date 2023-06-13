@@ -21,11 +21,10 @@ logger = logging.getLogger()
 def add_payment_(user_id: int):
     """
     insert a new payment
-    input: rdate,cat,sub_cat,mydesc,suma
     """
     data = request.get_json()
     data['user_id'] = user_id
-    if data.get("refuel_data"):
+    if "refuel_data" in data and "km" in data["refuel_data"] and data["refuel_data"]["km"]:
         result = conv_refuel_data_to_desc(data["refuel_data"])
         if result:
             data['mydesc'] = result
@@ -165,7 +164,7 @@ def upd_payment_(payment_id):
     update payment
     """
     data = request.get_json()
-    if "refuel_data" in data:
+    if "refuel_data" in data and "km" in data["refuel_data"] and data["refuel_data"]["km"]:
         data["mydesc"] = conv_refuel_data_to_desc(data["refuel_data"])
     data["id"] = payment_id
     payment = db.session().query(Payment).get(payment_id)

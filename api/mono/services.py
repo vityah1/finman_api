@@ -7,7 +7,7 @@ from api.mono_users.services import get_mono_users_
 
 from api.mono.funcs import (
     process_mono_data_pmts,
-    add_new_mono_payment,
+    add_new_payment,
     get_mono_user_token,
     convert_mono_to_pmts,
     get_mono_user_info__,
@@ -93,7 +93,7 @@ balance: {data_['balance']}
         )
 
         if data_['amount'] > 0:
-            result = add_new_mono_payment(data_)
+            result = add_new_payment(data_)
 
             if not result:
                 msg.append("\nAdd mono webhook <b>FAILED</b>")
