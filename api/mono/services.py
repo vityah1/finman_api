@@ -126,10 +126,12 @@ def get_mono_data_pmts_(user_id: int):
             abort(400, 'Bad request')
 
     mono_user_id = input_data.get('mono_user_id')
-
     start_date = input_data.get('start_date')
     end_date = input_data.get('end_date')
 
     if request.method == 'GET':
         return process_mono_data_pmts(user_id, start_date, end_date, mono_user_id)
-    return process_mono_data_pmts(user_id, start_date, end_date, mono_user_id, 'import')
+    elif request.method == 'POST':
+        return process_mono_data_pmts(user_id, start_date, end_date, mono_user_id, 'import')
+    elif request.method == 'PATCH':
+        return process_mono_data_pmts(user_id, start_date, end_date, mono_user_id, 'sync')
