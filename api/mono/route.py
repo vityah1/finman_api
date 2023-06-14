@@ -63,12 +63,11 @@ def mono_webhook_test_handler(mono_user_id: int):
 def mono_webhook_handler(mono_user_id: int):
     """
     insert a new webhook from mono
-    input: rdate,cat,sub_cat,mydesc,suma
     """
     return mono_webhook_handler_(mono_user_id)
 
 
-@mono_bp.route("/api/mono/payments", methods=["GET", "POST"])
+@mono_bp.route("/api/mono/payments", methods=["GET", "POST", "PATCH"])
 @cross_origin()
 @jwt_required()
 def get_mono_data_pmts():
