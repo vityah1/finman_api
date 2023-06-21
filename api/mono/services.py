@@ -86,7 +86,7 @@ user: {mono_user.name}
 time: {data_['rdate']:%H:%M:%S}
 description: {data_['mydesc']}
 mcc: {data_['mcc']}
-amount: {data_['amount'] / 100:.2f}
+amount: {data_['amount']}
 currencyCode: {data_['currencyCode']}
 balance: {data_['balance']}
 """
