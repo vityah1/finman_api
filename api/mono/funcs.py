@@ -262,7 +262,12 @@ def convert_dates(start_date: str = None, end_date: str = None):
     return start_date_unix, end_date_unix    
 
 
-def set_category(user_id: int, mono_user: MonoUser, mcc: int, description):
+def set_category(
+        user_id: int,
+        mono_user: MonoUser,
+        mcc: int,
+        description: str
+):
     is_deleted = 0
     category_id = None
     category_name = _mcc(mcc)
@@ -284,7 +289,7 @@ def set_category(user_id: int, mono_user: MonoUser, mcc: int, description):
 
     if not category_id:
         category_id = get_category_id(user_id, category_name)
-    return category_id, category_name
+    return category_id, category_name, is_deleted
 
 
 def convert_mono2_to_pmts(user_id: int, mono_user: MonoUser, mono_payment: dict):
@@ -297,12 +302,12 @@ def convert_mono2_to_pmts(user_id: int, mono_user: MonoUser, mono_payment: dict)
     data['amount'] = -1 * mono_payment["amount"] / 100
     data['currencyCode'] = mono_payment["currencyCode"]
     data['mono_user_id'] = mono_user.id
-    data['category_id'], data['category_name'] = set_category(
+    data['category_id'], data['category_name'], data['is_deleted'] = set_category(
         user_id,
         mono_user,
         data['mcc'],
         data['mydesc']
-        )
+    )
     return data
 
 
@@ -334,8 +339,9 @@ def convert_mono_to_pmts(mono_user: MonoUser, data: dict) -> dict:
 
     try:
         user_id = mono_user.user_id
+        is_deleted = 0
 
-        category_id, category_name = set_category(user_id, mono_user, mcc)
+        category_id, category_name, is_deleted = set_category(user_id, mono_user, mcc, description)
 
         data_ = {
             'category_id': category_id, 'mydesc': comment,
