@@ -9,7 +9,7 @@ from api.mono.funcs import (
     process_mono_data_pmts,
     add_new_payment,
     get_mono_user_token,
-    convert_mono_to_pmts,
+    convert_webhook_mono_to_payment,
     get_mono_user_info__,
     get_mono_user,
 )
@@ -74,7 +74,7 @@ def mono_webhook_handler_(mono_user_id: int):
             mono_logger.error(f'mono_user_id {mono_user_id} not found')
             raise Exception("mono user not found")
         user_id = mono_user.user_id
-        data_ = convert_mono_to_pmts(mono_user, data)
+        data_ = convert_webhook_mono_to_payment(mono_user, data)
         if not data_:
             mono_logger.error('Not valid data')
             raise Exception("Not valid data")

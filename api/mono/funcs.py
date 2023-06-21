@@ -292,7 +292,7 @@ def set_category(
     return category_id, category_name, is_deleted
 
 
-def convert_mono2_to_pmts(user_id: int, mono_user: MonoUser, mono_payment: dict):
+def convert_imp_mono_to_payment(user_id: int, mono_user: MonoUser, mono_payment: dict):
     data = {}
     data['user_id'] = user_id
     data['rdate'] = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(mono_payment["time"]))
@@ -311,7 +311,7 @@ def convert_mono2_to_pmts(user_id: int, mono_user: MonoUser, mono_payment: dict)
     return data
 
 
-def convert_mono_to_pmts(mono_user: MonoUser, data: dict) -> dict:
+def convert_webhook_mono_to_payment(mono_user: MonoUser, data: dict) -> dict:
     data_ = {}
 
     account = data["data"]["account"]
@@ -419,7 +419,7 @@ def process_mono_data_pmts(
         )
 
         for mono_payment in mono_pmts:
-            data = convert_mono2_to_pmts(user_id, mono_user, mono_payment)
+            data = convert_imp_mono_to_payment(user_id, mono_user, mono_payment)
             if not data:
                 continue
             if mode == "import":
