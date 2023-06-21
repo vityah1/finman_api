@@ -279,6 +279,10 @@ class Payment(Base):
             None, rdate, user_id, category_id, mydesc, amount, is_deleted,
             unique=True
         ),
+        Index(
+            None, bank_payment_id,
+            unique=True
+        ),
     )
 
     _default_fields = [
@@ -290,6 +294,7 @@ class Payment(Base):
         "category",
         "source",
         "mono_user",
+        "bank_payment_id",
     ]
 
     _readonly_fields = [
