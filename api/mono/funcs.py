@@ -61,7 +61,7 @@ def get_mono_user_info__(mono_user_id: int):
         abort(400, f'Bad request: {err}\n{r.text}')
 
     result = r.json()
-    result['this_api_webhook'] = request.url_root + f'api/mono/users/{mono_user_id}/webhook'
+    result['this_api_webhook'] = request.url_root.replace('http:', 'https:') + f'api/mono/users/{mono_user_id}/webhook'
     result['mono_user_id'] = mono_user_id
     result['mono_user_token'] = mono_user_token
 
@@ -313,46 +313,39 @@ def convert_mono2_to_pmts(user_id: int, mono_user: MonoUser, mono_payment: dict)
 
 def convert_mono_to_pmts(mono_user: MonoUser, data: dict) -> dict:
     data_ = {}
-    try:
-        account = data["data"]["account"]
-        id = data["data"]["statementItem"]["id"]
-        rdate_mono = data["data"]["statementItem"]["time"]
-        rdate = datetime.datetime.fromtimestamp(rdate_mono)
-        dt = f"{rdate:%d.%m.%Y %H:%M:%S}"
-        description = data["data"]["statementItem"]["description"].replace("'", "")
-        mcc = data["data"]["statementItem"]["mcc"]
-        amount = data["data"]["statementItem"]["amount"]
-        # operationAmount = data["data"]["statementItem"]["operationAmount"]
-        currencyCode = data["data"]["statementItem"]["currencyCode"]
-        balance = data["data"]["statementItem"]["balance"]
-        # hold = data["data"]["statementItem"]["hold"]
-        if "comment" in data["data"]["statementItem"]:
-            comment = data["data"]["statementItem"]["comment"].replace("'", "")
-        else:
-            comment = ""
 
-    except Exception as err:
-        current_app.logger.error(f'{err}')
-        return data_
+    account = data["data"]["account"]
+    id = data["data"]["statementItem"]["id"]
+    rdate_mono = data["data"]["statementItem"]["time"]
+    rdate = datetime.datetime.fromtimestamp(rdate_mono)
+    dt = f"{rdate:%d.%m.%Y %H:%M:%S}"
+    description = data["data"]["statementItem"]["description"].replace("'", "")
+    mcc = data["data"]["statementItem"]["mcc"]
+    amount = data["data"]["statementItem"]["amount"]
+    # operationAmount = data["data"]["statementItem"]["operationAmount"]
+    currencyCode = data["data"]["statementItem"]["currencyCode"]
+    balance = data["data"]["statementItem"]["balance"]
+    # hold = data["data"]["statementItem"]["hold"]
+    if "comment" in data["data"]["statementItem"]:
+        comment = data["data"]["statementItem"]["comment"].replace("'", "")
+    else:
+        comment = ""
 
     user_id = 999999
 
-    try:
-        user_id = mono_user.user_id
-        is_deleted = 0
+    user_id = mono_user.user_id
+    is_deleted = 0
 
-        category_id, category_name, is_deleted = set_category(user_id, mono_user, mcc, description)
+    category_id, category_name, is_deleted = set_category(user_id, mono_user, mcc, description)
 
-        data_ = {
-            'category_id': category_id, 'mydesc': comment,
-            'amount': -1 * amount, 'currencyCode': currencyCode, 'mcc': mcc,
-            'rdate': rdate, 'type_payment': 'card', 'bank_payment_id': id,
-            'user_id': user_id, 'source': 'mono', 'account': account,
-            'mono_user_id': mono_user.id, 'is_deleted': is_deleted,
-             "category_name": category_name, "balance": balance,
-        }
-    except Exception as err:
-        mono_logger.error(f'convert mono data to pmts failed. {err}')
+    data_ = {
+        'category_id': category_id, 'mydesc': comment,
+        'amount': -1 * amount, 'currencyCode': currencyCode, 'mcc': mcc,
+        'rdate': rdate, 'type_payment': 'card', 'bank_payment_id': id,
+        'user_id': user_id, 'source': 'mono', 'account': account,
+        'mono_user_id': mono_user.id, 'is_deleted': is_deleted,
+            "category_name": category_name, "balance": balance,
+    }
 
     return data_
 

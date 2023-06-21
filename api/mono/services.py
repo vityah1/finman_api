@@ -76,9 +76,9 @@ def mono_webhook_handler_(mono_user_id: int):
         user_id = mono_user.user_id
         data_ = convert_mono_to_pmts(mono_user, data)
         if not data_:
-            mono_logger.error(f'Not valid data')
+            mono_logger.error('Not valid data')
             raise Exception("Not valid data")
-        
+
         msg = []
         msg.append(
             f"""<b>{data_['category_name']}</b>
@@ -103,7 +103,7 @@ balance: {data_['balance']}
         send_telegram(user_id, "".join(msg))
         result = "ok"
     except Exception as err:
-        mono_logger.logger.error(f'{err}')
+        mono_logger.error(f'{err}')
         if user_id:
             send_telegram(user_id, f'Add mono webhook failed...\n{err}')
         result = "failed"
