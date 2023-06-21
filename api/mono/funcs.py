@@ -302,6 +302,7 @@ def convert_imp_mono_to_payment(user_id: int, mono_user: MonoUser, mono_payment:
     data['amount'] = -1 * mono_payment["amount"] / 100
     data['currencyCode'] = mono_payment["currencyCode"]
     data['mono_user_id'] = mono_user.id
+    data['source'] = 'mono'
     data['category_id'], data['category_name'], data['is_deleted'] = set_category(
         user_id,
         mono_user,
