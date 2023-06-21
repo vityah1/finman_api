@@ -321,7 +321,7 @@ def convert_webhook_mono_to_payment(mono_user: MonoUser, data: dict) -> dict:
     dt = f"{rdate:%d.%m.%Y %H:%M:%S}"
     description = data["data"]["statementItem"]["description"].replace("'", "")
     mcc = data["data"]["statementItem"]["mcc"]
-    amount = data["data"]["statementItem"]["amount"]
+    amount = data["data"]["statementItem"]["amount"] / 100
     # operationAmount = data["data"]["statementItem"]["operationAmount"]
     currencyCode = data["data"]["statementItem"]["currencyCode"]
     balance = data["data"]["statementItem"]["balance"]
@@ -344,7 +344,7 @@ def convert_webhook_mono_to_payment(mono_user: MonoUser, data: dict) -> dict:
         'rdate': rdate, 'type_payment': 'card', 'bank_payment_id': id,
         'user_id': user_id, 'source': 'mono', 'account': account,
         'mono_user_id': mono_user.id, 'is_deleted': is_deleted,
-            "category_name": category_name, "balance": balance,
+        "category_name": category_name, "balance": balance,
     }
 
     return data_
