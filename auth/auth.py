@@ -116,8 +116,8 @@ def edit_user(user_id):
     data = request.get_json()
     data['user_id'] = user_id
 
-    sql = """update myBudj_users 
-set user = :username, password = :password, fullname = :fullname, phone = :phone, email = :email 
+    sql = """update `users` 
+set login = :login, password = :password, fullname = :fullname, phone = :phone, email = :email 
 where id = :user_id """
 
     res = do_sql_cmd(sql, data)
