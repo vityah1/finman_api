@@ -1,9 +1,10 @@
 # _*_ coding:UTF-8 _*_
 import logging
+from os import abort
 import time
 import datetime
 
-from pandas import read_excel
+from pandas import read_excel, read_csv
 
 from mydb import db
 from models.models import Payment, User
@@ -34,15 +35,25 @@ def convert_dates(start_date: str = None, end_date: str = None):
 def convert_file_to_pmts(user_id: int, file) -> dict:
     data_ = []
     user = db.session.query(User).get(user_id)
-    df = read_excel(file)
+    if file.filename.find('.xls') > 0:
+        df = read_excel(file)
+    elif file.filename.find('.csv') > 0:
+        df = read_csv(
+            file,
+            delimiter=';',
+            parse_dates=['Started Date', 'Completed Date'],
+            date_format='%d.%m.%Y %H:%M',
+        )
+    else:
+        abort(400, f'Unknown file type: {file.filename}')
     for index, data in df.iterrows():
         if data["Amount"] > 0:
             continue        
         if data["Currency"] == "EUR":
-            currencyCode=978
+            currencyCode = 978
             amount = data["Amount"] * -1 * 40.60
         elif data["Currency"] == "USD":
-            currencyCode=840
+            currencyCode = 840
             amount = data["Amount"] * -1 * 37.44
         else:
             continue
@@ -62,6 +73,14 @@ def convert_file_to_pmts(user_id: int, file) -> dict:
     return data_
 
 
-def add_payments(data: list[PaymentData]):
-    db.session.bulk_insert_mappings(Payment, data)
-    db.session.commit()
+def add_revolut_bulk_payments(data: list[PaymentData]):
+    result = False
+    try:
+        db.session.bulk_insert_mappings(Payment, data)
+        db.session.commit()
+        result = True
+    except Exception as err:
+        logger.error(f'{err}')
+        db.session.rollback()
+        db.session.flush()
+    return result

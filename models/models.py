@@ -220,9 +220,9 @@ class Config(Base):
     user_id = Column(Integer, ForeignKey('users.id'))
     user = relationship("User", back_populates="config", lazy=True)
     type_data = Column(String(29), ForeignKey('spr_config_types.type_data'))
-    value_data = Column(String(255))
+    value_data = Column(String(255, collation='utf8mb4_bin',),)
     json_data = Column(Text)
-    add_value = Column(String(255))
+    add_value = Column(String(255, collation='utf8mb4_bin',))
     created = Column(DateTime, default=datetime.datetime.utcnow)
     updated = Column(DateTime)
 
@@ -246,7 +246,7 @@ class Config(Base):
             user_id,
             type_data,
             value_data,
-            unique=True
+            unique=True,
         ),
     )
 
