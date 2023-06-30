@@ -112,26 +112,24 @@ balance: {data_['balance']}
 
 def get_mono_data_pmts_(user_id: int):
     input_data = {}
-    if request.method == 'GET':
-        try:
-            input_data = dict(request.args)
-        except Exception as err:
-            current_app.logger.error(f'bad request: {err}')
-            abort(400, 'Bad request')
-    else:
-        try:
-            input_data = request.get_json()
-        except Exception as err:
-            current_app.logger.error(f'bad request: {err}')
-            abort(400, 'Bad request')
+
+    try:
+        input_data = request.get_json()
+    except Exception as err:
+        current_app.logger.error(f'bad request: {err}')
+        abort(400, 'Bad request')
 
     mono_user_id = input_data.get('mono_user_id')
     start_date = input_data.get('start_date')
     end_date = input_data.get('end_date')
+    import_mode = input_data.get('import_mode')
 
-    if request.method == 'GET':
+    if import_mode == 'show':
         return process_mono_data_pmts(user_id, start_date, end_date, mono_user_id)
-    elif request.method == 'POST':
+    elif import_mode == 'import':
         return process_mono_data_pmts(user_id, start_date, end_date, mono_user_id, 'import')
-    elif request.method == 'PATCH':
+    elif import_mode == 'sync':
         return process_mono_data_pmts(user_id, start_date, end_date, mono_user_id, 'sync')
+    else:
+        current_app.logger.error(f'bad request: invalid import mode: [{import_mode}]')
+        abort(400, 'Bad request')

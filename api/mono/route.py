@@ -25,7 +25,7 @@ mono_logger = logging.getLogger('mono')
 @mono_bp.route("/api/users/<int:user_id>/mono/info/", methods=["GET"])
 @cross_origin()
 @jwt_required()
-def get_mono_users_info(user_id: int):
+def get_user_mono_users_info(user_id: int):
     """
     get current webhook from mono
     """
@@ -67,7 +67,7 @@ def mono_webhook_handler(mono_user_id: int):
     return mono_webhook_handler_(mono_user_id)
 
 
-@mono_bp.route("/api/mono/payments", methods=["GET", "POST", "PATCH"])
+@mono_bp.route("/api/mono/payments", methods=["POST"])
 @cross_origin()
 @jwt_required()
 def get_mono_data_pmts():

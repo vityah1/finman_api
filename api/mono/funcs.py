@@ -18,6 +18,20 @@ from models.models import Category, Config, MonoUser, Payment, User
 mono_logger = logging.getLogger('mono')
 
 
+def get_config_accounts(mono_user_id: int) -> list[Config.value_data]:
+    results = db.session().query(
+        Config.value_data
+    ).join(
+        User
+    ).join(
+        MonoUser, MonoUser.user_id == User.id
+    ).filter(
+        MonoUser.id == mono_user_id,
+        Config.type_data == 'mono_account',
+    ).all()
+    return [result[0] for result in results]
+
+
 def find_category(user: User, description):
     category_id = None
     user_config = user.config
@@ -296,13 +310,14 @@ def convert_imp_mono_to_payment(user_id: int, mono_user: MonoUser, mono_payment:
     data = {}
     data['user_id'] = user_id
     data['rdate'] = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(mono_payment["time"]))
-    data['payment_bank_id'] = mono_payment["id"]
+    data['bank_payment_id'] = mono_payment["id"]
     data['mydesc'] = mono_payment["description"]
     data['mcc'] = mono_payment["mcc"]
     data['amount'] = -1 * mono_payment["amount"] / 100
     data['currencyCode'] = mono_payment["currencyCode"]
     data['mono_user_id'] = mono_user.id
     data['source'] = 'mono'
+    data['type_payment'] = 'card'
     data['category_id'], data['category_name'], data['is_deleted'] = set_category(
         user_id,
         mono_user,
@@ -328,9 +343,7 @@ def convert_webhook_mono_to_payment(mono_user: MonoUser, data: dict) -> dict:
     balance = data["data"]["statementItem"]["balance"]
     # hold = data["data"]["statementItem"]["hold"]
     if "comment" in data["data"]["statementItem"]:
-        comment = data["data"]["statementItem"]["comment"].replace("'", "")
-    else:
-        comment = ""
+        description += "; " + data["data"]["statementItem"]["comment"].replace("'", "")
 
     user_id = 999999
 
@@ -340,7 +353,7 @@ def convert_webhook_mono_to_payment(mono_user: MonoUser, data: dict) -> dict:
     category_id, category_name, is_deleted = set_category(user_id, mono_user, mcc, description)
 
     data_ = {
-        'category_id': category_id, 'mydesc': comment,
+        'category_id': category_id, 'mydesc': description,
         'amount': -1 * amount, 'currencyCode': currencyCode, 'mcc': mcc,
         'rdate': rdate, 'type_payment': 'card', 'bank_payment_id': id,
         'user_id': user_id, 'source': 'mono', 'account': account,
@@ -362,12 +375,15 @@ def get_mono_pmts(start_date: str = "", end_date: str = "", mono_user_id: int = 
     accounts = mono_user_info.get('accounts')
 
     start_date_unix, end_date_unix = convert_dates(start_date, end_date)
+    config_accounts = get_config_accounts(mono_user_id)
 
     for account in accounts:
         if account.get('balance') < 1:
             continue
-        
-        url = f"""{current_app.config.get('MONO_API_URL')}/personal/statement/{account.get('id')}/{start_date_unix}/{end_date_unix}"""
+        if account['id'] not in config_accounts:
+            continue
+
+        url = f"""{current_app.config['MONO_API_URL']}/personal/statement/{account['id']}/{start_date_unix}/{end_date_unix}"""
         header = {"X-Token": mono_user_token}
 
         r = requests.get(url, headers=header)
@@ -412,11 +428,14 @@ def process_mono_data_pmts(
     for mono_user_ in mono_users:
         mono_pmts = get_mono_pmts(start_date, end_date, mono_user_['id'])
         if not mono_pmts:
-            return result_html
+            continue
         mono_user = db.session.query(MonoUser).get(mono_user_['id'])
+        sql_result_th = ''
+        if mode != 'show':
+            sql_result_th = '<th>Sql</th>'
         result.append(
             f"""<b>{mono_user.name}</b>
-<table class="table table-bordered"><tr><th>Дата</th><th>Опис</th><th>Розділ</th><th>Сума</th></tr>"""
+<table class="table table-bordered"><tr><th>Дата</th><th>Опис</th><th>Розділ</th><th>Сума</th>{sql_result_th}</tr>"""
         )
 
         for mono_payment in mono_pmts:
@@ -424,13 +443,17 @@ def process_mono_data_pmts(
             if not data:
                 continue
             if mode == "import":
-                add_new_payment(data)
+                sql_result = add_new_payment(data)
             elif mode == "sync":
-                sync_payment(data)
-
+                sql_result = sync_payment(data)
+            sql_result_td = ''
+            if mode != 'show':
+                sql_result_td = f"""
+                <td>{'<span style="color:green">✓</span>' if sql_result else '<span style="color:red">✗</span>'}</td>
+                """
             result.append(
                 f"""<tr><td>{data['rdate']} </td><td> {data['mydesc']}</td>
-<td> {data['category_name']}</td><td> {-1 * data['amount']}</td></tr>"""
+<td> {data['category_name']}</td><td> {-1 * data['amount']}</td>{sql_result_td}</tr>"""
             )
             if data['amount'] < 0:
                 total_in -= data['amount']
@@ -504,10 +527,10 @@ def sync_payment(data: dict) -> dict:
     result = None
     try:
         payment = db.session.query(Payment).filter(
-            Payment.bank_payment_id == data['payment_bank_id']
+            Payment.bank_payment_id == data['bank_payment_id']
         ).one_or_none()
         if payment:
-            payment.mono_user_id = data['mono_user_id']
+            payment.from_dict(**data)
         else:
             result = add_new_payment(data)
             return result
