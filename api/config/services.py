@@ -82,7 +82,7 @@ def edit_config_(config_id: int) -> Config:
     if not config:
         abort(404, 'Not found config')
 
-    config.from_dict(**data)
+    config.update(**data)
 
     try:
         db.session().commit()

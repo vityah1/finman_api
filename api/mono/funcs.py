@@ -535,7 +535,7 @@ def sync_payment(data: dict) -> dict:
             Payment.bank_payment_id == data['bank_payment_id']
         ).one_or_none()
         if payment:
-            payment.from_dict(**data)
+            payment.update(**data)
         else:
             result = add_new_payment(data)
             return result

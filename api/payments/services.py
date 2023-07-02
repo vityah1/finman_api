@@ -170,7 +170,7 @@ def upd_payment_(payment_id):
     payment = db.session().query(Payment).get(payment_id)
     data["rdate"] = datetime.datetime.strptime(data["rdate"], "%Y-%m-%d")
     try:
-        payment.from_dict(**data)
+        payment.update(**data)
         db.session().commit()
     except Exception as err:
         db.session().rollback()

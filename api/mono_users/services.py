@@ -53,7 +53,7 @@ def edit_mono_user_(user_id, mono_user_id: int) -> dict:
     if not mono_user:
         abort(404, 'Not found mono users')
     data['user_id'] = user_id
-    mono_user.from_dict(**data)
+    mono_user.update(**data)
 
     try:
         db.session().commit()

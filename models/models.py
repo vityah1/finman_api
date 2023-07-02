@@ -265,7 +265,6 @@ class Payment(Base):
     type_payment = Column(String(29), ForeignKey('spr_type_payments.type_payment'), comment="Cash|Card")
     bank_payment_id = Column(String(36), unique=True, default=generate_uuid4, comment="id payment from bank")
     user_id = Column(Integer, ForeignKey('users.id'))
-    # user = relationship('User', foreign_keys=[user_id], primaryjoin='User.id == Payment.user_id', lazy=True)
     user = relationship('User', back_populates='payments', lazy=True)
     mono_user_id = Column(Integer, ForeignKey('mono_users.id'))
     mono_user = relationship('MonoUser', back_populates='payments', lazy=True)

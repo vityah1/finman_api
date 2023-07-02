@@ -10,6 +10,7 @@ class BaseModel(db.Model):
     def __init__(self, **kwargs):
         kwargs["_force"] = True
         self.from_dict(**kwargs)
+        self.update(**kwargs)
 
     def from_dict(self, **kwargs):
         """Update this model with a dictionary."""
@@ -221,3 +222,19 @@ class BaseModel(db.Model):
                         pass
 
         return ret_data
+
+    def update(self, **data):
+        """
+        Function to update model
+        """
+        for key, value in data.items():
+            if key not in dir(self):
+                continue
+            if key == "id":
+                continue
+            if isinstance(getattr(self, key), BaseModel):
+                continue
+            setattr(self, key, value)
+
+    def __str__(self):
+        return f"{self.__class__.__name__} #{self.id}"
