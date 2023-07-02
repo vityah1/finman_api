@@ -122,14 +122,14 @@ def get_mono_data_pmts_(user_id: int):
     mono_user_id = input_data.get('mono_user_id')
     start_date = input_data.get('start_date')
     end_date = input_data.get('end_date')
-    import_mode = input_data.get('import_mode')
+    mode = input_data.get('mode')
 
-    if import_mode == 'show':
-        return process_mono_data_pmts(user_id, start_date, end_date, mono_user_id)
-    elif import_mode == 'import':
+    if mode == 'show':
+        return process_mono_data_pmts(user_id, start_date, end_date, mono_user_id, 'show')
+    elif mode == 'import':
         return process_mono_data_pmts(user_id, start_date, end_date, mono_user_id, 'import')
-    elif import_mode == 'sync':
+    elif mode == 'sync':
         return process_mono_data_pmts(user_id, start_date, end_date, mono_user_id, 'sync')
     else:
-        current_app.logger.error(f'bad request: invalid import mode: [{import_mode}]')
+        current_app.logger.error(f'bad request: invalid import mode: [{mode}]')
         abort(400, 'Bad request')
