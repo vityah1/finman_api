@@ -5,3 +5,13 @@ venv/
 *.log
 *.code-workspace
 .env
+migrations
+instance/finman.db
+instance/myBudj.sql
+finman.log.*
+*.csv
+*.pem
+*.gz
+*.sql
+r.txt
+*.xlsx

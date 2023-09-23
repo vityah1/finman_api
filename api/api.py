@@ -1,8 +1,14 @@
-from flask import Blueprint, request, jsonify, current_app
-from flask_jwt_extended import jwt_required
+import datetime
+
+from flask import Blueprint, request, jsonify, current_app, abort
+from flask_jwt_extended import jwt_required, get_jwt_identity
 from flask_cors import cross_origin
+from sqlalchemy import and_
+
+from mydb import db
+from models.models import Category
 from utils import do_sql_sel
-from func import um_not_my_expspense, cat4zam
+
 
 api_bp = Blueprint(
     "api_bp",
@@ -12,119 +18,226 @@ api_bp = Blueprint(
 )
 
 
-@api_bp.route("/api/cats/", methods=["GET"])
+@api_bp.route("/api/categories", methods=["GET"])
 @cross_origin()
-def spr_cat():
+@jwt_required()
+def get_categories():
     """
-    return list of catalogs
+    return  all user categories
     """
-    sql = """select distinct a.id,a.cat as name
-from `myBudj_spr_cat` a
-/*left join 
-`myBudj_sub_cat` b 
-on a.id=b.id_cat */
-where a.ord!=0
-order by a.ord"""
+    current_user = get_jwt_identity()
+    categories = db.session().query(Category).filter(
+        Category.user_id == current_user.get('user_id')
+    ).all()
+    try:
+        return [category.to_dict() for category in categories]
+    except Exception as err:
+        current_app.logger.error(f"{err}")
+        abort(500, f"{err}")
+
+
+@api_bp.route("/api/categories/<string:mode>", methods=["GET"])
+@cross_origin()
+@jwt_required()
+def get_childs_categories(mode: str) -> list[dict]:
+    """
+    return child | parent categories
+    """
+    current_user = get_jwt_identity()
+    query = db.session().query(Category).filter(
+        Category.user_id == current_user.get('user_id')
+    )
+    if mode == 'child':
+        query = query.filter(Category.parent_id != 0)
+    elif mode == 'parent':
+        query = query.filter(Category.parent_id == 0)
+    else:
+        abort(400, 'bad request')
+
+    categories = query.all()
 
     try:
-        return jsonify([dict(row) for row in do_sql_sel(sql)])
-    except Exception as e:
-        current_app.logger.error(f"{e}")
-        return [{"id": "-1", "name": f"error {e}"}]
+        return [category.to_dict() for category in categories]
+    except Exception as err:
+        current_app.logger.error(f"{err}")
+        abort(500, f"{err}")
 
-
-@api_bp.route("/api/subcats/", methods=["GET"])
-@cross_origin()
-def do_sub_cat():
-    """
-    return list of sub_catalogs
-    """
-    cat = request.args.get("cat", "")
-    um_cat = ""
-
-    if cat:
-        um_cat = (
-            f""" and id_cat in (select id from `myBudj_spr_cat` where cat='{cat}')"""
-        )
-    sql = f"""select id,sub_cat as name, id_cat 
-from `myBudj_sub_cat` 
-where 1=1 {um_cat}
-order by ord"""
-
-    return jsonify([dict(row) for row in do_sql_sel(sql)])
-
-
-@api_bp.route("/api/catcosts", methods=["GET"])
+@api_bp.route("/api/categories/<int:category_id>", methods=["GET"])
 @cross_origin()
 @jwt_required()
-def catcosts():
+def get_child_categories(category_id: int) -> list[dict]:
     """
-    return costs grouped by cat in some period (year, month)
+    return  child categories
     """
+    current_user = get_jwt_identity()
+    categories = db.session().query(Category).filter(
+        and_(
+            Category.user_id == current_user.get('user_id'),
+            Category.parent_id == category_id,
+        )
+    ).all()
+    try:
+        return [category.to_dict() for category in categories]
+    except Exception as err:
+        current_app.logger.error(f"{err}")
+        abort(500, f"{err}")
+
+
+@api_bp.route("/api/payments/period", methods=["GET"])
+@cross_origin()
+@jwt_required()
+def payments_for_period():
+    """
+    return payments grouped by categories in some period (year, month)
+    """
+    current_user = get_jwt_identity()
     year = request.args.get("year", "").zfill(2)
     month = request.args.get("month", "").zfill(2)
-    user = request.args.get("user", "all")
-    period = f"""{year}{month}"""
+    mono_user_id = request.args.get("mono_user_id")
 
-    um_period = ""
-    if not period or period == "0000":
-        um_period = " and extract(YEAR_MONTH from rdate)=extract(YEAR_MONTH from now())"
+    condition = []
+    curr_date = datetime.datetime.now()
+    if not year:
+        year = f'{curr_date:%Y}'
+    if not month:
+        month = f'{curr_date:%m}'
+
+    start_date = f'{year}-{int(month):02d}-01'
+    end_date = f'{year if int(month) < 12 else int(year) + 1}-{int(month) + 1 if int(month) < 12 else 1:02d}-01'
+    condition.append(" and p.`rdate` >= :start_date and p.`rdate` < :end_date")
+
+    if mono_user_id:
+        condition.append(" and mono_user_id = :mono_user_id")
+
+    data = {
+        "start_date": start_date,
+        "end_date": end_date,
+        "mono_user_id": mono_user_id,
+        "user_id": current_user.get('user_id')
+    }
+
+    dialect_name = db.engine.dialect.name
+
+    if dialect_name == 'sqlite':
+        amount_func = "CAST(sum(`amount`) AS INTEGER)"
+    elif dialect_name == 'mysql':
+        amount_func = 'convert(sum(`amount`), UNSIGNED)'
     else:
-        um_period = f" and extract(YEAR_MONTH from rdate)={period}"
-    um_user = ''
-    if user not in ('all', '', 'undefined'):
-        um_user = f" and owner = '{user}'"
+        abort(400, f"Substring function not implemented for dialect: {dialect_name}")
+
+
     sql = f"""
-select {cat4zam},convert(sum(suma),UNSIGNED) as suma,count(*) as cnt
-from `myBudj`
-where 1=1 {um_period} {um_user} {um_not_my_expspense}
-group by {cat4zam.replace(' as cat','')} order by 2 desc
+select 
+case 
+    when c.parent_id = 0 then p.category_id
+    else (select id from categories where id=c.parent_id)
+end as category_id
+, 
+case 
+    when c.parent_id = 0 then c.name
+    else (select name from categories where id=c.parent_id)
+end as name
+, {amount_func} as amount,
+count(*) as cnt
+from `payments` p left join `categories` c
+on p.category_id = c.id
+where 1=1 
+and p.user_id = :user_id
+and `is_deleted` = 0
+and `amount` > 0
+{' '.join(condition)}
+group by case 
+    when c.parent_id = 0 then p.category_id
+    else (select id from categories where id=c.parent_id)
+end
+, 
+case 
+    when c.parent_id = 0 then c.name
+    else (select name from categories where id=c.parent_id)
+end order by 3 desc
 """
-    return do_sql_sel(sql)
+    return do_sql_sel(sql, data)
 
 
-@api_bp.route("/api/years", methods=["GET"])
+@api_bp.route("/api/payments/years", methods=["GET"])
 @cross_origin()
 @jwt_required()
-def years():
+def payments_by_years():
     """
-    return total costs grouped by years
+    return total payments grouped by years
     """
-    user = request.args.get("user", "all")
-    um_user = ''
-    if user not in ('all', '', 'undefined'):
-        um_user = f" and owner = '{user}'"    
+    current_user = get_jwt_identity()
+    mono_user_id = request.args.get("mono_user_id")
+    um_mono_user = ''
+    if mono_user_id:
+        um_mono_user = " and mono_user_id = :mono_user_id"
+    data = {"mono_user_id": mono_user_id, "user_id": current_user.get('user_id')}
+
+    dialect_name = db.engine.dialect.name
+
+    if dialect_name == 'sqlite':
+        substring_func = "strftime('%Y', `rdate`)"
+        amount_func = "CAST(sum(`amount`) AS INTEGER)"
+    elif dialect_name == 'mysql':
+        substring_func = 'extract(YEAR from `rdate`)'
+        amount_func = 'convert(sum(`amount`), UNSIGNED)'
+    else:
+        abort(400, f"Substring function not implemented for dialect: {dialect_name}")
+
     sql = f"""
-select extract(YEAR from rdate) year,convert(sum(suma),UNSIGNED) as suma,count(*) as cnt
-from `myBudj`
+select {substring_func} as year, {amount_func} as amount, count(*) as cnt
+from `payments`
 where 1=1
-{um_not_my_expspense} {um_user}
-group by extract(YEAR from rdate) order by 1 desc
+and `user_id` = :user_id
+and `is_deleted` = 0
+and `amount` > 0
+{um_mono_user}
+group by {substring_func} order by 1 desc
 """
 
-    return jsonify([dict(row) for row in do_sql_sel(sql)])
+    return do_sql_sel(sql, data)
 
 
-@api_bp.route("/api/months/<int:year>", methods=["GET"])
+@api_bp.route("/api/payments/years/<int:year>", methods=["GET"])
 @cross_origin()
 @jwt_required()
-def months(year):
+def payment_by_months(year):
     """
-    return total costs grouped by months in some year
+    return total payments grouped by months in year
     """
-    user = request.args.get("user", "all")
-    um_user = ''
-    if user not in ('all', '', 'undefined'):
-        um_user = f" and owner = '{user}'"     
-    sql = f"""
-select extract(MONTH from rdate) month,convert(sum(suma),UNSIGNED) as suma,count(*) as cnt
-from `myBudj`
-where 1=1 and extract(YEAR from rdate)={year}
-{um_not_my_expspense} {um_user}
-group by extract(MONTH from rdate) order by 1 desc
+    current_user = get_jwt_identity()
+    mono_user_id = request.args.get("mono_user_id")
+    um_mono_user = ''
+    if mono_user_id:
+        um_mono_user = " and mono_user_id = :mono_user_id"
+    data = {
+        "mono_user_id": mono_user_id,
+        "user_id": current_user.get('user_id'),
+        "year": str(year)
+    }
+
+    dialect_name = db.engine.dialect.name
+    if dialect_name == 'sqlite':
+        month_func = "strftime('%m', `rdate`)"
+        year_func = "strftime('%Y', `rdate`)"
+        amount_func = "CAST(sum(`amount`) AS INTEGER)"
+    elif dialect_name == 'mysql':
+        month_func = 'extract(MONTH from `rdate`)'
+        year_func = 'extract(YEAR from `rdate`)'
+        amount_func = 'convert(sum(`amount`), UNSIGNED)'
+    else:
+        abort(400, f"Substring function not implemented for dialect: {dialect_name}")
+
+    sql = f"""select 
+{month_func} month, {amount_func} as amount,
+count(*) as cnt
+from `payments`
+where 1=1 and `user_id` = :user_id and {year_func} = :year
+{um_mono_user}
+group by {month_func} order by 1 desc
 """
 
-    return jsonify([dict(row) for row in do_sql_sel(sql)])
+    return do_sql_sel(sql, data)
 
 
 @api_bp.route("/api/about", methods=["GET"])
@@ -136,8 +249,8 @@ def about():
     try:
         with open("txt/about.html", encoding="utf8") as f:
             data = f.read()
-    except:
-        current_app.logger.error(f"{e}")
+    except Exception as err:
+        current_app.logger.error(f"{err}")
         return jsonify({"status": "error", "data": "error open about file"})
 
     return jsonify({"status": "ok", "data": data})

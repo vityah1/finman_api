@@ -2,33 +2,39 @@ import logging
 import random
 import datetime
 import requests
+from sqlalchemy import and_
 
-from config import cfg
+from api.config.schemas import ConfigTypes
+from mydb import db
+from models import Config
 
 tel_logger = logging.getLogger('telegram')
 
-um_sub_cat = ""
-if cfg.get("not_sub_cat"):
-    um_sub_cat = f"""
-    and sub_cat not in ('{"','".join(cfg.get("not_sub_cat"))}')
-    """
 
-um_cat = ""
-if cfg.get("not_cat"):
-    um_cat = f"""
-    and cat not in ('{"','".join(cfg.get("not_cat"))}')
-    """
+def get_telegram_data(user_id: int) -> str:
+    telegram_token = None
+    telegram_chat_id = None
+    telegram_data = db.session().query(
+        Config.type_data,
+        Config.value_data
+    ).filter(
+        and_(
+            Config.user_id == user_id,
+            Config.type_data.in_(
+                (
+                    ConfigTypes.TELEGRAM_TOKEN.value,
+                    ConfigTypes.TELEGRAM_CHAT_ID.value,
+                )
+            )
+        )
+    ).all()
 
-um_not_my_expspense = f"""
-{um_sub_cat}
-{um_cat}
-and `deleted`!=1
-and suma>0
-"""
-
-cat4zam = """
-if(sub_cat='Vdaliy Rik','Авто та АЗС',cat) as cat
-"""
+    for row in telegram_data:
+        if row.type_data == ConfigTypes.TELEGRAM_TOKEN.value:
+            telegram_token = row.value_data
+        elif row.type_data == ConfigTypes.TELEGRAM_CHAT_ID.value:
+            telegram_chat_id = row.value_data
+    return telegram_token, telegram_chat_id
 
 
 def mydatetime(par: str = None):
@@ -38,16 +44,25 @@ def mydatetime(par: str = None):
         return datetime.datetime.strftime(datetime.datetime.now(), "%Y%m%d_%H%M%S")
 
 
-def send_telegram(text: str, parce_mode: str = "HTML", chat_id_in: str = "", token: str = "", chat_id_4send: str = ""):
+def send_telegram(
+        user_id: int,
+        text: str,
+):
+    telegram_token, telegram_chat_id = get_telegram_data(user_id)
+    if not any([telegram_token, telegram_chat_id]):
+        tel_logger.error(f"""
+error send telegram message.
+telegram_token or telegram_chat_id for user_id: {user_id} not found
+"""
+        )
+        return 404, ''
 
-    url = "https://api.telegram.org/bot{}/sendMessage".format(
-        cfg["telegram"]["tokens"].get(f"{token}_bot", "tel_token")
-    )
+    url = f"https://api.telegram.org/bot{telegram_token}/sendMessage"
 
     data = {
-        "chat_id": cfg["telegram"]["chat_ids"].get(chat_id_in, cfg["telegram"]["chat_ids"].get("vik")),
+        "chat_id": telegram_chat_id,
         "text": text,
-        "parse_mode": parce_mode,
+        "parse_mode": "HTML",
         "disable_web_page_preview": "True",
     }
 
@@ -59,9 +74,8 @@ def send_telegram(text: str, parce_mode: str = "HTML", chat_id_in: str = "", tok
         tel_logger.error(f"""
 error send:\nstatus_code: {status_code}, content:{content}
 url:{url}
-data:{data}
-chat_id: [{chat_id_4send}]\n\n"""
-            )
+data:{data}\n\n"""
+    )
 
     return status_code, content
 
