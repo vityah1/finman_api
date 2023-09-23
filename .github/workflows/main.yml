@@ -1,0 +1,30 @@
+name: Deploy to hostinger
+
+on:
+  push:
+    branches:
+      - vh_hostinger
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: deploy
+        uses: cross-the-world/ssh-pipeline@master
+        env:
+          WELCOME: "ssh pipeline START"
+        with:
+          host: ${{secrets.HOST}}
+          user: ${{secrets.USER}}
+          pass: ${{secrets.PASSWORD}}
+          port: 22
+          connect_timeout: 10s
+          script: |
+            echo $WELCOME
+            cd /home/finman/finman_api
+            echo git PULL...
+            git pull
+            echo restart FINMAN...
+            sudo systemctl restart finman
+            echo status FINMAN...
+            systemctl status finman
