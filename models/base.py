@@ -4,6 +4,7 @@ from sqlalchemy.orm.attributes import QueryableAttribute
 
 from mydb import db
 
+
 class BaseModel(db.Model):
     __abstract__ = True
 
@@ -53,8 +54,8 @@ class BaseModel(db.Model):
                     cls = self.__mapper__.relationships[rel].argument()
                     for item in kwargs[rel]:
                         if (
-                            "id" in item
-                            and query.filter_by(id=item["id"]).limit(1).count() == 1
+                                "id" in item
+                                and query.filter_by(id=item["id"]).limit(1).count() == 1
                         ):
                             obj = cls.query.filter_by(id=item["id"]).first()
                             col_changes = obj.from_dict(**item)
@@ -120,7 +121,8 @@ class BaseModel(db.Model):
 
         hidden = self._hidden_fields if hasattr(self, "_hidden_fields") else []
         default = self._default_fields if hasattr(self, "_default_fields") else []
-        default.extend(['id', 'updated', 'created'])
+        # default.extend(['id', 'updated', 'created'])
+        default.extend(['id', ])
 
         if not _path:
             _path = self.__tablename__.lower()
@@ -179,9 +181,9 @@ class BaseModel(db.Model):
                         )
                 else:
                     if (
-                        self.__mapper__.relationships[key].query_class is not None \
-                        or self.__mapper__.relationships[key].instrument_class
-                        is not None
+                            self.__mapper__.relationships[key].query_class is not None \
+                            or self.__mapper__.relationships[key].instrument_class
+                            is not None
                     ):
                         item = getattr(self, key)
                         if item is not None:
