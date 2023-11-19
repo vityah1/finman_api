@@ -37,6 +37,7 @@ from api.mono import mono_bp
 from api.mono_users import mono_users_bp
 from api.sprs import sprs_bp
 from api.revolut import revolut_bp
+from api.categories import categories_bp
 
 app.register_blueprint(config_bp)
 app.register_blueprint(auth_bp)
@@ -46,6 +47,7 @@ app.register_blueprint(mono_bp)
 app.register_blueprint(mono_users_bp)
 app.register_blueprint(sprs_bp)
 app.register_blueprint(revolut_bp)
+app.register_blueprint(categories_bp)
 
 from api.config.funcs import check_and_fill_spr_config_table, check_exsists_table
 with app.app_context():
