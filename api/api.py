@@ -3,10 +3,8 @@ import datetime
 from flask import Blueprint, request, jsonify, current_app, abort
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from flask_cors import cross_origin
-from sqlalchemy import and_
 
 from mydb import db
-from models.models import Category
 from utils import do_sql_sel
 
 
@@ -16,71 +14,6 @@ api_bp = Blueprint(
     template_folder="templates/rozhody",
     static_folder="static",
 )
-
-
-@api_bp.route("/api/categories", methods=["GET"])
-@cross_origin()
-@jwt_required()
-def get_categories():
-    """
-    return  all user categories
-    """
-    current_user = get_jwt_identity()
-    categories = db.session().query(Category).filter(
-        Category.user_id == current_user.get('user_id')
-    ).all()
-    try:
-        return [category.to_dict() for category in categories]
-    except Exception as err:
-        current_app.logger.error(f"{err}")
-        abort(500, f"{err}")
-
-
-@api_bp.route("/api/categories/<string:mode>", methods=["GET"])
-@cross_origin()
-@jwt_required()
-def get_childs_categories(mode: str) -> list[dict]:
-    """
-    return child | parent categories
-    """
-    current_user = get_jwt_identity()
-    query = db.session().query(Category).filter(
-        Category.user_id == current_user.get('user_id')
-    )
-    if mode == 'child':
-        query = query.filter(Category.parent_id != 0)
-    elif mode == 'parent':
-        query = query.filter(Category.parent_id == 0)
-    else:
-        abort(400, 'bad request')
-
-    categories = query.all()
-
-    try:
-        return [category.to_dict() for category in categories]
-    except Exception as err:
-        current_app.logger.error(f"{err}")
-        abort(500, f"{err}")
-
-@api_bp.route("/api/categories/<int:category_id>", methods=["GET"])
-@cross_origin()
-@jwt_required()
-def get_child_categories(category_id: int) -> list[dict]:
-    """
-    return  child categories
-    """
-    current_user = get_jwt_identity()
-    categories = db.session().query(Category).filter(
-        and_(
-            Category.user_id == current_user.get('user_id'),
-            Category.parent_id == category_id,
-        )
-    ).all()
-    try:
-        return [category.to_dict() for category in categories]
-    except Exception as err:
-        current_app.logger.error(f"{err}")
-        abort(500, f"{err}")
 
 
 @api_bp.route("/api/payments/period", methods=["GET"])

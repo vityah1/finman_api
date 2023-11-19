@@ -43,7 +43,7 @@ def add_category():
     return add_category_(user_id)
 
 
-@categories_bp.route("/api/categories/<category_id>", methods=["DELETE"])
+@categories_bp.route("/api/categories/<int:category_id>", methods=["DELETE"])
 @cross_origin()
 @jwt_required()
 def delete_category(category_id):
@@ -53,7 +53,7 @@ def delete_category(category_id):
     return delete_category_(category_id)
 
 
-@categories_bp.route("/api/categories/<category_id>", methods=["PATCH"])
+@categories_bp.route("/api/categories/<int:category_id>", methods=["PATCH"])
 @cross_origin()
 @jwt_required()
 def edit_category(category_id):
@@ -65,7 +65,7 @@ def edit_category(category_id):
     return edit_category_(user_id, category_id)
 
 
-@categories_bp.route("/api/categories/<category_id>", methods=["GET"])
+@categories_bp.route("/api/categories/<int:category_id>", methods=["GET"])
 @cross_origin()
 @jwt_required()
 def get_category(category_id):
