@@ -272,6 +272,7 @@ class Payment(Base):
     is_deleted = Column(Boolean, default=False, nullable=True)
     created = Column(DateTime, default=datetime.datetime.utcnow)
     updated = Column(DateTime)
+    original_bank_id = Column(String(36), unique=True, default=generate_uuid4, comment="Original bank payment id")
 
     __table_args__ = (
         Index(

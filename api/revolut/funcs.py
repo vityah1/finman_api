@@ -3,6 +3,7 @@ import logging
 from os import abort
 import time
 import datetime
+from typing import Any, Dict, List
 
 from pandas import read_excel, read_csv
 
@@ -11,7 +12,6 @@ from models.models import Payment, User
 from .schemas import PaymentData
 from api.mono.funcs import find_category
 from api.payments.funcs import create_bank_payment_id
-
 
 logger = logging.getLogger()
 
@@ -32,8 +32,8 @@ def convert_dates(start_date: str = None, end_date: str = None):
     return start_date_unix, end_date_unix
 
 
-def convert_file_to_pmts(user_id: int, file) -> dict:
-    data_ = []
+def convert_file_to_pmts(user_id: int, file) -> list[dict[str, Any]]:
+    revolut_data = []
     user = db.session.query(User).get(user_id)
     if file.filename.find('.xls') > 0:
         df = read_excel(file)
@@ -48,7 +48,7 @@ def convert_file_to_pmts(user_id: int, file) -> dict:
         abort(400, f'Unknown file type: {file.filename}')
     for index, data in df.iterrows():
         if data["Amount"] > 0:
-            continue        
+            continue
         if data["Currency"] == "EUR":
             currencyCode = 978
             amount = data["Amount"] * -1 * 40.60
@@ -68,9 +68,9 @@ def convert_file_to_pmts(user_id: int, file) -> dict:
             source="revolut",
         )
         pmt_data.bank_payment_id = create_bank_payment_id(pmt_data.dict())
-        data_.append(pmt_data.dict())
+        revolut_data.append(pmt_data.dict())
 
-    return data_
+    return revolut_data
 
 
 def add_revolut_bulk_payments(data: list[PaymentData]):
