@@ -9,6 +9,7 @@ from .models import (
     MonoUser,
     Config, 
     Payment,
+    SprExchangeRates,
 )
 
 __all__ = [
@@ -21,5 +22,6 @@ __all__ = [
     "User",
     "MonoUser",
     "Config",
-    "Payment"
+    "Payment",
+    "SprExchangeRates",
 ]

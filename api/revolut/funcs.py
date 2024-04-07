@@ -16,25 +16,10 @@ from api.payments.funcs import create_bank_payment_id
 logger = logging.getLogger()
 
 
-def convert_dates(start_date: str = None, end_date: str = None):
-    if not start_date:
-        start_date = datetime.datetime.today().strftime("%d.%m.%Y") + " 00:00:01"
-    elif len(start_date) < 11:
-        start_date += " 00:00:01"
-
-    if not end_date:
-        end_date = datetime.datetime.today().strftime("%d.%m.%Y") + " 23:59:59"
-    elif len(end_date) < 11:
-        end_date += " 23:59:59"
-
-    start_date_unix = int(time.mktime(datetime.datetime.strptime(start_date, "%d.%m.%Y %H:%M:%S").timetuple()))
-    end_date_unix = int(time.mktime(datetime.datetime.strptime(end_date, "%d.%m.%Y %H:%M:%S").timetuple()))
-    return start_date_unix, end_date_unix
-
-
 def convert_file_to_pmts(user_id: int, file) -> list[dict[str, Any]]:
     revolut_data = []
     user = db.session.query(User).get(user_id)
+
     if file.filename.find('.xls') > 0:
         df = read_excel(file)
     elif file.filename.find('.csv') > 0:
@@ -46,6 +31,7 @@ def convert_file_to_pmts(user_id: int, file) -> list[dict[str, Any]]:
         )
     else:
         abort(400, f'Unknown file type: {file.filename}')
+
     for index, data in df.iterrows():
         if data["Amount"] > 0:
             continue
@@ -57,6 +43,7 @@ def convert_file_to_pmts(user_id: int, file) -> list[dict[str, Any]]:
             amount = data["Amount"] * -1 * 37.44
         else:
             continue
+
         pmt_data = PaymentData(
             user_id=user.id,
             rdate=data["Started Date"],
@@ -67,6 +54,7 @@ def convert_file_to_pmts(user_id: int, file) -> list[dict[str, Any]]:
             type_payment="card",
             source="revolut",
         )
+
         pmt_data.bank_payment_id = create_bank_payment_id(pmt_data.dict())
         revolut_data.append(pmt_data.dict())
 

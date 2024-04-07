@@ -10,6 +10,7 @@ from sqlalchemy import (
     Index,
     Boolean,
     Text,
+    Float,
 )
 from sqlalchemy.orm import relationship
 
@@ -268,11 +269,13 @@ class Payment(Base):
     user = relationship('User', back_populates='payments', lazy=True)
     mono_user_id = Column(Integer, ForeignKey('mono_users.id'))
     mono_user = relationship('MonoUser', back_populates='payments', lazy=True)
-    source = Column(String(29), ForeignKey('spr_sources.source'), comment="mono|pryvat|webapp")
+    source = Column(String(29), ForeignKey('spr_sources.source'), comment="mono|pryvat|webapp|revolut|wise")
     is_deleted = Column(Boolean, default=False, nullable=True)
     created = Column(DateTime, default=datetime.datetime.utcnow)
     updated = Column(DateTime)
-    original_bank_id = Column(String(36), unique=True, default=generate_uuid4, comment="Original bank payment id")
+    currency = Column(String(3), comment="EUR|USD|UAH")
+    currency_amount = Column(Integer, comment="amount of currency")
+    bank_hash = Column(String(64), unique=True, default=generate_uuid4, comment="hash bank payment")
 
     __table_args__ = (
         Index(
@@ -302,3 +305,17 @@ class Payment(Base):
     ]      
 
 Payment.comment = 'Список витрат'
+
+
+class SprExchangeRates(Base):
+    __tablename__ = 'spr_exchange_rates'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    rdate = Column(DateTime, default=datetime.datetime.utcnow, comment="exchange date")
+    base_currency = Column(String(3), comment="UAH")
+    currency = Column(String(3), comment="EUR|USD")
+    saleRate = Column(Float)
+    purchaseRate = Column(Float)
+    created = Column(DateTime, default=datetime.datetime.utcnow)
+    updated = Column(DateTime)
+    source = Column(String(39), comment="pryvat_api|UkrRates")
