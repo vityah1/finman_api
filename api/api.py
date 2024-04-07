@@ -4,6 +4,7 @@ from flask import Blueprint, request, jsonify, current_app, abort
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from flask_cors import cross_origin
 
+from api.funcs import get_last_rate
 from mydb import db
 from utils import do_sql_sel
 
@@ -27,6 +28,7 @@ def payments_for_period():
     year = request.args.get("year", "").zfill(2)
     month = request.args.get("month", "").zfill(2)
     mono_user_id = request.args.get("mono_user_id")
+    currency = request.args.get('currency', 'UAH') or 'UAH'
 
     condition = []
     curr_date = datetime.datetime.now()
@@ -58,6 +60,7 @@ def payments_for_period():
     else:
         abort(400, f"Substring function not implemented for dialect: {dialect_name}")
 
+    saleRate = get_last_rate(currency, end_date)
 
     sql = f"""
 select 
@@ -72,13 +75,37 @@ case
 end as name
 , {amount_func} as amount,
 count(*) as cnt
-from `payments` p left join `categories` c
-on p.category_id = c.id
-where 1=1 
+from (
+SELECT p.id, p.rdate, p.category_id, p.mydesc,
+       CASE
+           WHEN p.currency = '{currency}' THEN p.currency_amount
+           WHEN p.currency = 'UAH' AND '{currency}' IN ('EUR', 'USD') and e.saleRate is not null THEN p.currency_amount / e.saleRate
+           WHEN p.currency IN ('EUR', 'USD') AND '{currency}' = 'UAH' and e.saleRate is not null THEN p.currency_amount * e.saleRate
+           WHEN p.currency = 'UAH' AND '{currency}' IN ('EUR', 'USD') and e.saleRate is null THEN p.currency_amount / {saleRate}
+           WHEN p.currency IN ('EUR', 'USD') AND '{currency}' = 'UAH' and e.saleRate is null THEN p.currency_amount *
+{saleRate}
+           ELSE p.currency_amount
+       END AS amount
+FROM `payments` p
+LEFT JOIN (
+    SELECT e1.rdate, e1.currency, e1.saleRate, e1.purchaseRate
+    FROM spr_exchange_rates e1
+    JOIN (
+        SELECT DATE(rdate) AS date, MAX(rdate) AS max_rdate
+        FROM spr_exchange_rates
+        WHERE currency = '{currency}'
+        GROUP BY DATE(rdate)
+    ) e2 ON DATE(e1.rdate) = e2.date AND e1.rdate = e2.max_rdate
+    WHERE e1.currency = '{currency}'
+) e ON DATE(e.rdate) = DATE(p.rdate)
+where 1=1
 and p.user_id = :user_id
 and `is_deleted` = 0
 and `amount` > 0
 {' '.join(condition)}
+) p left join `categories` c
+on p.category_id = c.id
+where 1=1 
 group by case 
     when c.parent_id = 0 then p.category_id
     else (select id from categories where id=c.parent_id)

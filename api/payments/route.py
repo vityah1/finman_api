@@ -1,6 +1,6 @@
 # _*_ coding:UTF-8 _*_
 
-from flask import Blueprint
+from flask import Blueprint, request
 from flask_cors import cross_origin
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
@@ -43,7 +43,9 @@ def get_payments():
     """
     current_user = get_jwt_identity()
     user_id = current_user.get('user_id')
+
     return get_payments_(user_id)
+
 
 
 @payments_bp.route("/api/payments/<int:payment_id>", methods=["GET"])

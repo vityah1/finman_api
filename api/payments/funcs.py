@@ -15,7 +15,7 @@ def create_bank_payment_id(data):
         rdate_ = f"{data['rdate']:%Y%m%d%H%M%S}"
     else:
         rdate_ = data['rdate']
-    bank_payment_id = f"{rdate_}{data['user_id']}{data['mydesc']}{data['amount']}0"
+    bank_payment_id = f"{rdate_}{data['user_id']}{data['mydesc']}{data['currency_amount']}0"
     hash_object = hashlib.sha256(bank_payment_id.encode())
     bank_payment_id = hash_object.hexdigest()
     return bank_payment_id

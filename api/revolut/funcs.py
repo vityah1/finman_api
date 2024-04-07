@@ -12,6 +12,7 @@ from models.models import Payment, User
 from .schemas import PaymentData
 from api.mono.funcs import find_category
 from api.payments.funcs import create_bank_payment_id
+from ..funcs import get_last_rate
 
 logger = logging.getLogger()
 
@@ -35,14 +36,12 @@ def convert_file_to_pmts(user_id: int, file) -> list[dict[str, Any]]:
     for index, data in df.iterrows():
         if data["Amount"] > 0:
             continue
-        if data["Currency"] == "EUR":
-            currencyCode = 978
-            amount = data["Amount"] * -1 * 40.60
-        elif data["Currency"] == "USD":
-            currencyCode = 840
-            amount = data["Amount"] * -1 * 37.44
-        else:
-            continue
+
+        try:
+            amount = data["Amount"] * -1 * get_last_rate(data["Currency"], data["Started Date"])
+        except Exception as err:
+            logger.error(f"{err}")
+            amount = 0
 
         pmt_data = PaymentData(
             user_id=user.id,
@@ -50,9 +49,10 @@ def convert_file_to_pmts(user_id: int, file) -> list[dict[str, Any]]:
             category_id=find_category(user, data["Description"]),
             mydesc=data["Description"].replace("'", ""),
             amount=amount,
-            currencyCode=currencyCode,
+            currency=data["Currency"],
             type_payment="card",
             source="revolut",
+            currency_amount=data["Amount"],
         )
 
         pmt_data.bank_payment_id = create_bank_payment_id(pmt_data.dict())

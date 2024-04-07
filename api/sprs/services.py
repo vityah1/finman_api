@@ -13,7 +13,11 @@ def get_spr_dictionary(dictionary) -> list[dict]:
     get dictionary
     """
     if dictionary == 'currency':
-        model = SprCurrency
+        return [
+            {'currencyCode': 'UAH', 'currency': 'UAH'},
+            {'currencyCode': 'EUR', 'currency': 'EUR'},
+            {'currencyCode': 'USD', 'currency': 'USD'},
+        ]
     elif dictionary == 'source':
         model = SprSource
     elif dictionary == 'type_payment':

@@ -10,7 +10,7 @@ from mydb import db
 from models.models import Payment, User
 from .schemas import PaymentData
 from api.mono.funcs import find_category
-
+from ..funcs import get_last_rate
 
 logger = logging.getLogger()
 
@@ -30,26 +30,27 @@ def convert_file_to_pmts(user_id: int, file) -> list[dict[str, Any]]:
         abort(400, f'Unknown file type: {file.filename}')
     for index, data in df.iterrows():
         if data["Amount"] > 0:
-            continue        
-        if data["Currency"] == "EUR":
-            currencyCode = 978
-            amount = data["Amount"] * -1 * 40.60
-        elif data["Currency"] == "USD":
-            currencyCode = 840
-            amount = data["Amount"] * -1 * 37.44
-        else:
             continue
+
+        current_date = data["Date"] if isinstance(data["Date"], datetime.datetime) else datetime.datetime.strptime(data["Date"],
+                "%d-%m-%Y")
+        try:
+            amount = data["Amount"] * -1 * get_last_rate(data["Currency"], current_date)
+        except Exception as err:
+            logger.error(f"{err}")
+            amount = 0
+
         pmt_data = PaymentData(
             user_id=user.id,
-            rdate=data["Date"] if isinstance(data["Date"], datetime.datetime) else datetime.datetime.strptime(data["Date"],
-                "%d-%m-%Y"),
+            rdate=current_date,
             category_id=find_category(user, data["Merchant"]),
             mydesc=data["Merchant"].replace("'", ""),
             amount=amount,
-            currencyCode=currencyCode,
+            currency=data["Currency"],
             type_payment="card",
             source="wise",
             bank_payment_id=data["ID"] if "ID" in data else data["TransferWise ID"],
+            currency_amount = data["Amount"]
         )
         wise_data.append(pmt_data.dict())
 

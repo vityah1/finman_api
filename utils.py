@@ -58,4 +58,5 @@ def do_sql_sel(sql="", data=None):
             return [r._asdict() for r in conn.execute(text(sql), data).fetchall()]
     except Exception as db_err:
         current_app.logger.error(f"{sql}\n{db_err}")
-        return [{"rowcount": -1, "data": f"{db_err}"}]
+        raise Exception("error exec sql:\n{}".format(db_err))
+        # return [{"rowcount": -1, "data": f"{db_err}"}]
