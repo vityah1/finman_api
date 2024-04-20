@@ -65,7 +65,7 @@ def mono_webhook_handler_(mono_user_id: int):
     """
     insert a new webhook from mono
     """
-
+    result = "failed"
     user_id = None
     try:
         data = request.get_json()
@@ -91,20 +91,20 @@ balance: {data_['balance']}
 """]
 
         if data_['amount'] > 0:
-            result = add_new_payment(data_)
+            payment = add_new_payment(data_)
 
-            if not result:
+            if not payment:
                 msg.append("\nAdd mono webhook <b>FAILED</b>")
             else:
-                msg.append(f"\nAdd mono webhook Ok. [{result.get('id')}]")
+                msg.append(f"\nAdd mono webhook Ok. [{payment.id=}]")
+                result = "ok"
 
         send_telegram(user_id, "".join(msg))
-        result = "ok"
+
     except Exception as err:
         mono_logger.error(f'{err}')
         if user_id:
             send_telegram(user_id, f'Add mono webhook failed...\n{err}')
-        result = "failed"
     return {"status": result}
 
 

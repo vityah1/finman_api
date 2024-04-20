@@ -12,7 +12,6 @@ from api.config.schemas import ConfigTypes
 from api.mono.services import get_mono_users_
 from models.models import Category, Config, MonoUser, Payment, User
 from mydb import db
-from utils import convert_currency_code
 
 mono_logger = logging.getLogger('mono')
 
@@ -188,7 +187,7 @@ def convert_imp_mono_to_payment(user_id: int, mono_user: MonoUser, mono_payment:
     }
 
     data['currency_amount'] = data['amount']
-    data['currency'] = convert_currency_code(data['currencyCode'])
+    data['currency'] = 'UAH'
     data['mono_user_id'] = mono_user.id
     data['source'] = 'mono'
     data['type_payment'] = 'card'
@@ -210,7 +209,7 @@ def convert_webhook_mono_to_payment(mono_user: MonoUser, data: dict) -> dict:
     amount = data["data"]["statementItem"]["amount"] / 100
     # operationAmount = data["data"]["statementItem"]["operationAmount"]
     currencyCode = data["data"]["statementItem"]["currencyCode"]
-    currency = convert_currency_code(currencyCode)
+    currency = 'UAH'
     balance = data["data"]["statementItem"]["balance"]
     # hold = data["data"]["statementItem"]["hold"]
     if "comment" in data["data"]["statementItem"]:
@@ -366,7 +365,7 @@ def get_category_id(user_id: int, category_name: str) -> int:
     return category_id
 
 
-def add_new_payment(data) -> dict:
+def add_new_payment(data) -> Payment:
     result = None
     try:
         new_payment = Payment()
