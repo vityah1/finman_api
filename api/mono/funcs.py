@@ -181,17 +181,14 @@ def set_category(
 
 
 def convert_imp_mono_to_payment(user_id: int, mono_user: MonoUser, mono_payment: dict):
-    data = {}
-    currency = convert_currency_code(data['currencyCode'])
-    data['user_id'] = user_id
-    data['rdate'] = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(mono_payment["time"]))
-    data['bank_payment_id'] = mono_payment["id"]
-    data['mydesc'] = mono_payment["description"]
-    data['mcc'] = mono_payment["mcc"]
-    data['amount'] = -1 * mono_payment["amount"] / 100
-    data['currencyCode'] = mono_payment["currencyCode"]
-    data['currency_amount'] = currency
-    data['currency'] = currency
+    data = {
+        'user_id': user_id, 'rdate': time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(mono_payment["time"])),
+        'bank_payment_id': mono_payment["id"], 'mydesc': mono_payment["description"], 'mcc': mono_payment["mcc"],
+        'amount': -1 * mono_payment["amount"] / 100, 'currencyCode': mono_payment["currencyCode"]
+    }
+
+    data['currency_amount'] = data['amount']
+    data['currency'] = convert_currency_code(data['currencyCode'])
     data['mono_user_id'] = mono_user.id
     data['source'] = 'mono'
     data['type_payment'] = 'card'
@@ -227,7 +224,7 @@ def convert_webhook_mono_to_payment(mono_user: MonoUser, data: dict) -> dict:
         'category_id': category_id, 'mydesc': description, 'amount': -1 * amount, 'currencyCode': currencyCode,
         'mcc': mcc, 'rdate': rdate, 'type_payment': 'card', 'bank_payment_id': id, 'user_id': user_id, 'source': 'mono',
         'account': account, 'mono_user_id': mono_user.id, 'is_deleted': is_deleted, "category_name": category_name,
-        "balance": balance, 'currency': currency, "currency_amount": currency
+        "balance": balance, 'currency': currency, "currency_amount": -1 * amount
     }
 
     return data_
