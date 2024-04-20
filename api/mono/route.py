@@ -10,7 +10,7 @@ from api.mono.services import (
     get_mono_users_info_,
     set_webhook_,
     mono_webhook_handler_,
-    get_mono_data_pmts_,
+    process_mono_data_payments,
 )
 
 
@@ -73,4 +73,4 @@ def mono_webhook_handler(mono_user_id: int):
 def get_mono_data_pmts():
     current_user = get_jwt_identity()
     user_id = current_user.get('user_id')
-    return get_mono_data_pmts_(user_id)
+    return process_mono_data_payments(user_id)

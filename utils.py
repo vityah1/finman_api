@@ -60,3 +60,12 @@ def do_sql_sel(sql="", data=None):
         current_app.logger.error(f"{sql}\n{db_err}")
         raise Exception("error exec sql:\n{}".format(db_err))
         # return [{"rowcount": -1, "data": f"{db_err}"}]
+
+
+def convert_currency_code(code: int) -> str:
+    conversion_map = {
+        840: "USD",
+        978: "EUR",
+        980: "UAH"
+    }
+    return conversion_map.get(code, "UNKNOWN")

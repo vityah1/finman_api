@@ -6,7 +6,7 @@ from flask import request, abort, current_app
 from api.mono_users.services import get_mono_users_
 
 from api.mono.funcs import (
-    process_mono_data_pmts,
+    process_mono_payments,
     add_new_payment,
     get_mono_user_token,
     convert_webhook_mono_to_payment,
@@ -42,21 +42,21 @@ def set_webhook_(mono_user_id: int) -> dict:
     set a new webhook for mono user
     """
     data = request.get_json()
-    mono_webHookUrl = data.get('webHookUrl')
+    mono_web_hook_url = data.get('webHookUrl')
     mono_token = get_mono_user_token(mono_user_id)
     # mono_webhook = request.url_root + f'/api/mono/users/{mono_user_id}/webhook'
 
     url = f"{current_app.config.get('MONO_API_URL')}/personal/webhook"
 
     header = {"X-Token": mono_token}
-    data = {"webHookUrl": mono_webHookUrl}
+    data = {"webHookUrl": mono_web_hook_url}
     # return {'status': 'ok', 'data': data}
-
+    r = None
     try:
         r = requests.post(url, json=data, headers=header)
     except Exception as err:
         current_app.logger.error(f"{err}")
-        abort(400, f'Bad request: {err}\n{r.text}')
+        abort(400, f'Bad request: {err}\n{r.text if r else ""}')
 
     return {"status_code": r.status_code, "data": r.text}
 
@@ -65,7 +65,8 @@ def mono_webhook_handler_(mono_user_id: int):
     """
     insert a new webhook from mono
     """
-    result = None
+
+    user_id = None
     try:
         data = request.get_json()
         mono_logger.info(data)
@@ -79,9 +80,7 @@ def mono_webhook_handler_(mono_user_id: int):
             mono_logger.error('Not valid data')
             raise Exception("Not valid data")
 
-        msg = []
-        msg.append(
-            f"""<b>{data_['category_name']}</b>
+        msg = [f"""<b>{data_['category_name']}</b>
 user: {mono_user.name}
 time: {data_['rdate']:%H:%M:%S}
 description: {data_['mydesc']}
@@ -89,8 +88,7 @@ mcc: {data_['mcc']}
 amount: {data_['amount']}
 currencyCode: {data_['currencyCode']}
 balance: {data_['balance']}
-"""
-        )
+"""]
 
         if data_['amount'] > 0:
             result = add_new_payment(data_)
@@ -98,7 +96,7 @@ balance: {data_['balance']}
             if not result:
                 msg.append("\nAdd mono webhook <b>FAILED</b>")
             else:
-                msg.append(f"\nAdd mono webhook Ok. [{result.id}]")
+                msg.append(f"\nAdd mono webhook Ok. [{result.get('id')}]")
 
         send_telegram(user_id, "".join(msg))
         result = "ok"
@@ -110,8 +108,7 @@ balance: {data_['balance']}
     return {"status": result}
 
 
-def get_mono_data_pmts_(user_id: int):
-    input_data = {}
+def process_mono_data_payments(user_id: int):
 
     try:
         input_data = request.get_json()
@@ -125,11 +122,11 @@ def get_mono_data_pmts_(user_id: int):
     mode = input_data.get('mode')
 
     if mode == 'show':
-        return process_mono_data_pmts(user_id, start_date, end_date, mono_user_id, 'show')
+        return process_mono_payments(user_id, start_date, end_date, mono_user_id, 'show')
     elif mode == 'import':
-        return process_mono_data_pmts(user_id, start_date, end_date, mono_user_id, 'import')
+        return process_mono_payments(user_id, start_date, end_date, mono_user_id, 'import')
     elif mode == 'sync':
-        return process_mono_data_pmts(user_id, start_date, end_date, mono_user_id, 'sync')
+        return process_mono_payments(user_id, start_date, end_date, mono_user_id, 'sync')
     else:
         current_app.logger.error(f'bad request: invalid import mode: [{mode}]')
         abort(400, 'Bad request')

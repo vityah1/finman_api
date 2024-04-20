@@ -1,19 +1,18 @@
 # _*_ coding:UTF-8 _*_
-import logging
-import time
 import datetime
+import logging
 import random
+import time
 
 import requests
-
-from flask import current_app, request, abort
+from flask import abort, current_app, request
 from sqlalchemy import and_
 
 from api.config.schemas import ConfigTypes
 from api.mono.services import get_mono_users_
-from mydb import db
 from models.models import Category, Config, MonoUser, Payment, User
-
+from mydb import db
+from utils import convert_currency_code
 
 mono_logger = logging.getLogger('mono')
 
@@ -26,9 +25,7 @@ def get_config_accounts(mono_user_id: int) -> list[Config.value_data]:
     ).join(
         MonoUser, MonoUser.user_id == User.id
     ).filter(
-        MonoUser.id == mono_user_id,
-        Config.type_data == 'mono_account',
-    ).all()
+        MonoUser.id == mono_user_id, Config.type_data == 'mono_account', ).all()
     return [result[0] for result in results]
 
 
@@ -37,9 +34,7 @@ def find_category(user: User, description: str):
     user_config = user.config
     for config_row in user_config:
         if config_row.type_data not in (
-            ConfigTypes.IS_DELETED_BY_DESCRIPTION.value,
-            ConfigTypes.CATEGORY_REPLACE.value
-        ):
+                ConfigTypes.IS_DELETED_BY_DESCRIPTION.value, ConfigTypes.CATEGORY_REPLACE.value):
             continue
         # set as deleted according to rules
         if config_row.type_data == ConfigTypes.IS_DELETED_BY_DESCRIPTION.value:
@@ -52,7 +47,7 @@ def find_category(user: User, description: str):
                     category_id = int(config_row.add_value)
                     break
                 except Exception as err:
-                    logger.warning('can not set category id for cat: {cat}, {err}')
+                    logging.warning(f'can not set category id for cat: {config_row.add_value=}, {err}')
 
     if not category_id:
         category_id = get_category_id(user.id, description)
@@ -60,9 +55,6 @@ def find_category(user: User, description: str):
 
 
 def get_mono_user_info__(mono_user_id: int):
-    mono_user_token = None
-    result = {}
-
     mono_user_token = get_mono_user_token(mono_user_id)
 
     if not mono_user_token:
@@ -72,12 +64,12 @@ def get_mono_user_info__(mono_user_id: int):
     header = {"X-Token": mono_user_token}
 
     url = f"{current_app.config.get('MONO_API_URL')}/personal/client-info"
-
+    r = None
     try:
         r = requests.get(url, headers=header)
     except Exception as err:
         current_app.logger.error(f"{err}")
-        abort(400, f'Bad request: {err}\n{r.text}')
+        abort(400, f'Bad request: {err}\n{r.text if r else ""}')
 
     result = r.json()
     result['this_api_webhook'] = request.url_root.replace('http:', 'https:') + f'api/mono/users/{mono_user_id}/webhook'
@@ -88,152 +80,33 @@ def get_mono_user_info__(mono_user_id: int):
 
 
 def _mcc(mcc):
-    if (
-        mcc
-        in (
-            4011,
-            4111,
-            4112,
-            4131,
-            4304,
-            4411,
-            4415,
-            4418,
-            4457,
-            4468,
-            4511,
-            4582,
-            4722,
-            4784,
-            4789,
-            5962,
-            6513,
-            7011,
-            7032,
-            7033,
-            7512,
-            7513,
-            7519,
-        )
-        or mcc in range(3000, 4000)
-    ):
+    if (mcc in (
+            4011, 4111, 4112, 4131, 4304, 4411, 4415, 4418, 4457, 4468, 4511, 4582, 4722, 4784, 4789, 5962, 6513, 7011,
+            7032, 7033, 7512, 7513, 7519,) or mcc in range(3000, 4000)):
         return "Подорожі"
-    elif (
-        mcc
-        in (
-            4119,
-            5047,
-            5122,
-            5292,
-            5295,
-            5912,
-            5975,
-            5976,
-            5977,
-            7230,
-            7297,
-            7298,
-            8011,
-            8021,
-            8031,
-            8049,
-            8050,
-            8062,
-            8071,
-            8099,
-        )
-        or mcc in range(8041, 8044)
-    ):
+    elif (mcc in (
+            4119, 5047, 5122, 5292, 5295, 5912, 5975, 5976, 5977, 7230, 7297, 7298, 8011, 8021, 8031, 8049, 8050, 8062,
+            8071, 8099,) or mcc in range(8041, 8044)):
         return "Краса та медицина"
-    elif (
-        mcc
-        in (
-            5733,
-            5735,
-            5941,
-            7221,
-            7333,
-            7395,
-            7929,
-            7932,
-            7933,
-            7941,
-            7991,
-            7995,
-            8664,
-        )
-        or mcc in range(5970, 5974)
-        or mcc in range(5945, 5948)
-        or mcc in range(5815, 5819)
-        or mcc in range(7911, 7923)
-        or mcc in range(7991, 7995)
-        or mcc in range(7996, 8000)
-    ):
+    elif (mcc in (5733, 5735, 5941, 7221, 7333, 7395, 7929, 7932, 7933, 7941, 7991, 7995, 8664,) or mcc in range(
+        5970, 5974
+    ) or mcc in range(5945, 5948) or mcc in range(5815, 5819) or mcc in range(7911, 7923) or mcc in range(
+        7991, 7995
+    ) or mcc in range(7996, 8000)):
         return "Розваги та спорт"
     elif mcc in range(5811, 5815):
         return "Кафе та ресторани"
-    elif mcc in (
-        5297,
-        5298,
-        5300,
-        5311,
-        5331,
-        5399,
-        5411,
-        5412,
-        5422,
-        5441,
-        5451,
-        5462,
-        5499,
-        5715,
-        5921,
-    ):
+    elif mcc in (5297, 5298, 5300, 5311, 5331, 5399, 5411, 5412, 5422, 5441, 5451, 5462, 5499, 5715, 5921,):
         return "Продукти й супермаркети"
     elif mcc in (7829, 7832, 7841):
         return "Кіно"
-    elif (
-        mcc
-        in (
-            5172,
-            5511,
-            5541,
-            5542,
-            5983,
-            7511,
-            7523,
-            7531,
-            7534,
-            7535,
-            7538,
-            7542,
-            7549,
-        )
-        or mcc in range(5531, 5534)
-    ):
+    elif (mcc in (5172, 5511, 5541, 5542, 5983, 7511, 7523, 7531, 7534, 7535, 7538, 7542, 7549,) or mcc in range(
+        5531, 5534
+    )):
         return "Авто та АЗС"
     elif mcc in (
-        5131,
-        5137,
-        5139,
-        5611,
-        5621,
-        5631,
-        5641,
-        5651,
-        5655,
-        5661,
-        5681,
-        5691,
-        5697,
-        5698,
-        5699,
-        5931,
-        5948,
-        5949,
-        7251,
-        7296,
-    ):
+            5131, 5137, 5139, 5611, 5621, 5631, 5641, 5651, 5655, 5661, 5681, 5691, 5697, 5698, 5699, 5931, 5948, 5949,
+            7251, 7296,):
         return "Одяг і взуття"
     elif mcc == 4121:
         return "Таксі"
@@ -278,14 +151,11 @@ def convert_dates(start_date: str = None, end_date: str = None):
             ).timetuple()
         )
     )
-    return start_date_unix, end_date_unix    
+    return start_date_unix, end_date_unix
 
 
 def set_category(
-        user_id: int,
-        mono_user: MonoUser,
-        mcc: int,
-        description: str
+        user_id: int, mono_user: MonoUser, mcc: int, description: str
 ):
     is_deleted = 0
     category_id = None
@@ -301,10 +171,9 @@ def set_category(
             if config_row.add_value and description.find(config_row.value_data) > -1:
                 try:
                     category_id, description = int(config_row.add_value), category_name
-                    comment = description
                     break
                 except Exception as err:
-                    mono_logger.warning('can not set category id for cat: {cat}, {err}')
+                    mono_logger.warning(f'can not set category id for cat: {config_row.add_value=}, {err}')
 
     if not category_id:
         category_id = get_category_id(user_id, category_name)
@@ -313,6 +182,7 @@ def set_category(
 
 def convert_imp_mono_to_payment(user_id: int, mono_user: MonoUser, mono_payment: dict):
     data = {}
+    currency = convert_currency_code(data['currencyCode'])
     data['user_id'] = user_id
     data['rdate'] = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(mono_payment["time"]))
     data['bank_payment_id'] = mono_payment["id"]
@@ -320,20 +190,18 @@ def convert_imp_mono_to_payment(user_id: int, mono_user: MonoUser, mono_payment:
     data['mcc'] = mono_payment["mcc"]
     data['amount'] = -1 * mono_payment["amount"] / 100
     data['currencyCode'] = mono_payment["currencyCode"]
+    data['currency_amount'] = currency
+    data['currency'] = currency
     data['mono_user_id'] = mono_user.id
     data['source'] = 'mono'
     data['type_payment'] = 'card'
     data['category_id'], data['category_name'], data['is_deleted'] = set_category(
-        user_id,
-        mono_user,
-        data['mcc'],
-        data['mydesc']
+        user_id, mono_user, data['mcc'], data['mydesc']
     )
     return data
 
 
 def convert_webhook_mono_to_payment(mono_user: MonoUser, data: dict) -> dict:
-    data_ = {}
 
     account = data["data"]["account"]
     id = data["data"]["statementItem"]["id"]
@@ -345,35 +213,29 @@ def convert_webhook_mono_to_payment(mono_user: MonoUser, data: dict) -> dict:
     amount = data["data"]["statementItem"]["amount"] / 100
     # operationAmount = data["data"]["statementItem"]["operationAmount"]
     currencyCode = data["data"]["statementItem"]["currencyCode"]
+    currency = convert_currency_code(currencyCode)
     balance = data["data"]["statementItem"]["balance"]
     # hold = data["data"]["statementItem"]["hold"]
     if "comment" in data["data"]["statementItem"]:
         description += "; " + data["data"]["statementItem"]["comment"].replace("'", "")
 
-    user_id = 999999
-
     user_id = mono_user.user_id
-    is_deleted = 0
 
     category_id, category_name, is_deleted = set_category(user_id, mono_user, mcc, description)
 
     data_ = {
-        'category_id': category_id, 'mydesc': description,
-        'amount': -1 * amount, 'currencyCode': currencyCode, 'mcc': mcc,
-        'rdate': rdate, 'type_payment': 'card', 'bank_payment_id': id,
-        'user_id': user_id, 'source': 'mono', 'account': account,
-        'mono_user_id': mono_user.id, 'is_deleted': is_deleted,
-        "category_name": category_name, "balance": balance,
+        'category_id': category_id, 'mydesc': description, 'amount': -1 * amount, 'currencyCode': currencyCode,
+        'mcc': mcc, 'rdate': rdate, 'type_payment': 'card', 'bank_payment_id': id, 'user_id': user_id, 'source': 'mono',
+        'account': account, 'mono_user_id': mono_user.id, 'is_deleted': is_deleted, "category_name": category_name,
+        "balance": balance, 'currency': currency, "currency_amount": currency
     }
 
     return data_
 
 
-def get_mono_pmts(start_date: str = "", end_date: str = "", mono_user_id: int = None):
+def get_mono_payments(start_date: str = "", end_date: str = "", mono_user_id: int = None):
 
     result = []
-    token = None
-    accounts = []
 
     mono_user_info = get_mono_user_info__(mono_user_id)
     mono_user_token = mono_user_info['mono_user_token']
@@ -407,20 +269,16 @@ def get_mono_pmts(start_date: str = "", end_date: str = "", mono_user_id: int = 
                 return result
 
         result.extend(r.json())
-    
+
     if len(result) < 1:
         current_app.logger.info("No rows returned from Request..")
 
     return result
 
 
-def process_mono_data_pmts(
-        user_id: int,
-        start_date: str = None,
-        end_date: str = None,
-        mono_user_id: str = None,
-        mode: str = None
-    ):
+def process_mono_payments(
+        user_id: int, start_date: str = None, end_date: str = None, mono_user_id: str = None, mode: str = None
+):
 
     result = []
     result_html = 'Data not found'
@@ -431,8 +289,8 @@ def process_mono_data_pmts(
     else:
         mono_users = [{"id": mono_user_id}]
     for mono_user_ in mono_users:
-        mono_pmts = get_mono_pmts(start_date, end_date, mono_user_['id'])
-        if not mono_pmts:
+        mono_payments = get_mono_payments(start_date, end_date, mono_user_['id'])
+        if not mono_payments:
             continue
         mono_user = db.session.query(MonoUser).get(mono_user_['id'])
         sql_result_th = ''
@@ -443,10 +301,11 @@ def process_mono_data_pmts(
 <table class="table table-bordered"><tr><th>Дата</th><th>Опис</th><th>Розділ</th><th>Сума</th>{sql_result_th}</tr>"""
         )
 
-        for mono_payment in mono_pmts:
+        for mono_payment in mono_payments:
             data = convert_imp_mono_to_payment(user_id, mono_user, mono_payment)
             if not data:
                 continue
+            sql_result = None
             if mode == "import":
                 sql_result = add_new_payment(data)
             elif mode == "sync":
@@ -480,10 +339,10 @@ def get_user_id(account: str) -> int:
 
     if mono_account:
         user_id = mono_account.user_id
-    return user_id 
+    return user_id
 
 
-def get_mono_user(mono_user_id: int) -> MonoUser:
+def get_mono_user(mono_user_id: int) -> MonoUser | None:
     mono_user = db.session().query(MonoUser).get(mono_user_id)
 
     if mono_user:
@@ -494,10 +353,7 @@ def get_mono_user(mono_user_id: int) -> MonoUser:
 def get_category_id(user_id: int, category_name: str) -> int:
     category = db.session().query(Category).filter(
         and_(
-            Category.name.like(f'%{category_name}%'),
-            Category.user_id == user_id,
-            Category.parent_id == 0,
-        )
+            Category.name.like(f'%{category_name}%'), Category.user_id == user_id, Category.parent_id == 0, )
     ).one_or_none()
 
     if category:
@@ -551,4 +407,3 @@ def sync_payment(data: dict) -> dict:
 def get_mono_user_token(mono_user_id: int) -> str:
     mono_user = db.session().query(MonoUser).get(mono_user_id)
     return mono_user.token
-
