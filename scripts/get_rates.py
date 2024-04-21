@@ -15,7 +15,7 @@ from models import SprExchangeRates
 dotenv.load_dotenv()
 
 SQLALCHEMY_DATABASE_URI = os.environ["DATABASE_URI"]
-print(f"{SQLALCHEMY_DATABASE_URI=}")
+
 engine = create_engine(SQLALCHEMY_DATABASE_URI, echo=True, pool_size=10, pool_pre_ping=True)
 
 Session = sessionmaker(bind=engine)
@@ -30,9 +30,8 @@ def get_rates_from_api():
     return data
 
 
-# Порівнювання та оновлення/додавання курсів
 def update_or_create_rates():
-    current_date = datetime.datetime.now(datetime.UTC).date()
+    current_date = datetime.datetime.now(datetime.timezone.utc).date()
     rates_from_api = get_rates_from_api()
     session = Session()
 
@@ -51,20 +50,19 @@ def update_or_create_rates():
         ).first()
 
         if existing_rate:
-            # Оновлення існуючого запису, якщо курси відрізняються
             if existing_rate.saleRate != sale_rate or existing_rate.purchaseRate != purchase_rate:
                 print(f"{existing_rate.saleRate=} != {sale_rate=} or {existing_rate.purchaseRate=} != {purchase_rate=}")
                 existing_rate.saleRate = sale_rate
                 existing_rate.purchaseRate = purchase_rate
-                existing_rate.updated = datetime.datetime.now(datetime.UTC)
+                existing_rate.updated = datetime.datetime.now(datetime.timezone.utc)
                 session.commit()
                 print(f"Updated {currency} rate.")
         else:
             # Додавання нового запису, якщо на поточну дату його не знайдено
             new_rate = SprExchangeRates(
-                rdate=datetime.datetime.utcnow(), base_currency=base_currency, currency=currency, saleRate=sale_rate,
-                purchaseRate=purchase_rate, created=datetime.datetime.now(datetime.UTC),
-                updated=datetime.datetime.now(datetime.UTC),
+                rdate=current_date, base_currency=base_currency, currency=currency, saleRate=sale_rate,
+                purchaseRate=purchase_rate, created=datetime.datetime.now(datetime.timezone.utc),
+                updated=datetime.datetime.now(datetime.timezone.utc),
                 source='pryvat_api'
             )
             session.add(new_rate)
