@@ -22,4 +22,4 @@ jobs:
             - name: List dir
               run: ls
             - name: Run App
-              run: python ~/finman_api/scripts/get_rates.py
+              run: python ./scripts/get_rates.py
