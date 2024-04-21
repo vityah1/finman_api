@@ -3,7 +3,8 @@ name: Deploy to hostinger
 on:
   push:
     branches:
-      - vh_hostinger
+#      - vh_hostinger
+      - master
 
 jobs:
   deploy:
@@ -22,6 +23,8 @@ jobs:
           script: |
             echo $WELCOME
             cd /home/finman/finman_api
+            echo git CHECKOUT...
+            git checkout master
             echo git PULL...
             git pull
             echo restart FINMAN...

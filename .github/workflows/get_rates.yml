@@ -17,11 +17,11 @@ jobs:
         steps:
             - name: Checkout Code
               uses: actions/checkout@v4
-              with:
-                ref: vh_hostinger
+#              with:
+#                ref: vh_hostinger
             - name: Install Dependencies
               run: pip install PyMySQL
-            - name: List dir
-              run: ls
+#            - name: List dir
+#              run: ls
             - name: Run App
               run: python ./scripts/get_rates.py
