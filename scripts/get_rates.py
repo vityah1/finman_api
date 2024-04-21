@@ -10,7 +10,7 @@ from sqlalchemy.orm import sessionmaker
 current_directory = os.getcwd()
 print("Current Directory:", current_directory)
 
-from models import SprExchangeRates
+from ..models import SprExchangeRates
 
 dotenv.load_dotenv()
 
