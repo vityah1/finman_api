@@ -1,7 +1,7 @@
 name: Daily get rates
 
 on:
- push:
+  workflow_dispatch:
 
 env:
     DATABASE_URI: ${{ secrets.DATABASE_URI }}
