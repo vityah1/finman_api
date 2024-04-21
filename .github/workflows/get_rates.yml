@@ -1,7 +1,6 @@
 name: Daily get rates
 
 on:
-  push:
   schedule:
     - cron: '* * * * *'
 
