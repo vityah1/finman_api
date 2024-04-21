@@ -1,6 +1,9 @@
 name: Daily get rates
 
 on:
+  push:
+    branches:
+      - vh_hostinger
   workflow_dispatch:
 
 env:
