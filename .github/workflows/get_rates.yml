@@ -1,0 +1,21 @@
+name: Daily get rates
+
+on:
+  push:
+    branches:
+      - vh_hostinger
+  workflow_dispatch:
+
+env:
+    DATABASE_URI: ${{ secrets.DATABASE_URI }}
+
+jobs:
+    Daily-Run:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout Code
+              uses: actions/checkout@v4
+            - name: Install Dependencies
+              run: pip install SQLAlchemy python-dotenv
+            - name: Run App
+              run: python get_currencies.py
