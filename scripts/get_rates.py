@@ -1,16 +1,16 @@
 import datetime
 import logging
 import os
+import sys
+
 
 import dotenv
 import requests
 from sqlalchemy import and_, create_engine, func
 from sqlalchemy.orm import sessionmaker
 
-current_directory = os.getcwd()
-print("Current Directory:", current_directory)
-
-from ..models import SprExchangeRates
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from models import SprExchangeRates
 
 dotenv.load_dotenv()
 
