@@ -1,10 +1,12 @@
 name: Daily get rates
 
 on:
-  push:
-    branches:
-      - vh_hostinger
-  workflow_dispatch:
+#  push:
+#    branches:
+#      - vh_hostinger
+#  workflow_dispatch:
+  schedule:
+    - cron: '0 9,15,18 * * *'
 
 env:
     DATABASE_URI: ${{ secrets.DATABASE_URI }}
