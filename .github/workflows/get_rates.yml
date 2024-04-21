@@ -1,9 +1,6 @@
 name: Daily get rates
 
 on:
-  push:
-    branches:
-      - vh_hostinger
   workflow_dispatch:
 
 env:
@@ -15,7 +12,11 @@ jobs:
         steps:
             - name: Checkout Code
               uses: actions/checkout@v4
+              with:
+                ref: vh_hostinger
             - name: Install Dependencies
               run: pip install SQLAlchemy python-dotenv
+            - name: List dir
+              run: ls
             - name: Run App
-              run: python get_currencies.py
+              run: python ~/finman_api/scripts/get_rates.py
