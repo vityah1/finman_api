@@ -11,15 +11,13 @@ syspath.append(path.abspath(path.join(path.dirname(__file__), '..')))
 
 DATABASE_URI = environ["DATABASE_URI"]
 
+logger = logging.getLogger()
 
-def setup_logging():
-    logger = logging.getLogger()
+
+def setup_logging(logger: logging.Logger):
+
     logger.setLevel(logging.INFO)
     formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-
-    file_handler = logging.FileHandler('get_rates.log')
-    file_handler.setFormatter(formatter)
-    logger.addHandler(file_handler)
 
     console_handler = logging.StreamHandler()
     console_handler.setFormatter(formatter)
@@ -27,7 +25,16 @@ def setup_logging():
     return logger
 
 
-logger = setup_logging()
+logger = setup_logging(logger)
+
+
+def send_telegram_message(telegram_token, telegram_chat_id, message):
+    url = f"https://api.telegram.org/bot{telegram_token}/sendMessage"
+    payload = {
+        'chat_id': telegram_chat_id, 'text': message, 'parse_mode': 'Markdown'
+    }
+    response = requests.post(url, json=payload)
+    return response.text
 
 
 def get_db_connection():
@@ -45,6 +52,25 @@ def get_rates_from_api():
     return response.json()
 
 
+def get_telegram_data(cursor):
+    cursor.execute(
+        """
+        SELECT type_data, value_data FROM `config` 
+        WHERE user_id = %s AND type_data in ('telegram_token', 'telegram_chat_id')
+        """, 1
+    )
+    result = cursor.fetchall()
+    telegram_token = None
+    telegram_chat_id = None
+    for row in result:
+        if row.get('type_data') == 'telegram_token':
+            telegram_token = row.get('value_data')
+        if row.get('type_data') == 'telegram_chat_id':
+            telegram_chat_id = row.get('value_data')
+
+    return telegram_token, telegram_chat_id
+
+
 def find_existing_rate(cursor, current_date, currency, base_currency):
     cursor.execute(
         """
@@ -54,26 +80,29 @@ def find_existing_rate(cursor, current_date, currency, base_currency):
     return cursor.fetchone()
 
 
-def update_rate(cursor, sale_rate, purchase_rate, existing_rate, currency):
+def update_rate(cursor, sale_rate, purchase_rate, existing_rate, currency, messages):
     cursor.execute(
         """
         UPDATE spr_exchange_rates SET saleRate = %s, purchaseRate = %s, updated = %s WHERE id = %s
         """, (sale_rate, purchase_rate, datetime.datetime.now(datetime.timezone.utc), existing_rate['id'])
     )
-    logger.info(
-        f"Updated {currency} rate: saleRate from {existing_rate['saleRate']} to {sale_rate}, purchaseRate from {existing_rate['purchaseRate']} to {purchase_rate}"
-    )
+    txt = f"Updated {currency} rate: saleRate from {existing_rate['saleRate']} to {sale_rate}, purchaseRate from {existing_rate['purchaseRate']} to {purchase_rate}"
+    logger.info(txt)
+    messages.append(txt)
 
 
-def insert_new_rate(cursor, current_date, base_currency, currency, sale_rate, purchase_rate):
+def insert_new_rate(cursor, current_date, base_currency, currency, sale_rate, purchase_rate, messages):
     cursor.execute(
         """
         INSERT INTO spr_exchange_rates (rdate, base_currency, currency, saleRate, purchaseRate, created, updated, source)
         VALUES (%s, %s, %s, %s, %s, %s, %s, 'pryvat_api')
-        """, (current_date, base_currency, currency, sale_rate, purchase_rate,
-              datetime.datetime.now(datetime.timezone.utc), datetime.datetime.now(datetime.timezone.utc))
+        """, (
+        current_date, base_currency, currency, sale_rate, purchase_rate, datetime.datetime.now(datetime.timezone.utc),
+        datetime.datetime.now(datetime.timezone.utc))
     )
-    logger.info(f"Added new {currency} rate: saleRate {sale_rate}, purchaseRate {purchase_rate}")
+    txt = f"Added new {currency} rate: saleRate {sale_rate}, purchaseRate {purchase_rate}"
+    logger.info(txt)
+    messages.append(txt)
 
 
 def update_or_create_rates():
@@ -83,6 +112,7 @@ def update_or_create_rates():
     cursor = conn.cursor()
 
     is_need_commit = False
+    messages = []
 
     for rate in rates_from_api:
         currency = rate['ccy']
@@ -94,14 +124,19 @@ def update_or_create_rates():
 
         if existing_rate:
             if existing_rate['saleRate'] != sale_rate or existing_rate['purchaseRate'] != purchase_rate:
-                update_rate(cursor, sale_rate, purchase_rate, existing_rate, currency)
+                update_rate(cursor, sale_rate, purchase_rate, existing_rate, currency, messages)
                 is_need_commit = True
         else:
-            insert_new_rate(cursor, current_date, base_currency, currency, sale_rate, purchase_rate)
+            insert_new_rate(cursor, current_date, base_currency, currency, sale_rate, purchase_rate, messages)
             is_need_commit = True
 
     if is_need_commit:
         conn.commit()
+
+    if messages:
+        telegram_token, telegram_chat_id = get_telegram_data(cursor)
+        if telegram_token and telegram_chat_id:
+            send_telegram_message(telegram_token, telegram_chat_id, '\n'.join(messages))
 
     cursor.close()
     conn.close()
