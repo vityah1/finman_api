@@ -15,7 +15,7 @@ from models import SprExchangeRates
 dotenv.load_dotenv()
 
 SQLALCHEMY_DATABASE_URI = os.environ["DATABASE_URI"]
-
+print(f"{SQLALCHEMY_DATABASE_URI=}")
 engine = create_engine(SQLALCHEMY_DATABASE_URI, echo=True, pool_size=10, pool_pre_ping=True)
 
 Session = sessionmaker(bind=engine)
