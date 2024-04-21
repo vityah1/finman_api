@@ -1,4 +1,5 @@
-from flask import json
+# from flask import json
+import json
 from sqlalchemy.sql.expression import not_
 from sqlalchemy.orm.attributes import QueryableAttribute
 
