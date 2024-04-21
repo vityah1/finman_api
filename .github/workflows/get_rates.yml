@@ -1,7 +1,9 @@
 name: Daily get rates
 
 on:
-  workflow_dispatch:
+  push:
+  schedule:
+    - cron: '* * * * *'
 
 env:
     DATABASE_URI: ${{ secrets.DATABASE_URI }}
