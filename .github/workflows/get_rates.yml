@@ -2,7 +2,7 @@ name: Daily get rates
 
 on:
   schedule:
-    - cron: 0 9,15,18 * * *
+    - cron: '*/1 * * * *'
 
 env:
     DATABASE_URI: ${{ secrets.DATABASE_URI }}
