@@ -18,7 +18,7 @@ jobs:
               with:
                 ref: vh_hostinger
             - name: Install Dependencies
-              run: pip install SQLAlchemy Flask-SQLAlchemy python-dotenv
+              run: pip install SQLAlchemy Flask-SQLAlchemy PyMySQL python-dotenv
             - name: List dir
               run: ls
             - name: Run App
