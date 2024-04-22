@@ -1,35 +1,60 @@
-Financial manager 0.0.1
+Financial manager 0.0.2
 
 Small and compact back-end rest-api written on flask with jwt auth.  
 Also I created Front-end part written on Vue.Js 3.1
 
-Instalation:
+Installation:
 ## Requirements
-This is not ideal code but this is simple solution and practise for use flask, jwt tehnologies
+This is not ideal code but this is simple solution and practise for use flask, jwt technologies
 
-## Instalation:
+## 1. Installation:
 
-1. pip3 install -r requirements.txt
+pip3 install -r requirements.txt
 
-## Configuration and setting
-2. create and edit simple txt .env file with next data:
+## 2. Configuration and setting
+Create and edit simple txt .env file with next data:
 
 ```
 DATABASE_URI = mysql+pymysql://user:password@host:post/database
 SECRET_KEY = your_super_secret_string
 ```
 
-## Local run
-4. python app.app if you run it localy
+## 3. Local run
+python app.app if you run it locally
 
-## Virtual apache shared hosting
-5. edit .htaccess file according to your paths
+## 4. For virtual apache shared hosting only
+Edit .htaccess file according to your paths
 
-## Init database
-6. 
-flask db init
-flask db migrate -m "Initial migration"
-flask db upgrade
+## 5. Init database
 
+`flask db init
+flask db migrate -m "Initial migration"`
 
+for init with existing tables use next command:
+`flask db revision --autogenerate -m "Initial migration"`
 
+`flask db upgrade`
+
+## Setup alembic env.py to keep  service or history tables
+
+add next function:
+```python
+def include_object(object, name: str, type_, reflected, compare_to):
+    """
+    Should you include this table or not?
+    """
+
+    if type_ == 'table' and (name.startswith('_') or object.info.get("skip_autogenerate", False)):
+        return False
+
+    elif type_ == "column" and object.info.get("skip_autogenerate", False):
+        return False
+
+    return True
+```
+
+add next row with this function:
+```python
+target_metadata=get_metadata(),
+include_object=include_object,
+```

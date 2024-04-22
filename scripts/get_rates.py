@@ -55,9 +55,10 @@ def get_rates_from_api():
 def get_telegram_data(cursor):
     cursor.execute(
         """
-        SELECT type_data, value_data FROM `config` 
-        WHERE user_id = %s AND type_data in ('telegram_token', 'telegram_chat_id')
-        """, 1
+        SELECT `type_data`, `value_data` FROM `config` cfg
+        join `users` u on cfg.`user_id` = u.`id` 
+        WHERE u.`is_admin` = %s AND type_data in ('telegram_token', 'telegram_chat_id')
+        """, True
     )
     result = cursor.fetchall()
     telegram_token = None
@@ -83,8 +84,8 @@ def find_existing_rate(cursor, current_date, currency, base_currency):
 def update_rate(cursor, sale_rate, purchase_rate, existing_rate, currency, messages):
     cursor.execute(
         """
-        UPDATE spr_exchange_rates SET saleRate = %s, purchaseRate = %s, updated = %s WHERE id = %s
-        """, (sale_rate, purchase_rate, datetime.datetime.now(datetime.timezone.utc), existing_rate['id'])
+        UPDATE spr_exchange_rates SET saleRate = %s, purchaseRate = %s, updated = %s, source = %s WHERE id = %s
+        """, (sale_rate, purchase_rate, datetime.datetime.now(datetime.timezone.utc), 'pryvat_api', existing_rate['id'])
     )
     txt = f"Updated {currency} rate: saleRate from {existing_rate['saleRate']} to {sale_rate}, purchaseRate from {existing_rate['purchaseRate']} to {purchase_rate}"
     logger.info(txt)
@@ -97,8 +98,9 @@ def insert_new_rate(cursor, current_date, base_currency, currency, sale_rate, pu
         INSERT INTO spr_exchange_rates (rdate, base_currency, currency, saleRate, purchaseRate, created, updated, source)
         VALUES (%s, %s, %s, %s, %s, %s, %s, 'pryvat_api')
         """, (
-        current_date, base_currency, currency, sale_rate, purchase_rate, datetime.datetime.now(datetime.timezone.utc),
-        datetime.datetime.now(datetime.timezone.utc))
+            current_date, base_currency, currency, sale_rate, purchase_rate,
+            datetime.datetime.now(datetime.timezone.utc),
+            datetime.datetime.now(datetime.timezone.utc))
     )
     txt = f"Added new {currency} rate: saleRate {sale_rate}, purchaseRate {purchase_rate}"
     logger.info(txt)
