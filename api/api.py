@@ -6,8 +6,7 @@ from flask_cors import cross_origin
 
 from api.funcs import get_last_rate
 from mydb import db
-from utils import do_sql_sel
-
+from utils import do_sql_sel, get_current_end_date
 
 api_bp = Blueprint(
     "api_bp",
@@ -128,6 +127,8 @@ def payments_by_years():
     """
     current_user = get_jwt_identity()
     mono_user_id = request.args.get("mono_user_id")
+    currency = request.args.get('currency', 'UAH') or 'UAH'
+
     um_mono_user = ''
     if mono_user_id:
         um_mono_user = " and mono_user_id = :mono_user_id"
@@ -144,14 +145,46 @@ def payments_by_years():
     else:
         abort(400, f"Substring function not implemented for dialect: {dialect_name}")
 
+    condition = []
+    end_date = get_current_end_date()
+    condition.append(" and p.`rdate` <= :end_date")
+    saleRate = get_last_rate(currency, end_date)
+    data["end_date"] = end_date
+
     sql = f"""
 select {substring_func} as year, {amount_func} as amount, count(*) as cnt
-from `payments`
+from 
+(
+SELECT p.id, p.rdate, p.category_id, p.mydesc,
+       CASE
+           WHEN p.currency = '{currency}' THEN p.currency_amount
+           WHEN p.currency = 'UAH' AND '{currency}' IN ('EUR', 'USD') and e.saleRate is not null THEN p.currency_amount / e.saleRate
+           WHEN p.currency IN ('EUR', 'USD') AND '{currency}' = 'UAH' and e.saleRate is not null THEN p.currency_amount * e.saleRate
+           WHEN p.currency = 'UAH' AND '{currency}' IN ('EUR', 'USD') and e.saleRate is null THEN p.currency_amount / {saleRate}
+           WHEN p.currency IN ('EUR', 'USD') AND '{currency}' = 'UAH' and e.saleRate is null THEN p.currency_amount *
+{saleRate}
+           ELSE p.currency_amount
+       END AS amount
+FROM `payments` p
+LEFT JOIN (
+    SELECT e1.rdate, e1.currency, e1.saleRate, e1.purchaseRate
+    FROM spr_exchange_rates e1
+    JOIN (
+        SELECT DATE(rdate) AS date, MAX(rdate) AS max_rdate
+        FROM spr_exchange_rates
+        WHERE currency = '{currency}'
+        GROUP BY DATE(rdate)
+    ) e2 ON DATE(e1.rdate) = e2.date AND e1.rdate = e2.max_rdate
+    WHERE e1.currency = '{currency}'
+) e ON DATE(e.rdate) = DATE(p.rdate)
 where 1=1
-and `user_id` = :user_id
+and p.user_id = :user_id
 and `is_deleted` = 0
 and `amount` > 0
+{' '.join(condition)}
 {um_mono_user}
+) p
+where 1=1
 group by {substring_func} order by 1 desc
 """
 
@@ -167,6 +200,11 @@ def payment_by_months(year):
     """
     current_user = get_jwt_identity()
     mono_user_id = request.args.get("mono_user_id")
+    currency = request.args.get('currency', 'UAH') or 'UAH'
+
+    end_date = get_current_end_date()
+    saleRate = get_last_rate(currency, end_date)
+
     um_mono_user = ''
     if mono_user_id:
         um_mono_user = " and mono_user_id = :mono_user_id"
@@ -178,22 +216,51 @@ def payment_by_months(year):
 
     dialect_name = db.engine.dialect.name
     if dialect_name == 'sqlite':
-        month_func = "strftime('%m', `rdate`)"
-        year_func = "strftime('%Y', `rdate`)"
-        amount_func = "CAST(sum(`amount`) AS INTEGER)"
+        month_func = "strftime('%m', p.`rdate`)"
+        year_func = "strftime('%Y', p.`rdate`)"
+        amount_func = "CAST(sum(p.`amount`) AS INTEGER)"
     elif dialect_name == 'mysql':
-        month_func = 'extract(MONTH from `rdate`)'
-        year_func = 'extract(YEAR from `rdate`)'
-        amount_func = 'convert(sum(`amount`), UNSIGNED)'
+        month_func = 'extract(MONTH from p.`rdate`)'
+        year_func = 'extract(YEAR from p.`rdate`)'
+        amount_func = 'convert(sum(p.`amount`), UNSIGNED)'
     else:
         abort(400, f"Substring function not implemented for dialect: {dialect_name}")
 
     sql = f"""select 
 {month_func} month, {amount_func} as amount,
 count(*) as cnt
-from `payments`
-where 1=1 and `user_id` = :user_id and {year_func} = :year
+from 
+(
+SELECT p.id, p.rdate, p.category_id, p.mydesc,
+       CASE
+           WHEN p.currency = '{currency}' THEN p.currency_amount
+           WHEN p.currency = 'UAH' AND '{currency}' IN ('EUR', 'USD') and e.saleRate is not null THEN p.currency_amount / e.saleRate
+           WHEN p.currency IN ('EUR', 'USD') AND '{currency}' = 'UAH' and e.saleRate is not null THEN p.currency_amount * e.saleRate
+           WHEN p.currency = 'UAH' AND '{currency}' IN ('EUR', 'USD') and e.saleRate is null THEN p.currency_amount / {saleRate}
+           WHEN p.currency IN ('EUR', 'USD') AND '{currency}' = 'UAH' and e.saleRate is null THEN p.currency_amount *
+{saleRate}
+           ELSE p.currency_amount
+       END AS amount
+FROM `payments` p
+LEFT JOIN (
+    SELECT e1.rdate, e1.currency, e1.saleRate, e1.purchaseRate
+    FROM spr_exchange_rates e1
+    JOIN (
+        SELECT DATE(rdate) AS date, MAX(rdate) AS max_rdate
+        FROM spr_exchange_rates
+        WHERE currency = '{currency}'
+        GROUP BY DATE(rdate)
+    ) e2 ON DATE(e1.rdate) = e2.date AND e1.rdate = e2.max_rdate
+    WHERE e1.currency = '{currency}'
+) e ON DATE(e.rdate) = DATE(p.rdate)
+where 1=1
+and p.user_id = :user_id
+and `is_deleted` = 0
+and `amount` > 0
+and {year_func} = :year
 {um_mono_user}
+) p
+where 1=1
 group by {month_func} order by 1 desc
 """
 
