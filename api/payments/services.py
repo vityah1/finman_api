@@ -55,8 +55,6 @@ def get_payments_detail(user_id: int) -> list[dict]:
     month = request.args.get("month")
     currency = request.args.get('currency', 'UAH') or 'UAH'
 
-    um = []
-
     if not sort:
         sort = "order by `amount` desc"
     elif sort == "1":
@@ -83,10 +81,9 @@ def get_payments_detail(user_id: int) -> list[dict]:
 
     if category_id:
         data["category_id"] = category_id
-        um.append(f" and (p.`category_id` = :category_id or c.parent_id = :category_id)")
+        um = [f" and (p.`category_id` = :category_id or c.parent_id = :category_id)"]
     else:
-        um = []
-        um.append(f" and p.rdate >= '{current_date - datetime.timedelta(days=7):%Y-%m-%d}'")
+        um = [f" and p.rdate >= '{current_date - datetime.timedelta(days=7):%Y-%m-%d}'"]
 
     sql = f"""
 SELECT p.id, p.rdate, p.category_id, c.name AS category_name,
