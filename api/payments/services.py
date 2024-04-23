@@ -41,7 +41,7 @@ def add_payment_(user_id: int):
     return payment.to_dict()
 
 
-def get_payments_(user_id: int) -> list[dict]:
+def get_payments_detail(user_id: int) -> list[dict]:
     """
     list or search all payments.
     if not set conditions year and month then get current year and month
@@ -100,7 +100,8 @@ SELECT p.id, p.rdate, p.category_id, c.name AS category_name,
        m.name AS mono_user_name, p.currency, p.currency_amount, p.saleRate
 from ({main_sql}) p
 LEFT JOIN categories c ON p.category_id = c.id
-LEFT OUTER JOIN mono_users m ON p.mono_user_id = m.id
+LEFT OUTER JOIN mono_users m on p.mono_user_id = m.id
+WHERE 1=1
 {' '.join(um)}
 {sort}
 """

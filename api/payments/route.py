@@ -9,7 +9,7 @@ from api.payments.services import (
     del_payment_,
     upd_payment_,
     get_payment_,
-    get_payments_
+    get_payments_detail
 )
 
 
@@ -44,7 +44,7 @@ def get_payments():
     current_user = get_jwt_identity()
     user_id = current_user.get('user_id')
 
-    return get_payments_(user_id)
+    return get_payments_detail(user_id)
 
 
 
