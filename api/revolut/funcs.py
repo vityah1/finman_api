@@ -1,14 +1,12 @@
 # _*_ coding:UTF-8 _*_
 import logging
-from os import abort
-import time
-import datetime
-from typing import Any, Dict, List
+from typing import Any
 
+from flask import abort
 from pandas import read_excel, read_csv
 
 from mydb import db
-from models.models import Payment, User
+from models.models import User
 from .schemas import PaymentData
 from api.mono.funcs import find_category
 from api.payments.funcs import create_bank_payment_id
@@ -17,7 +15,7 @@ from ..funcs import get_last_rate
 logger = logging.getLogger()
 
 
-def convert_file_to_pmts(user_id: int, file) -> list[dict[str, Any]]:
+def convert_file_to_data(user_id: int, file) -> list[dict[str, Any]]:
     revolut_data = []
     user = db.session.query(User).get(user_id)
 
@@ -59,16 +57,3 @@ def convert_file_to_pmts(user_id: int, file) -> list[dict[str, Any]]:
         revolut_data.append(pmt_data.dict())
 
     return revolut_data
-
-
-def add_revolut_bulk_payments(data: list[PaymentData]):
-    result = False
-    try:
-        db.session.bulk_insert_mappings(Payment, data)
-        db.session.commit()
-        result = True
-    except Exception as err:
-        logger.error(f'{err}')
-        db.session.rollback()
-        db.session.flush()
-    return result

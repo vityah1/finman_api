@@ -24,13 +24,11 @@ def fetch_and_fill(start_year = 2020):
     current_date = date(start_year, 4, 7)
 
     while current_date <= end_date:
-        # Форматування дати для запиту
         formatted_date = current_date.strftime('%d.%m.%Y')
         url = f'https://api.privatbank.ua/p24api/exchange_rates?json&date={formatted_date}'
         response = requests.get(url)
         data = response.json()
 
-        # Перевірка наявності даних
         if 'exchangeRate' not in data:
             current_date += timedelta(days=1)
             continue

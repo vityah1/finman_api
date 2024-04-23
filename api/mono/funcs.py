@@ -38,7 +38,8 @@ def find_category(user: User, description: str):
         # set as deleted according to rules
         if config_row.type_data == ConfigTypes.IS_DELETED_BY_DESCRIPTION.value:
             if description.find(config_row.value_data) > -1:
-                is_deleted = 1
+                ...
+                # is_deleted = 1
         # for replace category according to rules
         if config_row.type_data == ConfigTypes.CATEGORY_REPLACE.value:
             if config_row.add_value and description.find(config_row.value_data.strip()) > -1:
@@ -203,7 +204,7 @@ def convert_webhook_mono_to_payment(mono_user: MonoUser, data: dict) -> dict:
     id = data["data"]["statementItem"]["id"]
     rdate_mono = data["data"]["statementItem"]["time"]
     rdate = datetime.datetime.fromtimestamp(rdate_mono)
-    dt = f"{rdate:%d.%m.%Y %H:%M:%S}"
+    # dt = f"{rdate:%d.%m.%Y %H:%M:%S}"
     description = data["data"]["statementItem"]["description"].replace("'", "")
     mcc = data["data"]["statementItem"]["mcc"]
     amount = data["data"]["statementItem"]["amount"] / 100
@@ -246,7 +247,8 @@ def get_mono_payments(start_date: str = "", end_date: str = "", mono_user_id: in
         if account['id'] not in config_accounts:
             continue
 
-        url = f"""{current_app.config['MONO_API_URL']}/personal/statement/{account['id']}/{start_date_unix}/{end_date_unix}"""
+        url = (f"{current_app.config['MONO_API_URL']}/personal/statement/"
+               f"{account['id']}/{start_date_unix}/{end_date_unix}")
         header = {"X-Token": mono_user_token}
 
         r = requests.get(url, headers=header)

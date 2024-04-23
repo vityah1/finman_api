@@ -1,6 +1,7 @@
 from datetime import datetime
 from pydantic import BaseModel
 
+
 class PaymentData(BaseModel):
     rdate: datetime
     category_id: int

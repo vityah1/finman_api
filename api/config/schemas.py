@@ -1,4 +1,5 @@
-from aenum import Enum, EnumMeta
+from aenum import Enum
+
 
 class ConfigTypes(Enum):
     MONO_ACCOUNT = 'mono_account'
@@ -8,7 +9,6 @@ class ConfigTypes(Enum):
     CATEGORY_REPLACE = 'category_replace'
     EXCLUDE_FROM_STAT = 'exclude_from_stat'
     IS_DELETED_BY_DESCRIPTION = 'is_deleted_by_description'
-
 
     @property
     def name(self):

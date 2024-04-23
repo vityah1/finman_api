@@ -1,6 +1,12 @@
+import logging
 from datetime import datetime
 
+from models import Payment
+from mydb import db
+
 from utils import do_sql_sel
+
+logger = logging.getLogger()
 
 
 def get_last_rate(currency, end_date):
@@ -82,3 +88,16 @@ def get_current_end_date():
     month = f'{curr_date:%m}'
     end_date = f'{year if int(month) < 12 else int(year) + 1}-{int(month) + 1 if int(month) < 12 else 1:02d}-01'
     return end_date
+
+
+def add_bulk_payments(data: list[dict]):
+    result = False
+    try:
+        db.session.bulk_insert_mappings(Payment, data)
+        db.session.commit()
+        result = True
+    except Exception as err:
+        logger.error(f'{err}')
+        db.session.rollback()
+        db.session.flush()
+    return result

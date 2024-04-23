@@ -1,4 +1,5 @@
 import logging
+
 from flask import request, abort
 from sqlalchemy.orm import aliased
 
@@ -47,7 +48,7 @@ def get_user_config_(user_id: int) -> list[dict]:
     return [item._asdict() for item in configs]
 
 
-def add_config_(user_id: int) -> dict:
+def add_config_(user_id: int) -> list[dict]:
     """
     add config
     """
@@ -56,7 +57,7 @@ def add_config_(user_id: int) -> dict:
         data = request.get_json()
     except Exception as err:
         abort(500, f'config add failed {err}')
-    # chack for add_value
+    # check for add_value
     for type_data in list(ConfigTypes):
         if type_data.value == data['type_data'] \
             and type_data.is_need_add_value \
@@ -94,7 +95,7 @@ def edit_config_(config_id: int) -> Config:
     return config.to_dict()
 
 
-def delete_config_(config_id: int) -> Config:
+def delete_config_(config_id: int) -> dict[str, str]:
     """
     delete mono user
     """

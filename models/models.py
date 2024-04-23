@@ -1,7 +1,7 @@
 import datetime
 import uuid
 
-from sqlalchemy import (Boolean, Column, DateTime, Float, ForeignKey, Index, Integer, String, Text)
+from sqlalchemy import (Boolean, Column, DateTime, ForeignKey, Index, Integer, String, Text)
 from sqlalchemy.dialects.mysql import FLOAT
 from sqlalchemy.orm import relationship
 

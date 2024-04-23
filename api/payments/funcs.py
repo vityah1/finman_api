@@ -38,7 +38,7 @@ def convert_desc_to_refuel_data(mydesc: str) -> dict:
     return refuel_data
 
 
-def conv_refuel_data_to_desc(data: dict) -> dict:
+def conv_refuel_data_to_desc(data: dict) -> str:
     result = ''
     if data.get('km') and data.get('litres'):
         result = '{}км;{}л'.format(data.get('km'), data.get('litres'))
@@ -51,7 +51,7 @@ def conv_refuel_data_to_desc(data: dict) -> dict:
     return result
 
 
-def get_user_phones_from_config(user_id: int) -> list[dict]:
+def get_user_phones_from_config(user_id: int) -> dict:
     user_phones = {}
     user_config = db.session().query(
         Config.value_data,

@@ -55,5 +55,3 @@ def add_new_config_row(data: dict) -> dict:
         logger.error(f'config add failed {err}')
         abort(500, 'config add failed')
     return config.to_dict()
-
-

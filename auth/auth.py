@@ -20,7 +20,6 @@ auth_bp = Blueprint(
 @auth_bp.route("/api/auth/signin", methods=["POST"])
 @cross_origin()
 def user_login():
-    result = {}
     data = request.get_json()
 
     user = db.session().query(User).filter(
@@ -46,7 +45,6 @@ def user_login():
 
 @auth_bp.route("/api/auth/signup", methods=["POST"])
 def create_user():
-    result = {}
     data = request.get_json()
 
     user = User(**data)
@@ -136,30 +134,3 @@ where id = :user_id """
         "phone": data.get('phone'),
         "email": data.get('email'),
     }
-
-
-@auth_bp.route("/api/auth/signup_", methods=["POST"])
-def create_user_deprecate():
-    data = request.get_json()
-
-    sql = """insert into myBudj_users 
-(user, password, fullname, phone, email) 
-values (:username, :password, :fullname, :phone, :email) """
-
-    res = do_sql_cmd(sql, data)
-    if res["rowcount"] < 1:
-        return jsonify({"msg": "error create username"}), 401
-
-    access_token = create_access_token(
-        identity=data.get('username'), expires_delta=timedelta(days=30)
-    )
-
-    return {
-        "user_id": res.get('data'),
-        "accessToken": access_token,
-        "username": data.get('username'),
-        "fullname": data.get('fullname'),
-        "phone": data.get('phone'),
-        "email": data.get('email'),
-    }
-

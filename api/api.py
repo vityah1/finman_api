@@ -1,5 +1,3 @@
-import datetime
-
 from flask import Blueprint, request, jsonify, current_app, abort
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from flask_cors import cross_origin
@@ -51,15 +49,9 @@ def payments_for_period():
 
     sql = f"""
 select 
-case 
-    when c.parent_id = 0 then p.category_id
-    else (select id from categories where id=c.parent_id)
-end as category_id
+IF(c.parent_id = 0, p.category_id, (select id from categories where id=c.parent_id)) as category_id
 , 
-case 
-    when c.parent_id = 0 then c.name
-    else (select name from categories where id=c.parent_id)
-end as name
+IF(c.parent_id = 0, c.name, (select name from categories where id=c.parent_id)) as name
 , {amount_func} as amount,
 count(*) as cnt
 from (
@@ -67,15 +59,9 @@ from (
 ) p left join `categories` c
 on p.category_id = c.id
 where 1=1 
-group by case 
-    when c.parent_id = 0 then p.category_id
-    else (select id from categories where id=c.parent_id)
-end
+group by IF(c.parent_id = 0, p.category_id, (select id from categories where id=c.parent_id))
 , 
-case 
-    when c.parent_id = 0 then c.name
-    else (select name from categories where id=c.parent_id)
-end order by 3 desc
+IF(c.parent_id = 0, c.name, (select name from categories where id=c.parent_id)) order by 3 desc
 """
     return do_sql_sel(sql, data)
 
