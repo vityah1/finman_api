@@ -69,11 +69,3 @@ def convert_currency_code(code: int) -> str:
         980: "UAH"
     }
     return conversion_map.get(code, "UNKNOWN")
-
-
-def get_current_end_date():
-    curr_date = datetime.now()
-    year = f'{curr_date:%Y}'
-    month = f'{curr_date:%m}'
-    end_date = f'{year if int(month) < 12 else int(year) + 1}-{int(month) + 1 if int(month) < 12 else 1:02d}-01'
-    return end_date

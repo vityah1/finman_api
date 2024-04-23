@@ -4,7 +4,7 @@ import re
 
 from flask import abort, jsonify, request
 
-from api.funcs import get_last_rate
+from api.funcs import get_last_rate, get_main_sql
 from api.payments.funcs import (
     conv_refuel_data_to_desc, convert_desc_to_refuel_data, create_bank_payment_id, get_user_phones_from_config,
 )
@@ -47,18 +47,14 @@ def get_payments_(user_id: int) -> list[dict]:
     if not set conditions year and month then get current year and month
     if set q then do search
     """
-    q = request.args.get("q")
+
     sort = request.args.get("sort")
     category_id = request.args.get("category_id")
     year = request.args.get("year")
     month = request.args.get("month")
-    mono_user_id = request.args.get("mono_user_id")
     currency = request.args.get('currency', 'UAH') or 'UAH'
 
     um = []
-
-    if q:
-        um.append(f" and (c.`name` like '%{q}%' or `descript` like '%{q}%')")
 
     if not sort:
         sort = "order by `amount` desc"
@@ -71,56 +67,49 @@ def get_payments_(user_id: int) -> list[dict]:
     else:
         sort = "order by `amount` desc"
 
-    curr_date = datetime.datetime.now()
+    current_date = datetime.datetime.now()
     if not year:
-        year = f"{curr_date:%Y}"
+        year = f"{current_date:%Y}"
     if not month:
-        month = f"{curr_date:%m}"
+        month = f"{current_date:%m}"
 
     start_date = f"{year}-{int(month):02d}-01"
     end_date = f"{year if int(month) < 12 else int(year) + 1}-{int(month) + 1 if int(month) < 12 else 1:02d}-01"
-    um.append(f" and p.`rdate` >= '{start_date}' and p.`rdate` < '{end_date}'")
 
-    saleRate = get_last_rate(currency, end_date)
+    data = {
+        "start_date": start_date,
+        "end_date": end_date,
+        "user_id": user_id,
+        "mono_user_id": request.args.get("mono_user_id"),
+        "currency": currency,
+        "q": request.args.get("q")
+    }
 
-    if mono_user_id:
-        um.append(f" and p.`mono_user_id` = {mono_user_id}")
+    main_sql = get_main_sql(data)
 
     if category_id:
-        um.append(f" and (p.`category_id` = {category_id} or c.parent_id = {category_id})")
+        data["category_id"] = category_id
+        um.append(f" and (p.`category_id` = :category_id or c.parent_id = :category_id)")
     else:
         um = []
-        um.append(f" and p.rdate >= '{curr_date - datetime.timedelta(days=7):%Y-%m-%d}'")
+        um.append(f" and p.rdate >= '{current_date - datetime.timedelta(days=7):%Y-%m-%d}'")
 
     sql = f"""
 SELECT p.id, p.rdate, p.category_id, c.name AS category_name,
        c.parent_id, p.mydesc, p.amount,
-       m.name AS mono_user_name, p.currency, p.currency_amount, e.saleRate
-FROM `payments` p
+       m.name AS mono_user_name, p.currency, p.currency_amount, p.saleRate
+from ({main_sql}) p
 LEFT JOIN categories c ON p.category_id = c.id
 LEFT OUTER JOIN mono_users m ON p.mono_user_id = m.id
-LEFT JOIN (
-    SELECT e1.rdate, e1.currency, e1.saleRate, e1.purchaseRate
-    FROM spr_exchange_rates e1
-    JOIN (
-        SELECT DATE(rdate) AS date, MAX(rdate) AS max_rdate
-        FROM spr_exchange_rates
-        WHERE currency = '{currency}'
-        GROUP BY DATE(rdate)
-    ) e2 ON DATE(e1.rdate) = e2.date AND e1.rdate = e2.max_rdate
-    WHERE e1.currency = '{currency}'
-) e ON DATE(e.rdate) = DATE(p.rdate)
-WHERE 1=1 AND p.user_id = {user_id} AND p.is_deleted = 0
 {' '.join(um)}
 {sort}
 """
 
-    pattern = re.compile(r"(\+38)?0\d{9}", re.MULTILINE)
-    phone_number = ""
-    result = do_sql_sel(sql)
+    result = do_sql_sel(sql, data)
     if not result:
         return []
 
+    pattern = re.compile(r"(\+38)?0\d{9}", re.MULTILINE)
     user_phones = get_user_phones_from_config(user_id)
     for row in result:
 
@@ -129,16 +118,16 @@ WHERE 1=1 AND p.user_id = {user_id} AND p.is_deleted = 0
             phone_number = f"+38{phone_number}" if not phone_number.startswith("+38") else phone_number
             if phone_number in user_phones:
                 row["mydesc"] += f" [{user_phones[phone_number]}]"
-
-        if row["currency"] != currency:
-            if row["currency"] == 'UAH':
-                row["amount"] = round(row["currency_amount"] /
-                                      (row["saleRate"] if row.get("saleRate") else saleRate), 2)
-            else:
-                row["amount"] = round(row["currency_amount"] *
-                                      (row["saleRate"] if row.get("saleRate") else saleRate), 2)
-        else:
-            row["amount"] = round(row["currency_amount"], 2)
+        #
+        # if row["currency"] != currency:
+        #     if row["currency"] == 'UAH':
+        #         row["amount"] = round(row["currency_amount"] /
+        #                               (row["saleRate"] if row.get("saleRate") else saleRate), 2)
+        #     else:
+        #         row["amount"] = round(row["currency_amount"] *
+        #                               (row["saleRate"] if row.get("saleRate") else saleRate), 2)
+        # else:
+        #     row["amount"] = round(row["currency_amount"], 2)
 
     return result
 

@@ -4,9 +4,9 @@ from flask import Blueprint, request, jsonify, current_app, abort
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from flask_cors import cross_origin
 
-from api.funcs import get_last_rate
+from api.funcs import get_main_sql
 from mydb import db
-from utils import do_sql_sel, get_current_end_date
+from utils import do_sql_sel
 
 api_bp = Blueprint(
     "api_bp",
@@ -26,29 +26,25 @@ def payments_for_period():
     current_user = get_jwt_identity()
     year = request.args.get("year", "").zfill(2)
     month = request.args.get("month", "").zfill(2)
-    mono_user_id = request.args.get("mono_user_id")
-    currency = request.args.get('currency', 'UAH') or 'UAH'
 
-    condition = []
-    curr_date = datetime.datetime.now()
+    current_date = datetime.datetime.now()
     if not year:
-        year = f'{curr_date:%Y}'
+        year = f'{current_date:%Y}'
     if not month:
-        month = f'{curr_date:%m}'
+        month = f'{current_date:%m}'
 
     start_date = f'{year}-{int(month):02d}-01'
     end_date = f'{year if int(month) < 12 else int(year) + 1}-{int(month) + 1 if int(month) < 12 else 1:02d}-01'
-    condition.append(" and p.`rdate` >= :start_date and p.`rdate` < :end_date")
-
-    if mono_user_id:
-        condition.append(" and mono_user_id = :mono_user_id")
 
     data = {
         "start_date": start_date,
         "end_date": end_date,
-        "mono_user_id": mono_user_id,
-        "user_id": current_user.get('user_id')
+        "user_id": current_user.get('user_id'),
+        "mono_user_id": request.args.get("mono_user_id"),
+        "currency": request.args.get('currency', 'UAH') or 'UAH',
     }
+
+    main_sql = get_main_sql(data)
 
     dialect_name = db.engine.dialect.name
 
@@ -58,8 +54,6 @@ def payments_for_period():
         amount_func = 'convert(sum(`amount`), UNSIGNED)'
     else:
         abort(400, f"Substring function not implemented for dialect: {dialect_name}")
-
-    saleRate = get_last_rate(currency, end_date)
 
     sql = f"""
 select 
@@ -75,33 +69,7 @@ end as name
 , {amount_func} as amount,
 count(*) as cnt
 from (
-SELECT p.id, p.rdate, p.category_id, p.mydesc,
-       CASE
-           WHEN p.currency = '{currency}' THEN p.currency_amount
-           WHEN p.currency = 'UAH' AND '{currency}' IN ('EUR', 'USD') and e.saleRate is not null THEN p.currency_amount / e.saleRate
-           WHEN p.currency IN ('EUR', 'USD') AND '{currency}' = 'UAH' and e.saleRate is not null THEN p.currency_amount * e.saleRate
-           WHEN p.currency = 'UAH' AND '{currency}' IN ('EUR', 'USD') and e.saleRate is null THEN p.currency_amount / {saleRate}
-           WHEN p.currency IN ('EUR', 'USD') AND '{currency}' = 'UAH' and e.saleRate is null THEN p.currency_amount *
-{saleRate}
-           ELSE p.currency_amount
-       END AS amount
-FROM `payments` p
-LEFT JOIN (
-    SELECT e1.rdate, e1.currency, e1.saleRate, e1.purchaseRate
-    FROM spr_exchange_rates e1
-    JOIN (
-        SELECT DATE(rdate) AS date, MAX(rdate) AS max_rdate
-        FROM spr_exchange_rates
-        WHERE currency = '{currency}'
-        GROUP BY DATE(rdate)
-    ) e2 ON DATE(e1.rdate) = e2.date AND e1.rdate = e2.max_rdate
-    WHERE e1.currency = '{currency}'
-) e ON DATE(e.rdate) = DATE(p.rdate)
-where 1=1
-and p.user_id = :user_id
-and `is_deleted` = 0
-and `amount` > 0
-{' '.join(condition)}
+{main_sql}
 ) p left join `categories` c
 on p.category_id = c.id
 where 1=1 
@@ -125,15 +93,6 @@ def payments_by_years():
     """
     return total payments grouped by years
     """
-    current_user = get_jwt_identity()
-    mono_user_id = request.args.get("mono_user_id")
-    currency = request.args.get('currency', 'UAH') or 'UAH'
-
-    um_mono_user = ''
-    if mono_user_id:
-        um_mono_user = " and mono_user_id = :mono_user_id"
-    data = {"mono_user_id": mono_user_id, "user_id": current_user.get('user_id')}
-
     dialect_name = db.engine.dialect.name
 
     if dialect_name == 'sqlite':
@@ -145,44 +104,25 @@ def payments_by_years():
     else:
         abort(400, f"Substring function not implemented for dialect: {dialect_name}")
 
-    condition = []
-    end_date = get_current_end_date()
-    condition.append(" and p.`rdate` <= :end_date")
-    saleRate = get_last_rate(currency, end_date)
-    data["end_date"] = end_date
+    current_user = get_jwt_identity()
+    data = {"user_id": current_user.get('user_id')}
+    if request.args.get("grouped"):
+        main_sql = ("select rdate from `payments` "
+                    "where amount > 0 and is_deleted = 0 and user_id = :user_id")
+        add_fields = ""
+    else:
+        data["user_id"] = current_user.get('user_id')
+        data["mono_user_id"] = request.args.get("mono_user_id")
+        data["currency"] = request.args.get('currency', 'UAH') or 'UAH'
+        add_fields = f", {amount_func} as amount, count(*) as cnt"
+
+        main_sql = get_main_sql(data)
 
     sql = f"""
-select {substring_func} as year, {amount_func} as amount, count(*) as cnt
+select {substring_func} as year {add_fields}
 from 
 (
-SELECT p.id, p.rdate, p.category_id, p.mydesc,
-       CASE
-           WHEN p.currency = '{currency}' THEN p.currency_amount
-           WHEN p.currency = 'UAH' AND '{currency}' IN ('EUR', 'USD') and e.saleRate is not null THEN p.currency_amount / e.saleRate
-           WHEN p.currency IN ('EUR', 'USD') AND '{currency}' = 'UAH' and e.saleRate is not null THEN p.currency_amount * e.saleRate
-           WHEN p.currency = 'UAH' AND '{currency}' IN ('EUR', 'USD') and e.saleRate is null THEN p.currency_amount / {saleRate}
-           WHEN p.currency IN ('EUR', 'USD') AND '{currency}' = 'UAH' and e.saleRate is null THEN p.currency_amount *
-{saleRate}
-           ELSE p.currency_amount
-       END AS amount
-FROM `payments` p
-LEFT JOIN (
-    SELECT e1.rdate, e1.currency, e1.saleRate, e1.purchaseRate
-    FROM spr_exchange_rates e1
-    JOIN (
-        SELECT DATE(rdate) AS date, MAX(rdate) AS max_rdate
-        FROM spr_exchange_rates
-        WHERE currency = '{currency}'
-        GROUP BY DATE(rdate)
-    ) e2 ON DATE(e1.rdate) = e2.date AND e1.rdate = e2.max_rdate
-    WHERE e1.currency = '{currency}'
-) e ON DATE(e.rdate) = DATE(p.rdate)
-where 1=1
-and p.user_id = :user_id
-and `is_deleted` = 0
-and `amount` > 0
-{' '.join(condition)}
-{um_mono_user}
+{main_sql}
 ) p
 where 1=1
 group by {substring_func} order by 1 desc
@@ -199,20 +139,13 @@ def payment_by_months(year):
     return total payments grouped by months in year
     """
     current_user = get_jwt_identity()
-    mono_user_id = request.args.get("mono_user_id")
-    currency = request.args.get('currency', 'UAH') or 'UAH'
-
-    end_date = get_current_end_date()
-    saleRate = get_last_rate(currency, end_date)
-
-    um_mono_user = ''
-    if mono_user_id:
-        um_mono_user = " and mono_user_id = :mono_user_id"
     data = {
-        "mono_user_id": mono_user_id,
         "user_id": current_user.get('user_id'),
-        "year": str(year)
+        "year": str(year),
+        "mono_user_id": request.args.get("mono_user_id"),
+        "currency": request.args.get('currency', 'UAH') or 'UAH',
     }
+    main_sql = get_main_sql(data)
 
     dialect_name = db.engine.dialect.name
     if dialect_name == 'sqlite':
@@ -231,34 +164,8 @@ def payment_by_months(year):
 count(*) as cnt
 from 
 (
-SELECT p.id, p.rdate, p.category_id, p.mydesc,
-       CASE
-           WHEN p.currency = '{currency}' THEN p.currency_amount
-           WHEN p.currency = 'UAH' AND '{currency}' IN ('EUR', 'USD') and e.saleRate is not null THEN p.currency_amount / e.saleRate
-           WHEN p.currency IN ('EUR', 'USD') AND '{currency}' = 'UAH' and e.saleRate is not null THEN p.currency_amount * e.saleRate
-           WHEN p.currency = 'UAH' AND '{currency}' IN ('EUR', 'USD') and e.saleRate is null THEN p.currency_amount / {saleRate}
-           WHEN p.currency IN ('EUR', 'USD') AND '{currency}' = 'UAH' and e.saleRate is null THEN p.currency_amount *
-{saleRate}
-           ELSE p.currency_amount
-       END AS amount
-FROM `payments` p
-LEFT JOIN (
-    SELECT e1.rdate, e1.currency, e1.saleRate, e1.purchaseRate
-    FROM spr_exchange_rates e1
-    JOIN (
-        SELECT DATE(rdate) AS date, MAX(rdate) AS max_rdate
-        FROM spr_exchange_rates
-        WHERE currency = '{currency}'
-        GROUP BY DATE(rdate)
-    ) e2 ON DATE(e1.rdate) = e2.date AND e1.rdate = e2.max_rdate
-    WHERE e1.currency = '{currency}'
-) e ON DATE(e.rdate) = DATE(p.rdate)
-where 1=1
-and p.user_id = :user_id
-and `is_deleted` = 0
-and `amount` > 0
+{main_sql}
 and {year_func} = :year
-{um_mono_user}
 ) p
 where 1=1
 group by {month_func} order by 1 desc
