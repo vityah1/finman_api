@@ -1,6 +1,7 @@
 import logging
 from datetime import datetime
 
+from api.config.schemas import ConfigTypes
 from models import Payment
 from mydb import db
 
@@ -29,6 +30,8 @@ def get_main_sql(
         data: dict | None
 ) -> str:
     condition = []
+
+    data["type_data"] = ConfigTypes.EXCLUDE_FROM_STAT.value
 
     if not data.get("end_date"):
         data["end_date"] = get_current_end_date()
@@ -76,6 +79,7 @@ where 1=1
 and p.user_id = :user_id
 and `is_deleted` = 0
 and `amount` > 0
+and mydesc not in (select value_data from config where type_data = :type_data and user_id = :user_id)
 {' '.join(condition)}
 """
 
