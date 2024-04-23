@@ -1,3 +1,4 @@
+import datetime
 import hashlib
 import re
 from datetime import datetime
@@ -66,4 +67,12 @@ def get_user_phones_from_config(user_id: int) -> list[dict]:
     return user_phones
 
 
-
+def get_dates(month, year):
+    current_date = datetime.datetime.now()
+    if not year:
+        year = f"{current_date:%Y}"
+    if not month:
+        month = f"{current_date:%m}"
+    start_date = f"{year}-{int(month):02d}-01"
+    end_date = f"{year if int(month) < 12 else int(year) + 1}-{int(month) + 1 if int(month) < 12 else 1:02d}-01"
+    return current_date, end_date, start_date

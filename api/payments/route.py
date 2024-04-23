@@ -8,7 +8,7 @@ from api.payments.services import (
     add_payment_,
     del_payment_,
     upd_payment_,
-    get_payment_,
+    get_payment_detail,
     get_payments_detail
 )
 
@@ -56,7 +56,7 @@ def get_payment(payment_id):
     get info about payment
     input: id
     """
-    return get_payment_(payment_id)
+    return get_payment_detail(payment_id)
 
 
 @payments_bp.route("/api/payments/<int:payment_id>", methods=["DELETE"])

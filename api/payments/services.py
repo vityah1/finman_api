@@ -6,7 +6,8 @@ from flask import abort, jsonify, request
 
 from api.funcs import get_last_rate, get_main_sql
 from api.payments.funcs import (
-    conv_refuel_data_to_desc, convert_desc_to_refuel_data, create_bank_payment_id, get_user_phones_from_config,
+    conv_refuel_data_to_desc, convert_desc_to_refuel_data, create_bank_payment_id, get_dates,
+    get_user_phones_from_config,
 )
 from models import Payment
 from mydb import db
@@ -67,14 +68,7 @@ def get_payments_detail(user_id: int) -> list[dict]:
     else:
         sort = "order by `amount` desc"
 
-    current_date = datetime.datetime.now()
-    if not year:
-        year = f"{current_date:%Y}"
-    if not month:
-        month = f"{current_date:%m}"
-
-    start_date = f"{year}-{int(month):02d}-01"
-    end_date = f"{year if int(month) < 12 else int(year) + 1}-{int(month) + 1 if int(month) < 12 else 1:02d}-01"
+    current_date, end_date, start_date = get_dates(month, year)
 
     data = {
         "start_date": start_date,
@@ -133,11 +127,11 @@ WHERE 1=1
     return result
 
 
-def get_payment_(payment_id: int):
+def get_payment_detail(payment_id: int):
     """
     get info about payment
     """
-    result = {}
+
     payment = db.session().query(Payment).get(payment_id)
 
     if not payment:
@@ -190,4 +184,4 @@ def upd_payment_(payment_id):
         abort(500, "payment edit failed")
 
     # return payment.to_dict()
-    return get_payment_(payment_id)
+    return get_payment_detail(payment_id)

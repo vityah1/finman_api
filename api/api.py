@@ -5,6 +5,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from flask_cors import cross_origin
 
 from api.funcs import get_main_sql
+from api.payments.funcs import get_dates
 from mydb import db
 from utils import do_sql_sel
 
@@ -27,14 +28,7 @@ def payments_for_period():
     year = request.args.get("year", "").zfill(2)
     month = request.args.get("month", "").zfill(2)
 
-    current_date = datetime.datetime.now()
-    if not year:
-        year = f'{current_date:%Y}'
-    if not month:
-        month = f'{current_date:%m}'
-
-    start_date = f'{year}-{int(month):02d}-01'
-    end_date = f'{year if int(month) < 12 else int(year) + 1}-{int(month) + 1 if int(month) < 12 else 1:02d}-01'
+    current_date, end_date, start_date = get_dates(month, year)
 
     data = {
         "start_date": start_date,
