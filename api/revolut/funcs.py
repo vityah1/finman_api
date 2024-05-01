@@ -2,7 +2,7 @@
 import logging
 from typing import Any
 
-from flask import abort
+from flask import abort, g
 from pandas import read_excel, read_csv
 
 from mydb import db
@@ -17,7 +17,9 @@ logger = logging.getLogger()
 
 def convert_file_to_data(user_id: int, file) -> list[dict[str, Any]]:
     revolut_data = []
-    user = db.session.query(User).get(user_id)
+    session = g.get('db_session', None)
+    user: User = session.query(User).get(user_id)
+    user_config = user.config
 
     if file.filename.find('.xls') > 0:
         df = read_excel(file)
@@ -50,7 +52,7 @@ def convert_file_to_data(user_id: int, file) -> list[dict[str, Any]]:
             currency=data["Currency"],
             type_payment="card",
             source="revolut",
-            currency_amount=data["Amount"],
+            currency_amount=data["Amount"] * -1,
         )
 
         pmt_data.bank_payment_id = create_bank_payment_id(pmt_data.dict())

@@ -1,6 +1,6 @@
 from logging.config import dictConfig
 
-from flask import Flask, jsonify, request
+from flask import Flask, g, jsonify, request
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 from flask_migrate import Migrate
@@ -79,10 +79,19 @@ def log_request_info(response):
 
 
 @app.teardown_request
-def session_clear(exception=None):
+def teardown_request(exception=None):
+    if exception and hasattr(g, "db_session") and g.db_session:
+        print(f"{exception=}")
+        g.db_session.rollback()
+    if hasattr(g, "db_session") and g.db_session:
+        g.db_session.commit()
     db.session.remove()
-    if exception and db.session.is_active:
-        db.session.rollback()
+
+
+@app.before_request
+def before_request():
+    db.session.remove()
+    g.db_session = db.session
 
 
 @app.errorhandler(404)

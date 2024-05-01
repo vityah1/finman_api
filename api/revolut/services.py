@@ -2,6 +2,7 @@
 import logging
 
 from flask import request, abort
+from flask_jwt_extended import get_jwt_identity
 
 from api.funcs import add_bulk_payments
 from api.revolut.funcs import convert_file_to_data
@@ -11,7 +12,7 @@ from api.mono.funcs import add_new_payment
 logger = logging.getLogger()
 
 
-def revolut_import_(user_id: int):
+def revolut_import_():
     """
     import data from revolut
     """
@@ -23,6 +24,9 @@ def revolut_import_(user_id: int):
 
     if file.filename == '':
         abort(400, 'No selected file')
+
+    current_user = get_jwt_identity()
+    user_id = current_user.get('user_id')
 
     try:
         data_ = convert_file_to_data(user_id, file)

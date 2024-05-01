@@ -5,7 +5,7 @@ import random
 import time
 
 import requests
-from flask import abort, current_app, request
+from flask import abort, current_app, g, request
 from sqlalchemy import and_
 
 from api.config.schemas import ConfigTypes
@@ -349,7 +349,8 @@ def get_mono_user(mono_user_id: int) -> MonoUser | None:
 
 
 def get_category_id(user_id: int, category_name: str) -> int:
-    category = db.session().query(Category).filter(
+    session = g.get('db_session', None)
+    category = session.query(Category).filter(
         and_(
             Category.name.like(f'%{category_name}%'), Category.user_id == user_id, Category.parent_id == 0, )
     ).one_or_none()

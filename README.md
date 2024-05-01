@@ -27,8 +27,10 @@ Edit .htaccess file according to your paths
 
 ## 5. Init database
 
-`flask db init
-flask db migrate -m "Initial migration"`
+`
+flask db init
+flask db migrate -m "Initial migration"
+`
 
 for init with existing tables use next command:
 `flask db revision --autogenerate -m "Initial migration"`

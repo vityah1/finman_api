@@ -23,8 +23,6 @@ logger = logging.getLogger()
 @jwt_required()
 def revolut_import():
     """
-    iport data from revolut
+    import data from revolut
     """
-    current_user = get_jwt_identity()
-    user_id = current_user.get('user_id')
-    return revolut_import_(user_id)
+    return revolut_import_()

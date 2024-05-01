@@ -7,8 +7,10 @@ class PaymentData(BaseModel):
     category_id: int
     mydesc: str
     amount: int
-    currencyCode: int
+    currencyCode: int | None
     type_payment: str
     bank_payment_id: str | None
     user_id: int
     source: str
+    currency_amount: str | None
+    currency: str | None

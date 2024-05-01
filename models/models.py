@@ -1,7 +1,7 @@
 import datetime
 import uuid
 
-from sqlalchemy import (Boolean, Column, DateTime, ForeignKey, Index, Integer, String, Text)
+from sqlalchemy import (Boolean, Column, DateTime, ForeignKey, Index, Integer, String, Text, Float)
 from sqlalchemy.dialects.mysql import FLOAT
 from sqlalchemy.orm import relationship
 
@@ -136,8 +136,8 @@ class Payment(Base):
     category_id = Column(Integer, ForeignKey('categories.id'))
     category = relationship('Category', back_populates='payments')
     mydesc = Column(String(150))
-    amount = Column(Integer)
-    currencyCode = Column(Integer)
+    amount = Column(Float)
+    currencyCode = Column(Integer, nullable=True, default=None)
     mcc = Column(Integer, comment="code mcc point")
     type_payment = Column(String(29), ForeignKey('spr_type_payments.type_payment'), comment="Cash|Card")
     bank_payment_id = Column(String(65), unique=True, default=generate_uuid4, comment="id payment from bank")
@@ -149,7 +149,7 @@ class Payment(Base):
     is_deleted = Column(Boolean, default=False, nullable=True)
 
     currency = Column(String(3), comment="EUR|USD|UAH")
-    currency_amount = Column(Integer, comment="amount of currency")
+    currency_amount = Column(Float, comment="amount of currency")
     bank_hash = Column(String(64), unique=True, default=generate_uuid4, comment="hash bank payment")
 
     __table_args__ = (Index(
