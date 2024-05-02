@@ -67,6 +67,7 @@ def get_payments_detail(user_id: int) -> list[dict]:
         sort = "order by `amount` desc"
 
     current_date, end_date, start_date = get_dates(month, year)
+    um = []
 
     data = {
         "start_date": start_date,
@@ -74,26 +75,24 @@ def get_payments_detail(user_id: int) -> list[dict]:
         "user_id": user_id,
         "mono_user_id": request.args.get("mono_user_id"),
         "currency": currency,
-        "q": request.args.get("q")
+        "q": request.args.get("q"),
     }
-
-    main_sql = get_main_sql(data)
-
     if category_id:
         data["category_id"] = category_id
-        um = [f" and (p.`category_id` = :category_id or c.parent_id = :category_id)"]
     else:
-        um = [f" and p.rdate >= '{current_date - datetime.timedelta(days=7):%Y-%m-%d}'"]
+        um.append(f" and p.rdate >= '{current_date - datetime.timedelta(days=7):%Y-%m-%d}'")
+
+    main_sql = get_main_sql(data, um)
 
     sql = f"""
 SELECT p.id, p.rdate, p.category_id, c.name AS category_name,
        c.parent_id, p.mydesc, p.amount,
-       m.name AS mono_user_name, p.currency, p.currency_amount, p.saleRate
+       m.name AS mono_user_name, p.currency, p.currency_amount
+       /*, p.saleRate*/
 from ({main_sql}) p
 LEFT JOIN categories c ON p.category_id = c.id
 LEFT OUTER JOIN mono_users m on p.mono_user_id = m.id
 WHERE 1=1
-{' '.join(um)}
 {sort}
 """
 
