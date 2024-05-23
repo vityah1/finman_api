@@ -15,7 +15,6 @@ logger = logging.getLogger()
 
 
 def setup_logging(logger: logging.Logger):
-
     logger.setLevel(logging.INFO)
     formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
 
@@ -81,18 +80,24 @@ def find_existing_rate(cursor, current_date, currency, base_currency):
     return cursor.fetchone()
 
 
-def update_rate(cursor, sale_rate, purchase_rate, existing_rate, currency, messages):
+def find_last_rate(cursor, currency, base_currency):
+    cursor.execute(
+        """
+        SELECT * FROM spr_exchange_rates WHERE currency = %s AND base_currency = %s ORDER BY rdate DESC, updated DESC LIMIT 1
+        """, (currency, base_currency)
+    )
+    return cursor.fetchone()
+
+
+def update_rate(cursor, sale_rate, purchase_rate, existing_rate):
     cursor.execute(
         """
         UPDATE spr_exchange_rates SET saleRate = %s, purchaseRate = %s, updated = %s, source = %s WHERE id = %s
         """, (sale_rate, purchase_rate, datetime.datetime.now(datetime.timezone.utc), 'pryvat_api', existing_rate['id'])
     )
-    txt = f"Updated {currency} rate: saleRate from {existing_rate['saleRate']} to {sale_rate}, purchaseRate from {existing_rate['purchaseRate']} to {purchase_rate}"
-    logger.info(txt)
-    messages.append(txt)
 
 
-def insert_new_rate(cursor, current_date, base_currency, currency, sale_rate, purchase_rate, messages):
+def insert_new_rate(cursor, current_date, base_currency, currency, sale_rate, purchase_rate):
     cursor.execute(
         """
         INSERT INTO spr_exchange_rates (rdate, base_currency, currency, saleRate, purchaseRate, created, updated, source)
@@ -102,9 +107,6 @@ def insert_new_rate(cursor, current_date, base_currency, currency, sale_rate, pu
             datetime.datetime.now(datetime.timezone.utc),
             datetime.datetime.now(datetime.timezone.utc))
     )
-    txt = f"Added new {currency} rate: saleRate {sale_rate}, purchaseRate {purchase_rate}"
-    logger.info(txt)
-    messages.append(txt)
 
 
 def update_or_create_rates():
@@ -123,14 +125,39 @@ def update_or_create_rates():
         purchase_rate = float(rate['buy'])
 
         existing_rate = find_existing_rate(cursor, current_date, currency, base_currency)
+        last_rate = find_last_rate(cursor, currency, base_currency)
 
         if existing_rate:
+            # If there is already a rate for today, update it if changed
             if existing_rate['saleRate'] != sale_rate or existing_rate['purchaseRate'] != purchase_rate:
-                update_rate(cursor, sale_rate, purchase_rate, existing_rate, currency, messages)
+                update_rate(cursor, sale_rate, purchase_rate, existing_rate)
                 is_need_commit = True
         else:
-            insert_new_rate(cursor, current_date, base_currency, currency, sale_rate, purchase_rate, messages)
+            # If no rate for today, insert new rate
+            insert_new_rate(cursor, current_date, base_currency, currency, sale_rate, purchase_rate)
             is_need_commit = True
+
+        if last_rate:
+            # Compare with the last rate to determine if there's a change for notification
+            if last_rate['saleRate'] != sale_rate:
+                sale_rate_change = sale_rate - last_rate['saleRate']
+                txt = (
+                    f"Sale rate change for {currency}:\n"
+                    f" - from {last_rate['saleRate']} to {sale_rate} "
+                    f"({'+' if sale_rate_change > 0 else ''}{sale_rate_change:.4f})"
+                )
+                logger.info(txt)
+                messages.append(txt)
+
+            if last_rate['purchaseRate'] != purchase_rate:
+                purchase_rate_change = purchase_rate - last_rate['purchaseRate']
+                txt = (
+                    f"Purchase rate change for {currency}:\n"
+                    f" - from {last_rate['purchaseRate']} to {purchase_rate} "
+                    f"({'+' if purchase_rate_change > 0 else ''}{purchase_rate_change:.4f})"
+                )
+                logger.info(txt)
+                messages.append(txt)
 
     if is_need_commit:
         conn.commit()
