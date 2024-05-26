@@ -107,7 +107,7 @@ class SprConfigTypes(Base):
     is_multiple = Column(Boolean, nullable=True, default=False)
     is_need_add_value = Column(Boolean, nullable=True, default=False)
 
-    _default_fields = ["type_data", "name_type", "is_multiple", "is_need_add_value"]
+    _default_fields = ["type_data", "name_type", "is_multiple", "is_need_add_value", "name"]
 
 
 class Config(Base):
