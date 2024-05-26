@@ -1,7 +1,7 @@
 import logging
 
 from flask import request, abort
-from sqlalchemy.orm import aliased
+from sqlalchemy import select
 
 from .schemas import ConfigTypes
 from models.models import Config, SprConfigTypes
@@ -27,20 +27,15 @@ def get_user_config_(user_id: int) -> list[dict]:
     get configs
     """
 
-    subquery = db.session().query(Config).filter(Config.user_id == user_id).subquery()
-    user_config = aliased(Config, subquery)
-    configs = db.session().query(
-        SprConfigTypes.name,
-        SprConfigTypes.is_need_add_value,
-        SprConfigTypes.is_multiple,
-        user_config.id,
-        SprConfigTypes.type_data,
-        user_config.value_data,
-        user_config.add_value
-    ).outerjoin(
-        user_config,
-        SprConfigTypes.type_data == user_config.type_data,
-    ).all()
+    stmt = select(
+        Config.id,
+        Config.type_data,
+        Config.value_data,
+        Config.add_value
+    ).filter(
+        Config.user_id == user_id
+    )
+    configs = db.session.execute(stmt).all()
 
     if not configs:
         abort(404, 'Not found configs')
@@ -57,12 +52,22 @@ def add_config_(user_id: int) -> list[dict]:
         data = request.get_json()
     except Exception as err:
         abort(500, f'config add failed {err}')
+    is_multiple = True
     # check for add_value
     for type_data in list(ConfigTypes):
-        if type_data.value == data['type_data'] \
-            and type_data.is_need_add_value \
-                and not data.get('add_value'):
-            abort(400, 'not exsist add_value key')
+        if type_data.value == data['type_data']:
+            is_multiple = type_data.is_multiple
+            if type_data.is_need_add_value and not data.get('add_value'):
+                abort(400, 'not exist add_value key')
+
+    if not is_multiple:
+        stmt = select(Config).where(
+            Config.user_id == user_id,
+            Config.type_data == data['type_data'],
+        )
+        user_config = db.session.execute(stmt).scalars().one_or_none()
+        if user_config:
+            abort(400, 'not allowed multiple values for this key')
 
     data['user_id'] = user_id
     result.append(add_new_config_row(data))
