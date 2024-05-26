@@ -88,7 +88,7 @@ WITH RECURSIVE CategoryPath AS (
                THEN p.currency_amount * (
                    SELECT COALESCE(MAX(e.saleRate), 1)
                    FROM spr_exchange_rates e
-                   WHERE e.currency = :currency AND e.rdate <= p.rdate
+                   WHERE e.currency = p.currency AND e.rdate <= p.rdate
                    ORDER BY e.rdate DESC
                    LIMIT 1
                )
