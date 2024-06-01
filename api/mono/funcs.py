@@ -28,32 +28,6 @@ def get_config_accounts(mono_user_id: int) -> list[Config.value_data]:
     return [result[0] for result in results]
 
 
-def find_category(user: User, description: str):
-    category_id = None
-    user_config = user.config
-    for config_row in user_config:
-        if config_row.type_data not in (
-                ConfigTypes.IS_DELETED_BY_DESCRIPTION.value, ConfigTypes.CATEGORY_REPLACE.value):
-            continue
-        # set as deleted according to rules
-        if config_row.type_data == ConfigTypes.IS_DELETED_BY_DESCRIPTION.value:
-            if description.find(config_row.value_data) > -1:
-                ...
-                # is_deleted = 1
-        # for replace category according to rules
-        if config_row.type_data == ConfigTypes.CATEGORY_REPLACE.value:
-            if config_row.add_value and description.find(config_row.value_data.strip()) > -1:
-                try:
-                    category_id = int(config_row.add_value)
-                    break
-                except Exception as err:
-                    logging.warning(f'can not set category id for cat: {config_row.add_value=}, {err}')
-
-    if not category_id:
-        category_id = get_category_id(user.id, description)
-    return category_id
-
-
 def get_mono_user_info__(mono_user_id: int):
     mono_user_token = get_mono_user_token(mono_user_id)
 

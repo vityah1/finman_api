@@ -14,3 +14,4 @@ class PaymentData(BaseModel):
     source: str
     currency_amount: str | None
     currency: str | None
+    is_deleted: bool | None = False

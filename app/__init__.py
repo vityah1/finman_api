@@ -32,13 +32,13 @@ migrate.init_app(app, db, render_as_batch=True)
 from api.config import config_bp
 from auth.auth import auth_bp
 from api.api import api_bp
-from api.payments import payments_bp
 from api.mono import mono_bp
 from api.mono_users import mono_users_bp
 from api.sprs import sprs_bp
 from api.revolut import revolut_bp
 from api.wise import wise_bp
 from api.categories import categories_bp
+from api.payments import payments_bp
 
 app.register_blueprint(config_bp)
 app.register_blueprint(auth_bp)
