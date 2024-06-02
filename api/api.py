@@ -10,7 +10,6 @@ from utils import do_sql_sel
 api_bp = Blueprint(
     "api_bp",
     __name__,
-    template_folder="templates/rozhody",
     static_folder="static",
 )
 

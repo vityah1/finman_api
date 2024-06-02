@@ -77,10 +77,10 @@ def get_payments_detail(user_id: int) -> list[dict]:
         "currency": currency,
         "q": request.args.get("q"),
     }
-    if category_id:
+    if category_id and category_id != "_":
         data["category_id"] = category_id
     else:
-        um.append(f" and p.rdate >= '{current_date - datetime.timedelta(days=7):%Y-%m-%d}'")
+        data["start_date"] = f"{current_date - datetime.timedelta(days=14):%Y-%m-%d}"
 
     main_sql = get_main_sql(data, um)
 
@@ -109,16 +109,6 @@ WHERE 1=1
             phone_number = f"+38{phone_number}" if not phone_number.startswith("+38") else phone_number
             if phone_number in user_phones:
                 row["mydesc"] += f" [{user_phones[phone_number]}]"
-        #
-        # if row["currency"] != currency:
-        #     if row["currency"] == 'UAH':
-        #         row["amount"] = round(row["currency_amount"] /
-        #                               (row["saleRate"] if row.get("saleRate") else saleRate), 2)
-        #     else:
-        #         row["amount"] = round(row["currency_amount"] *
-        #                               (row["saleRate"] if row.get("saleRate") else saleRate), 2)
-        # else:
-        #     row["amount"] = round(row["currency_amount"], 2)
 
     return result
 
