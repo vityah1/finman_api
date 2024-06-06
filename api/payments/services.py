@@ -77,17 +77,18 @@ def get_payments_detail(user_id: int) -> list[dict]:
         "currency": currency,
         "q": request.args.get("q"),
     }
-    if category_id and category_id != "_":
-        data["category_id"] = category_id
-    else:
-        data["start_date"] = f"{current_date - datetime.timedelta(days=14):%Y-%m-%d}"
+    if category_id:
+        if category_id == "_":
+            data["start_date"] = f"{current_date - datetime.timedelta(days=14):%Y-%m-%d}"
+        else:
+            data["category_id"] = category_id
 
     main_sql = get_main_sql(data, um)
 
     sql = f"""
 SELECT p.id, p.rdate, p.category_id, c.name AS category_name,
        c.parent_id, p.mydesc, p.amount,
-       m.name AS mono_user_name, p.currency, p.currency_amount
+       m.name AS mono_user_name, p.currency, p.currency_amount, p.source
        /*, p.saleRate*/
 from ({main_sql}) p
 LEFT JOIN categories c ON p.category_id = c.id

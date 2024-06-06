@@ -95,7 +95,7 @@ WITH RECURSIVE CategoryPath AS (
                )
                ELSE p.currency_amount
            END, 2) AS amount,
-           p.mono_user_id, p.currency, p.currency_amount
+           p.mono_user_id, p.currency, p.currency_amount, p.source
            /*, e.saleRate*/
     FROM `payments` p
     {' '.join(joins)}
