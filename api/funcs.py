@@ -102,7 +102,7 @@ WITH RECURSIVE CategoryPath AS (
     WHERE 1=1
     AND p.user_id = :user_id
     AND `is_deleted` = 0
-    AND `amount` > 0
+    AND `currency_amount` > 0
     AND p.mydesc NOT IN (SELECT value_data FROM config WHERE type_data = :type_data AND user_id = :user_id)
     {' '.join(condition)}
     {' '.join(um)}
