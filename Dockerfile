@@ -10,4 +10,4 @@ COPY . .
 
 EXPOSE 8090
 
-CMD ["gunicorn", "app:app", "-b", "127.0.0.1:8090", "-w", "2"]
+CMD ["gunicorn", "app:app", "-b", "0.0.0.0:8090", "-w", "2"]

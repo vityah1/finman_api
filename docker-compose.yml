@@ -3,6 +3,7 @@ services:
     build:
       context: .  # Папка, де знаходиться Dockerfile
       dockerfile: Dockerfile
+      network_mode: "host"
     container_name: finman_api
     restart: always
     ports:
