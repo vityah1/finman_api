@@ -1,0 +1,13 @@
+services:
+  finman_api:
+    build:
+      context: .  # Папка, де знаходиться Dockerfile
+      dockerfile: Dockerfile
+    container_name: finman_api
+    restart: always
+    ports:
+      - "8090:8090"  # Маппінг портів: зовнішній:внутрішній
+#    volumes:
+#      - .:/app  # Маппінг локальної папки з кодом у папку /app контейнера
+    environment:
+      - ENV=production

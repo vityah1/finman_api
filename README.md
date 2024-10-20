@@ -25,6 +25,38 @@ python app.app if you run it locally
 ## 4. For virtual apache shared hosting only
 Edit .htaccess file according to your paths
 
+## setup as service
+
+create file finman.service: 
+
+```
+[Unit]
+Description=Gunicorn to serv finman
+After=network.target
+
+[Service]
+#User=finamn
+Group=finman
+WorkingDirectory=/home/finman/finman_api
+ExecStart=/bin/bash -c "source /home/finman/finman_api/venv/bin/activate && gunicorn -w 2 -b 127.0.0.1:8090 app:app"
+
+[Install]
+#WantedBy=multi-user.target
+WantedBy=default.target
+```
+
+cp finman.service /etc/systemd/system/finman.service
+
+```
+sudo systemctl daemon-reload
+systemctl start finman
+systemctl enable finman
+```
+
+## Docker
+
+docker compose up -d
+
 ## 5. Init database
 
 `
