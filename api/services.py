@@ -5,6 +5,7 @@ from typing import Any
 from flask import request, abort
 from pandas import read_csv, read_excel
 
+from api.core.funcs import p24_to_pmt
 from api.core.revolut.funcs import revolut_to_pmt
 from api.core.wise.funcs import wise_to_pmt
 from api.funcs import add_bulk_payments
@@ -79,6 +80,8 @@ def convert_file_to_data(user_id: int, file: Any, bank: str) -> list[dict[str, A
                 pmt = revolut_to_pmt(user, row)
             case 'wise':
                 pmt = wise_to_pmt(user, row)
+            case 'p24':
+                pmt = p24_to_pmt(user, row)
             case _:
                 pmt = None
 
