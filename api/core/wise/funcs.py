@@ -2,6 +2,8 @@
 import logging
 import datetime
 
+from pandas import Series
+
 from models.models import User
 from api.schemas import PaymentData
 from api.funcs import find_category, get_last_rate
@@ -9,7 +11,7 @@ from api.funcs import find_category, get_last_rate
 logger = logging.getLogger()
 
 
-def wise_to_pmt(user: User, data) -> PaymentData | None:
+def wise_to_pmt(user: User, data: Series) -> PaymentData | None:
     if data["Amount"] > 0:
         return None
 
@@ -31,7 +33,7 @@ def wise_to_pmt(user: User, data) -> PaymentData | None:
         rdate=current_date,
         category_id=category_id,
         mydesc=description.replace("'", ""),
-        amount=amount,
+        amount=round(amount),
         currency=data["Currency"],
         type_payment="card",
         source="wise",
