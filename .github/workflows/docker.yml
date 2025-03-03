@@ -9,14 +9,24 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-    - name: Execute commands on remote server
-      uses: appleboy/ssh-action@master
-      with:
-        host: ${{ secrets.HOST }}
-        username: www
-        key: ${{ secrets.SSH_PRIVATE_KEY }}
-        script: |
-          cd /home/www/finman/finman_api
-          git pull origin main
-          docker compose down
-          docker compose up -d --build
+      - name: Debug connection info
+        run: |
+          echo "Host: ${{ secrets.HOST }}"
+          echo "Username: www"
+          # Не виводимо сам ключ з міркувань безпеки, але можемо вивести його довжину
+          echo "SSH Key length: ${{ length(secrets.SSH_PRIVATE_KEY) }}"
+      
+      - name: Execute commands on remote server
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.HOST }}
+          username: www
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
+          script_stop: true
+          debug: true
+          script: |
+            cd /home/www/finman/finman_api
+            git pull origin main
+            docker compose down
+            docker compose up -d --build
