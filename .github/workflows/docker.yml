@@ -19,11 +19,11 @@ jobs:
       - name: Execute commands on remote server
         uses: appleboy/ssh-action@master
         with:
-          host: ${{ secrets.HOST }}
+          #host: ${{ secrets.HOST }}
+          host: kt.if.ua
           username: www
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: 22
-          script_stop: true
           debug: true
           script: |
             cd /home/www/finman/finman_api
