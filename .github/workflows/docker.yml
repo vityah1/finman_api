@@ -13,8 +13,8 @@ jobs:
         run: |
           echo "Host: ${{ secrets.HOST }}"
           echo "Username: www"
-          # Не виводимо сам ключ з міркувань безпеки, але можемо вивести його довжину
-          echo "SSH Key length: ${{ length(secrets.SSH_PRIVATE_KEY) }}"
+          # Не виводимо сам ключ з міркувань безпеки
+          echo "Намагаємось підключитись за допомогою SSH"
 
       - name: Execute commands on remote server
         uses: appleboy/ssh-action@master
