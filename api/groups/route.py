@@ -10,10 +10,39 @@ from api.groups.service import (
     remove_user_from_group_, update_group_,
 )
 
+# Додаємо новий імпорт
+from api.groups.service import (
+    get_group_invitations_, create_group_invitation_
+)
+
 groups_bp = Blueprint(
     "groups_bp",
     __name__,
 )
+
+
+@groups_bp.route("/api/groups/<int:group_id>/invitations", methods=["GET"])
+@cross_origin()
+@jwt_required()
+def get_group_invitations(group_id):
+    """
+    Отримати запрошення групи
+    """
+    current_user = get_jwt_identity()
+    user_id = current_user.get('user_id')
+    return get_group_invitations_(user_id, group_id)
+
+
+@groups_bp.route("/api/groups/<int:group_id>/invitations", methods=["POST"])
+@cross_origin()
+@jwt_required()
+def create_group_invitation(group_id):
+    """
+    Створити запрошення до групи
+    """
+    current_user = get_jwt_identity()
+    user_id = current_user.get('user_id')
+    return create_group_invitation_(user_id, group_id)
 
 
 @groups_bp.route("/api/groups", methods=["GET"])

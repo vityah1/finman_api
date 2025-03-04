@@ -1,9 +1,11 @@
+import datetime
 import logging
+import uuid
 
 from flask import request, abort
 
 from models import User
-from models.models import Group, UserGroupAssociation
+from models.models import Group, GroupInvitation, UserGroupAssociation
 from mydb import db
 
 logger = logging.getLogger()
@@ -39,6 +41,14 @@ def create_group_(user_id: int) -> dict:
     """
     create group
     """
+    # Перевіряємо, чи користувач уже в якійсь групі
+    existing_membership = db.session().query(UserGroupAssociation).filter(
+        UserGroupAssociation.user_id == user_id
+    ).one_or_none()
+
+    if existing_membership:
+        abort(400, 'Ви вже є учасником групи. Ви не можете створити нову групу.')
+
     try:
         data = request.get_json()
     except Exception as err:
@@ -279,3 +289,64 @@ def remove_user_from_group_(
         abort(500, 'user group association deletion failed')
 
     return {"result": "ok"}
+
+
+def get_group_invitations_(user_id, group_id):
+    """
+    Отримати запрошення групи
+    """
+    group = db.session().query(Group).get(group_id)
+    if not group:
+        abort(404, 'Group not found')
+
+    # Перевіряємо, чи користувач є власником групи
+    if group.owner_id != user_id:
+        abort(403, 'Not authorized to view invitations for this group')
+
+    invitations = db.session().query(GroupInvitation).filter(
+        GroupInvitation.group_id == group_id
+    ).all()
+
+    return [invitation.to_dict() for invitation in invitations]
+
+
+def create_group_invitation_(user_id, group_id):
+    """
+    Створити запрошення до групи
+    """
+    data = request.get_json()
+
+    group = db.session().query(Group).get(group_id)
+    if not group:
+        abort(404, 'Group not found')
+
+    # Перевіряємо, чи користувач є власником групи
+    if group.owner_id != user_id:
+        abort(403, 'Not authorized to create invitations for this group')
+
+    # Створюємо нове запрошення
+    invitation = GroupInvitation()
+    invitation.group_id = group_id
+    invitation.created_by = user_id
+    invitation.invitation_code = str(uuid.uuid4())
+    invitation.is_active = True
+    invitation.created = datetime.datetime.now(datetime.timezone.utc)
+
+    # Опціональні поля
+    if 'email' in data and data['email']:
+        invitation.email = data['email']
+
+    if 'expires' in data and data['expires']:
+        invitation.expires = datetime.datetime.fromisoformat(
+            data['expires'].replace('Z', '+00:00')
+        )
+
+    try:
+        db.session().add(invitation)
+        db.session().commit()
+    except Exception as err:
+        db.session().rollback()
+        logger.error(f'Group invitation creation failed: {err}')
+        abort(500, 'Group invitation creation failed')
+
+    return invitation.to_dict()

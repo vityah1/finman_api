@@ -56,7 +56,31 @@ jobs:
             MIGRATION_EXECUTED=0
             if echo "$COMMIT_MSG" | grep -q "\[migrate\]" || [ "$MIGRATION_CHANGES" -gt 0 ]; then
               echo "Запускаю міграції бази даних..."
-              docker exec finman_api flask db upgrade
+              
+              # Додаємо дебаг для перевірки стану бази даних перед міграцією
+              echo "=== Стан міграцій перед виконанням ==="
+              docker exec finman_api flask db current
+              
+              # Запускаємо міграції з виводом debug інформації
+              docker exec finman_api flask db upgrade --verbose > migration_output.log 2>&1
+              
+              # Перевіряємо результат міграції
+              MIGRATE_RESULT=$?
+              
+              # Виводимо лог міграцій незалежно від результату
+              echo "=== Лог міграцій ==="
+              cat migration_output.log
+              
+              # Перевіряємо помилки в логах
+              if [ $MIGRATE_RESULT -ne 0 ]; then
+                echo "=== ПОМИЛКА МІГРАЦІЇ! ==="
+                cat migration_output.log | grep -i "error\|exception\|failed"
+                exit 1
+              fi
+              
+              # Перевіряємо стан міграцій після виконання
+              echo "=== Стан міграцій після виконання ==="
+              docker exec finman_api flask db current
               
               # Якщо було створено нові файли міграцій, додамо їх до Git
               if [ -d "migrations/versions" ]; then
@@ -70,25 +94,4 @@ jobs:
               fi
             else
               echo "Міграції не потрібні."
-            fi
-            
-            # Створення нових міграцій, якщо є зміни в моделях
-            if [ "$MIGRATION_CHANGES" -gt 0 ] && [ "$MIGRATION_EXECUTED" -eq 0 ]; then
-              echo "Створюю нові міграції для змін в моделях..."
-              docker exec finman_api flask db migrate -m "Auto-generated migration"
-              
-              if [ -d "migrations/versions" ]; then
-                git add migrations/versions
-                
-                # Перевіримо, чи є нові файли для коміту
-                if git status --porcelain | grep -q "migrations/versions"; then
-                  git commit -m "[auto] Generate new migrations"
-                  MIGRATION_EXECUTED=1
-                fi
-              fi
-            fi
-            
-            # Відправка змін на GitHub, якщо були зміни
-            if [ "$MIGRATION_EXECUTED" -eq 1 ]; then
-              git push origin main
             fi
