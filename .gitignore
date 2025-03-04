@@ -4,7 +4,7 @@ venv/
 *.log
 *.code-workspace
 .env
-migrations
+#migrations
 instance/finman.db
 instance/myBudj.sql
 finman.log.*
