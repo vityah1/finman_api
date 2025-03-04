@@ -49,10 +49,27 @@ def get_main_sql(
 
     condition.append(" and p.`rdate` <= :end_date")
 
-    # data["sale_rate"] = get_last_rate(data["currency"], data.get("end_date"))
+    # Додаємо фільтр за групою, якщо вказано group_id
+    if data.get("group_id"):
+        withs.append(
+            """
+        WITH group_users AS (
+            SELECT u.id
+            FROM users u
+            JOIN user_group_association uga ON u.id = uga.user_id
+            WHERE uga.group_id = :group_id
+        )
+        """
+        )
+        condition.append(" and p.user_id IN (SELECT id FROM group_users)")
 
+    # Залишаємо фільтр за mono_user_id для зворотної сумісності
     if data.get("mono_user_id"):
         condition.append(" and mono_user_id = :mono_user_id")
+
+    # Додаємо фільтр за користувачем з групи, якщо вказано group_user_id
+    if data.get("group_user_id"):
+        condition.append(" and p.user_id = :group_user_id")
 
     if data.get("q"):
         condition.append(f" and (c.`name` like %:q% or `descript` like %:q%)")

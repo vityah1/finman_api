@@ -35,6 +35,14 @@ def payments_for_period():
         "currency": request.args.get('currency', 'UAH') or 'UAH',
     }
 
+    # Додаємо фільтрацію за групою
+    if request.args.get("group_id"):
+        data["group_id"] = request.args.get("group_id")
+
+    # Додаємо фільтрацію за користувачем з групи
+    if request.args.get("group_user_id"):
+        data["group_user_id"] = request.args.get("group_user_id")
+
     main_sql = get_main_sql(data)
 
     dialect_name = db.engine.dialect.name

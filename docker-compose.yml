@@ -10,5 +10,7 @@ services:
       - "8090:8090"  # Маппінг портів: зовнішній:внутрішній
 #    volumes:
 #      - .:/app  # Маппінг локальної папки з кодом у папку /app контейнера
+    volumes:
+      - ./migrations:/app/migrations
     environment:
       - ENV=production

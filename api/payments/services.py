@@ -54,6 +54,8 @@ def get_payments_detail(user_id: int) -> list[dict]:
     year = request.args.get("year")
     month = request.args.get("month")
     currency = request.args.get('currency', 'UAH') or 'UAH'
+    group_id = request.args.get("group_id")
+    group_user_id = request.args.get("group_user_id")
 
     if not sort:
         sort = "order by `amount` desc"
@@ -77,6 +79,15 @@ def get_payments_detail(user_id: int) -> list[dict]:
         "currency": currency,
         "q": request.args.get("q"),
     }
+
+    # Додаємо фільтрацію за групою
+    if group_id:
+        data["group_id"] = group_id
+
+    # Додаємо фільтрацію за користувачем з групи
+    if group_user_id:
+        data["group_user_id"] = group_user_id
+
     if category_id:
         if category_id == "_":
             data["start_date"] = f"{current_date - datetime.timedelta(days=14):%Y-%m-%d}"
@@ -86,16 +97,18 @@ def get_payments_detail(user_id: int) -> list[dict]:
     main_sql = get_main_sql(data, um)
 
     sql = f"""
-SELECT p.id, p.rdate, p.category_id, c.name AS category_name,
-       c.parent_id, p.mydesc, p.amount,
-       m.name AS mono_user_name, p.currency, p.currency_amount, p.source
-       /*, p.saleRate*/
-from ({main_sql}) p
-LEFT JOIN categories c ON p.category_id = c.id
-LEFT OUTER JOIN mono_users m on p.mono_user_id = m.id
-WHERE 1=1
-{sort}
-"""
+    SELECT p.id, p.rdate, p.category_id, c.name AS category_name,
+           c.parent_id, p.mydesc, p.amount,
+           m.name AS mono_user_name, p.currency, p.currency_amount, p.source,
+           u.login AS user_login
+           /*, p.saleRate*/
+    from ({main_sql}) p
+    LEFT JOIN categories c ON p.category_id = c.id
+    LEFT OUTER JOIN mono_users m on p.mono_user_id = m.id
+    LEFT JOIN users u ON p.user_id = u.id
+    WHERE 1=1
+    {sort}
+    """
 
     result = do_sql_sel(sql, data)
     if not result:
