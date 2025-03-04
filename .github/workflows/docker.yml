@@ -13,8 +13,6 @@ jobs:
         run: |
           echo "Host: ${{ secrets.HOST }}"
           echo "Username: www"
-          # Не виводимо сам ключ з міркувань безпеки
-          echo "Намагаємось підключитись за допомогою SSH"
 
       - name: Execute commands on remote server
         uses: appleboy/ssh-action@master
@@ -26,21 +24,65 @@ jobs:
           debug: true
           script: |
             cd /home/www/finman/finman_api
+            
+            # Налаштування Git для автоматичного злиття
+            git config pull.rebase false
+            
+            # Збережемо email і ім'я для коміту
+            git config user.email "deploy@example.com"
+            git config user.name "Deploy Bot"
+            
             git fetch origin main
             
             COMMIT_MSG=$(git log -1 --pretty=%B origin/main)
             MIGRATION_CHANGES=$(git diff --name-only HEAD origin/main | grep -c "migrations/\|models/")
             
+            # Безпечно оновлюємо з віддаленого репозиторію
             git pull origin main
+            
+            # Зупиняємо і перебудовуємо контейнер
             docker compose down
             docker compose up -d --build
-            
+            exit
             sleep 10
             
-            # Виконати міграції, якщо є мітка [migrate] або зміни в файлах міграцій чи моделей
+            # Виконати міграції
+            MIGRATION_EXECUTED=0
             if echo "$COMMIT_MSG" | grep -q "\[migrate\]" || [ "$MIGRATION_CHANGES" -gt 0 ]; then
               echo "Запускаю міграції бази даних..."
-              # docker exec finman_api flask db upgrade
+              docker exec finman_api flask db upgrade
+              
+              # Якщо було створено нові файли міграцій, додамо їх до Git
+              if [ -d "migrations/versions" ]; then
+                git add migrations/versions
+                
+                # Перевіримо, чи є нові файли для коміту
+                if git status --porcelain | grep -q "migrations/versions"; then
+                  git commit -m "[auto] Update migration files"
+                  MIGRATION_EXECUTED=1
+                fi
+              fi
             else
               echo "Міграції не потрібні."
+            fi
+            
+            # Створення нових міграцій, якщо є зміни в моделях
+            if [ "$MIGRATION_CHANGES" -gt 0 ] && [ "$MIGRATION_EXECUTED" -eq 0 ]; then
+              echo "Створюю нові міграції для змін в моделях..."
+              docker exec finman_api flask db migrate -m "Auto-generated migration"
+              
+              if [ -d "migrations/versions" ]; then
+                git add migrations/versions
+                
+                # Перевіримо, чи є нові файли для коміту
+                if git status --porcelain | grep -q "migrations/versions"; then
+                  git commit -m "[auto] Generate new migrations"
+                  MIGRATION_EXECUTED=1
+                fi
+              fi
+            fi
+            
+            # Відправка змін на GitHub, якщо були зміни
+            if [ "$MIGRATION_EXECUTED" -eq 1 ]; then
+              git push origin main
             fi
