@@ -155,7 +155,7 @@ class Payment(Base):
     bank_hash = Column(String(64), unique=True, default=generate_uuid4, comment="hash bank payment")
 
     __table_args__ = (Index(
-        None, 'rdate', 'user_id', 'category_id', 'mydesc', 'amount', 'is_deleted', unique=True
+        None, 'rdate', 'user_id', 'category_id', 'mydesc', 'amount', 'is_deleted', 'bank_payment_id', unique=True
     ), Index(
         None, bank_payment_id, unique=True
     ),)
