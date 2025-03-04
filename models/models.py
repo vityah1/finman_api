@@ -176,3 +176,27 @@ class SprExchangeRates(Base):
     saleRate = Column(FLOAT(10, 5))
     purchaseRate = Column(FLOAT(10, 5))
     source = Column(String(39), comment="pryvat_api | UkrRates")
+
+
+class Group(Base):
+    __tablename__ = 'groups'
+
+    name = Column(String(100), unique=True, nullable=False)
+    description = Column(String(255))
+    owner_id = Column(Integer, ForeignKey('users.id'), nullable=False)  # Адмін групи
+    owner = relationship('User', foreign_keys=[owner_id])
+    users = relationship('UserGroupAssociation', back_populates='group') # Зв'язок з користувачами
+
+    _default_fields = ["name", "description", "owner_id"]
+
+
+class UserGroupAssociation(Base):
+    __tablename__ = 'user_group_association'
+
+    user_id = Column(Integer, ForeignKey('users.id'), primary_key=True)
+    group_id = Column(Integer, ForeignKey('groups.id'), primary_key=True)
+
+    user = relationship('User')
+    group = relationship('Group', back_populates='users')
+
+    _default_fields = ["user_id", "group_id"]
