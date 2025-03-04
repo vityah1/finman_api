@@ -4,17 +4,11 @@ from flask import Blueprint
 from flask_cors import cross_origin
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
-from api.groups.services import (
+from api.groups.service import (
+    add_user_to_group_, create_group_, delete_group_, get_group_, get_group_users_,
     get_groups_,
-    create_group_,
-    update_group_,
-    delete_group_,
-    get_group_,
-    get_group_users_,
-    add_user_to_group_,
-    remove_user_from_group_,
+    remove_user_from_group_, update_group_,
 )
-
 
 groups_bp = Blueprint(
     "groups_bp",

@@ -2,8 +2,9 @@ import logging
 
 from flask import request, abort
 
+from models import User
+from models.models import Group, UserGroupAssociation
 from mydb import db
-from models import Group, User, UserGroupAssociation
 
 logger = logging.getLogger()
 
