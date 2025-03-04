@@ -5,6 +5,7 @@ from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 from flask_migrate import Migrate
 
+from api.groups import groups_bp
 from app.config import logger_config
 from models.models import SprCurrency
 from mydb import db
@@ -52,6 +53,7 @@ app.register_blueprint(revolut_bp)
 app.register_blueprint(wise_bp)
 app.register_blueprint(p24_bp)
 app.register_blueprint(categories_bp)
+app.register_blueprint(groups_bp)
 
 from api.config.funcs import check_and_fill_spr_config_table, check_exsists_table
 with app.app_context():
