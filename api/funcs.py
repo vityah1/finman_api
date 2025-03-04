@@ -40,6 +40,7 @@ def get_main_sql(
     if um is None:
         um = []
 
+    user_id = data.get("user_id")
     data["type_data"] = ConfigTypes.EXCLUDE_FROM_STAT.value
 
     if not data.get("end_date"):
@@ -49,43 +50,62 @@ def get_main_sql(
 
     condition.append(" and p.`rdate` <= :end_date")
 
-    # Додаємо фільтр за групою, якщо вказано group_id
-    if data.get("group_id"):
-        withs.append(
-            """
-        WITH group_users AS (
+    # Додаємо WITH для отримання групи користувача
+    withs.append("""
+    WITH user_group AS (
+        SELECT g.id as group_id
+        FROM `groups` g
+        JOIN user_group_association uga ON g.id = uga.group_id
+        WHERE uga.user_id = :user_id
+        LIMIT 1
+    )
+    """)
+
+    # Додаємо фільтр за конкретним користувачем групи
+    if data.get("group_user_id"):
+        condition.append(" and p.user_id = :group_user_id")
+    else:
+        # Якщо не вказано конкретного користувача, фільтруємо за всіма користувачами групи
+        withs.append("""
+        , group_users AS (
             SELECT u.id
             FROM users u
             JOIN user_group_association uga ON u.id = uga.user_id
-            WHERE uga.group_id = :group_id
+            JOIN user_group ug ON uga.group_id = ug.group_id
         )
-        """
-        )
+        """)
         condition.append(" and p.user_id IN (SELECT id FROM group_users)")
+
+    # Додаємо JOIN для категорій, щоб включити як користувацькі, так і групові категорії
+    joins.append("""
+    LEFT JOIN categories c ON p.category_id = c.id
+    LEFT JOIN categories gc ON (
+        c.name = gc.name AND 
+        gc.group_id = (SELECT group_id FROM user_group) AND
+        (c.parent_id = gc.parent_id OR (c.parent_id IS NULL AND gc.parent_id IS NULL))
+    )
+    """)
 
     # Залишаємо фільтр за mono_user_id для зворотної сумісності
     if data.get("mono_user_id"):
         condition.append(" and mono_user_id = :mono_user_id")
 
-    # Додаємо фільтр за користувачем з групи, якщо вказано group_user_id
-    if data.get("group_user_id"):
-        condition.append(" and p.user_id = :group_user_id")
-
     if data.get("q"):
-        condition.append(f" and (c.`name` like %:q% or `descript` like %:q%)")
+        condition.append(" and (c.`name` like %:q% or gc.`name` like %:q%)")
 
     if data.get("category_id"):
-        withs.append(f"""
-WITH RECURSIVE CategoryPath AS (
-    SELECT id
-    FROM categories
-    WHERE id = :category_id
-    UNION ALL
-    SELECT c.id
-    FROM categories c
-    INNER JOIN CategoryPath cp ON cp.id = c.parent_id
-)
-""")
+        withs.append("""
+        , CategoryPath AS (
+            SELECT id
+            FROM categories
+            WHERE (id = :category_id OR 
+                   (group_id = (SELECT group_id FROM user_group) AND id = :category_id))
+            UNION ALL
+            SELECT c.id
+            FROM categories c
+            INNER JOIN CategoryPath cp ON cp.id = c.parent_id
+        )
+        """)
         joins.append("JOIN CategoryPath cp ON p.category_id = cp.id")
 
     sql = f"""
@@ -117,7 +137,6 @@ WITH RECURSIVE CategoryPath AS (
     FROM `payments` p
     {' '.join(joins)}
     WHERE 1=1
-    AND p.user_id = :user_id
     AND `is_deleted` = 0
     AND `currency_amount` > 0
     AND p.mydesc NOT IN (SELECT value_data FROM config WHERE type_data = :type_data AND user_id = :user_id)

@@ -72,6 +72,16 @@ def get_dates(month, year):
         year = f"{current_date:%Y}"
     if not month:
         month = f"{current_date:%m}"
-    start_date = f"{year}-{int(month):02d}-01"
-    end_date = f"{year if int(month) < 12 else int(year) + 1}-{int(month) + 1 if int(month) < 12 else 1:02d}-01"
+    # Переконуємося, що year і month це строки, які можна конвертувати в числа
+    try:
+        year_int = int(year)
+        month_int = int(month)
+    except (ValueError, TypeError):
+        year_int = current_date.year
+        month_int = current_date.month
+        year = str(year_int)
+        month = str(month_int)
+
+    start_date = f"{year}-{month_int:02d}-01"
+    end_date = f"{year_int if month_int < 12 else year_int + 1}-{month_int + 1 if month_int < 12 else 1:02d}-01"
     return current_date, end_date, start_date

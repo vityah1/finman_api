@@ -22,8 +22,13 @@ def payments_for_period():
     return payments grouped by categories in some period (year, month)
     """
     current_user = get_jwt_identity()
-    year = request.args.get("year", "").zfill(2)
-    month = request.args.get("month", "").zfill(2)
+    year = request.args.get("year", "")
+    month = request.args.get("month", "")
+
+    if year:
+        year = year.zfill(2)
+    if month:
+        month = month.zfill(2)
 
     current_date, end_date, start_date = get_dates(month, year)
 
@@ -35,13 +40,12 @@ def payments_for_period():
         "currency": request.args.get('currency', 'UAH') or 'UAH',
     }
 
-    # Додаємо фільтрацію за групою
-    if request.args.get("group_id"):
-        data["group_id"] = request.args.get("group_id")
-
     # Додаємо фільтрацію за користувачем з групи
     if request.args.get("group_user_id"):
-        data["group_user_id"] = request.args.get("group_user_id")
+        try:
+            data["group_user_id"] = int(request.args.get("group_user_id"))
+        except (ValueError, TypeError):
+            data["group_user_id"] = request.args.get("group_user_id")
 
     main_sql = get_main_sql(data)
 
@@ -55,21 +59,21 @@ def payments_for_period():
         abort(400, f"Substring function not implemented for dialect: {dialect_name}")
 
     sql = f"""
-select 
-IF(c.parent_id = 0, p.category_id, (select id from categories where id=c.parent_id)) as category_id
-, 
-IF(c.parent_id = 0, c.name, (select name from categories where id=c.parent_id)) as name
-, {amount_func} as amount,
-count(*) as cnt
-from (
-{main_sql}
-) p left join `categories` c
-on p.category_id = c.id
-where 1=1 
-group by IF(c.parent_id = 0, p.category_id, (select id from categories where id=c.parent_id))
-, 
-IF(c.parent_id = 0, c.name, (select name from categories where id=c.parent_id)) order by 3 desc
-"""
+    select 
+    IF(c.parent_id = 0, p.category_id, (select id from categories where id=c.parent_id)) as category_id
+    , 
+    IF(c.parent_id = 0, c.name, (select name from categories where id=c.parent_id)) as name
+    , {amount_func} as amount,
+    count(*) as cnt
+    from (
+    {main_sql}
+    ) p left join `categories` c
+    on p.category_id = c.id
+    where 1=1 
+    group by IF(c.parent_id = 0, p.category_id, (select id from categories where id=c.parent_id))
+    , 
+    IF(c.parent_id = 0, c.name, (select name from categories where id=c.parent_id)) order by 3 desc
+    """
     return do_sql_sel(sql, data)
 
 

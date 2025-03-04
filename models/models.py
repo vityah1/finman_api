@@ -47,14 +47,19 @@ class Category(Base):
     parent_id = Column(Integer)
     ord = Column(Integer)
     is_visible = Column(Boolean, nullable=False, default=False, )
-    user_id = Column(Integer, ForeignKey('users.id'))
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
+    group_id = Column(Integer, ForeignKey('groups.id'), nullable=True)
     is_fuel = Column(Boolean, nullable=False, default=False, )
 
     _default_fields = ["name", "parent_id", "ord", "is_visible", "is_fuel"]
 
-    __table_args__ = (Index(
-        None, 'user_id', 'name', 'parent_id', unique=True
-    ),)
+    # Обмеження: категорія повинна належати або користувачу, або групі
+    __table_args__ = (
+        # CheckConstraint('(user_id IS NULL AND group_id IS NOT NULL) OR (user_id IS NOT NULL AND group_id IS NULL)',
+        #               name='check_category_owner'),
+        Index(None, 'user_id', 'name', 'parent_id', unique=True),
+        Index(None, 'group_id', 'name', 'parent_id', unique=True),
+    )
 
 
 Category.comment = 'Directory of expense categories'

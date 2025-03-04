@@ -5,7 +5,6 @@ from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 from flask_migrate import Migrate
 
-from api.groups import groups_bp
 from app.config import logger_config
 from models.models import SprCurrency
 from mydb import db
@@ -41,6 +40,7 @@ from api.wise import wise_bp
 from api.p24 import p24_bp
 from api.categories import categories_bp
 from api.payments import payments_bp
+from api.groups import groups_bp
 
 app.register_blueprint(config_bp)
 app.register_blueprint(auth_bp)
