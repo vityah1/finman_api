@@ -27,6 +27,20 @@ jobs:
           debug: true
           script: |
             cd /home/www/finman/finman_api
+            git fetch origin main
+            
+            COMMIT_MSG=$(git log -1 --pretty=%B origin/main)
+            MIGRATION_CHANGES=$(git diff --name-only HEAD origin/main | grep -c "migrations/\|models/")
+            
             git pull origin main
             docker compose down
             docker compose up -d --build
+
+            # Виконати міграції, якщо є мітка [migrate] або зміни в файлах міграцій чи моделей
+            if [[ "$COMMIT_MSG" == *"[migrate]"* ]] || [ "$MIGRATION_CHANGES" -gt 0 ]; then
+              sleep 10
+              echo "Запускаю міграції бази даних..."
+              docker exec finman_api flask db upgrade
+            else
+              echo "Міграції не потрібні."
+            fi

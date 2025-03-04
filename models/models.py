@@ -74,6 +74,8 @@ class User(Base):
     mono_users = relationship("MonoUser", back_populates="user", lazy=True)
     is_admin: Boolean = Column(Boolean, nullable=False, default=False)
 
+    groups = relationship('UserGroupAssociation', back_populates='user')
+
     _default_fields = ["login", "fullname", "phone", "email", "created"]
 
     _hidden_fields = ["password", ]
