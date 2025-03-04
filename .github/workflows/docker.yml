@@ -61,8 +61,8 @@ jobs:
               echo "=== Стан міграцій перед виконанням ==="
               docker exec finman_api flask db current
               
-              # Запускаємо міграції з виводом debug інформації
-              docker exec finman_api flask db upgrade --verbose > migration_output.log 2>&1
+              # Запускаємо міграції БЕЗ опції --verbose, яка викликає помилку
+              docker exec finman_api flask db upgrade > migration_output.log 2>&1
               
               # Перевіряємо результат міграції
               MIGRATE_RESULT=$?
