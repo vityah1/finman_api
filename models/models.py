@@ -207,9 +207,30 @@ class UserGroupAssociation(Base):
     user = relationship('User')
     group = relationship('Group', back_populates='users')
 
+    role = Column(String(20), default='member')  # 'owner', 'member'
+    relation_type = Column(String(30), nullable=True)  # 'spouse', 'child', 'parent' і т.д.
+    joined_at = Column(DateTime, default=datetime.datetime.now(datetime.timezone.utc))
+
     _default_fields = ["user_id", "group_id"]
 
     __table_args__ = (
         Index(
         None, 'user_id', 'group_id', unique=True, ),
     )
+
+    class GroupInvitation(Base):
+        __tablename__ = 'group_invitations'
+
+        id = Column(Integer, primary_key=True)
+        group_id = Column(Integer, ForeignKey('groups.id'), nullable=False)
+        created_by = Column(Integer, ForeignKey('users.id'), nullable=False)
+        invitation_code = Column(String(36), unique=True, default=generate_uuid4)
+        email = Column(
+            String(99), nullable=True
+        )  # Опціональне поле, якщо запрошуємо по email
+        is_active = Column(Boolean, default=True)
+        created = Column(DateTime, default=datetime.datetime.now(datetime.timezone.utc))
+        expires = Column(DateTime)  # Дата закінчення дії запрошення
+
+        group = relationship('Group')
+        creator = relationship('User', foreign_keys=[created_by])
