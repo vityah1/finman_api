@@ -43,8 +43,14 @@ jobs:
             # Зупиняємо і перебудовуємо контейнер
             docker compose down
             docker compose up -d --build
-            exit
+            
             sleep 10
+            
+            # Пропускаємо міграції, якщо є мітка [nomigrate]
+            if echo "$COMMIT_MSG" | grep -q "\[nomigrate\]"; then
+              echo "Знайдено мітку [nomigrate], пропускаю міграції."
+              exit 0
+            fi
             
             # Виконати міграції
             MIGRATION_EXECUTED=0

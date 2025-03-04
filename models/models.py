@@ -195,10 +195,16 @@ class Group(Base):
 class UserGroupAssociation(Base):
     __tablename__ = 'user_group_association'
 
-    user_id = Column(Integer, ForeignKey('users.id'), primary_key=True)
-    group_id = Column(Integer, ForeignKey('groups.id'), primary_key=True)
+    # id додається автоматично через BaseModel
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    group_id = Column(Integer, ForeignKey('groups.id'), nullable=False)
 
     user = relationship('User')
     group = relationship('Group', back_populates='users')
 
     _default_fields = ["user_id", "group_id"]
+
+    __table_args__ = (
+        Index(
+        None, 'user_id', 'group_id', unique=True, ),
+    )
