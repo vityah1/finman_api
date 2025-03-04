@@ -36,7 +36,6 @@ def get_main_sql(
 ) -> str:
     condition = []
     joins = []
-    withs = []
     if um is None:
         um = []
 
@@ -50,38 +49,19 @@ def get_main_sql(
 
     condition.append(" and p.`rdate` <= :end_date")
 
-    # Додаємо WITH для отримання групи користувача
-    withs.append("""
-    WITH user_group AS (
-        SELECT g.id as group_id
-        FROM `groups` g
-        JOIN user_group_association uga ON g.id = uga.group_id
-        WHERE uga.user_id = :user_id
-        LIMIT 1
-    )
-    """)
-
     # Додаємо фільтр за конкретним користувачем групи
     if data.get("group_user_id"):
         condition.append(" and p.user_id = :group_user_id")
     else:
         # Якщо не вказано конкретного користувача, фільтруємо за всіма користувачами групи
-        withs.append("""
-        , group_users AS (
-            SELECT u.id
-            FROM users u
-            JOIN user_group_association uga ON u.id = uga.user_id
-            JOIN user_group ug ON uga.group_id = ug.group_id
-        )
-        """)
-        condition.append(" and p.user_id IN (SELECT id FROM group_users)")
+        condition.append(" and p.user_id IN (SELECT u.id FROM users u JOIN user_group_association uga ON u.id = uga.user_id JOIN `groups` g ON uga.group_id = g.id WHERE g.id = (SELECT g.id FROM `groups` g JOIN user_group_association uga ON g.id = uga.group_id WHERE uga.user_id = :user_id LIMIT 1))")
 
     # Додаємо JOIN для категорій, щоб включити як користувацькі, так і групові категорії
     joins.append("""
     LEFT JOIN categories c ON p.category_id = c.id
     LEFT JOIN categories gc ON (
         c.name = gc.name AND 
-        gc.group_id = (SELECT group_id FROM user_group) AND
+        gc.group_id = (SELECT g.id FROM `groups` g JOIN user_group_association uga ON g.id = uga.group_id WHERE uga.user_id = :user_id LIMIT 1) AND
         (c.parent_id = gc.parent_id OR (c.parent_id IS NULL AND gc.parent_id IS NULL))
     )
     """)
@@ -94,22 +74,43 @@ def get_main_sql(
         condition.append(" and (c.`name` like %:q% or gc.`name` like %:q%)")
 
     if data.get("category_id"):
-        withs.append("""
-        , CategoryPath AS (
-            SELECT id
+        # Додаємо рекурсивний CTE для категорій
+        recursive_cte = """
+        WITH RECURSIVE CategoryPath AS (
+            SELECT id, name, parent_id, group_id, user_id
             FROM categories
-            WHERE (id = :category_id OR 
-                   (group_id = (SELECT group_id FROM user_group) AND id = :category_id))
+            WHERE id = :category_id AND (
+                group_id IN (
+                    SELECT g.id 
+                    FROM `groups` g
+                    JOIN user_group_association uga ON g.id = uga.group_id
+                    WHERE uga.user_id = :user_id
+                ) OR 
+                user_id = :user_id OR 
+                group_id IS NULL
+            )
             UNION ALL
-            SELECT c.id
+            SELECT c.id, c.name, c.parent_id, c.group_id, c.user_id
             FROM categories c
             INNER JOIN CategoryPath cp ON cp.id = c.parent_id
+            WHERE (
+                c.group_id IN (
+                    SELECT g.id 
+                    FROM `groups` g
+                    JOIN user_group_association uga ON g.id = uga.group_id
+                    WHERE uga.user_id = :user_id
+                ) OR 
+                c.user_id = :user_id OR 
+                c.group_id IS NULL
+            )
         )
-        """)
+        """
         joins.append("JOIN CategoryPath cp ON p.category_id = cp.id")
+    else:
+        recursive_cte = ""
 
     sql = f"""
-    {' '.join(withs)}
+    {recursive_cte}
     SELECT p.id, p.rdate, p.category_id, p.mydesc,
            ROUND(
            CASE
@@ -132,8 +133,7 @@ def get_main_sql(
                )
                ELSE p.currency_amount
            END, 2) AS amount,
-           p.mono_user_id, p.currency, p.currency_amount, p.source
-           /*, e.saleRate*/
+           p.mono_user_id, p.currency, p.currency_amount, p.source, p.user_id
     FROM `payments` p
     {' '.join(joins)}
     WHERE 1=1

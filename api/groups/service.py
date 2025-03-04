@@ -168,18 +168,10 @@ def get_group_users_(user_id: int, group_id: int) -> list[dict]:
     if not group:
         abort(404, 'Group not found')
 
-    # Перевіряємо, чи користувач є власником групи або учасником групи або адміністратором
-    is_member = db.session().query(UserGroupAssociation).filter(
-        UserGroupAssociation.user_id == user_id,
-        UserGroupAssociation.group_id == group_id
-    ).one_or_none() is not None
+    # Перевіряємо, чи є запит включити поточного користувача
+    include_current = request.args.get('include_current', 'false').lower() == 'true'
 
-    if not is_member and group.owner_id != user_id:
-        # Перевіряємо, чи користувач є адміністратором
-        user = db.session().query(User).get(user_id)
-        if not user or not user.is_admin:
-            abort(403, 'Not authorized to view users in this group')
-
+    # Знаходимо всіх користувачів групи
     users = db.session().query(User).join(
         UserGroupAssociation, User.id == UserGroupAssociation.user_id
     ).filter(
@@ -189,7 +181,10 @@ def get_group_users_(user_id: int, group_id: int) -> list[dict]:
     if not users:
         abort(404, 'Users not found in this group')
 
-    return [user.to_dict() for user in users]
+    # Перетворюємо користувачів у список словників
+    user_list = [user.to_dict() for user in users]
+
+    return user_list
 
 
 def add_user_to_group_(user_id: int, group_id: int) -> dict:

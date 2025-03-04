@@ -2,6 +2,7 @@ import logging
 
 from flask import request, abort
 
+from models.models import Group, UserGroupAssociation
 from mydb import db
 from models import Category
 
@@ -25,10 +26,29 @@ def add_category_(user_id: int) -> dict:
     """
     data = request.get_json()
     data['user_id'] = user_id
+
+    group = db.session().query(Group).join(
+        UserGroupAssociation, Group.id == UserGroupAssociation.group_id
+    ).filter(
+        UserGroupAssociation.user_id == user_id
+    ).one()
+
+    if group:
+        data['group_id'] = group.id
+    else:
+        raise Exception("user not have group")
+
     category = Category()
     category.from_dict(**data)
-    db.session().add(category)
-    db.session().commit()
+
+    try:
+        db.session().add(category)
+        db.session().commit()
+    except Exception as err:
+        db.session().rollback()
+        logger.error(f'Category add failed: {err}')
+        abort(500, 'Category add failed')
+
     return category.to_dict()
 
 
