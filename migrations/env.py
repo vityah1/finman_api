@@ -15,6 +15,16 @@ fileConfig(config.config_file_name)
 logger = logging.getLogger('alembic.env')
 
 
+def include_object(object, name: str, type_, reflected, compare_to):
+    """
+    Should you include this table or not?
+    """
+    if type_ == 'table' and (name.startswith('_') or object.info.get("skip_autogenerate", False)):
+        return False
+    elif type_ == "column" and object.info.get("skip_autogenerate", False):
+        return False
+    return True
+
 def get_engine():
     try:
         # this works with Flask-SQLAlchemy<3 and Alchemical
@@ -114,13 +124,3 @@ if context.is_offline_mode():
 else:
     run_migrations_online()
 
-
-def include_object(object, name: str, type_, reflected, compare_to):
-    """
-    Should you include this table or not?
-    """
-    if type_ == 'table' and (name.startswith('_') or object.info.get("skip_autogenerate", False)):
-        return False
-    elif type_ == "column" and object.info.get("skip_autogenerate", False):
-        return False
-    return True
