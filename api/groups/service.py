@@ -3,6 +3,7 @@ import logging
 import uuid
 
 from flask import request, abort
+from sqlalchemy import and_
 
 from models import User
 from models.models import Group, GroupInvitation, UserGroupAssociation
@@ -178,21 +179,25 @@ def get_group_users_(user_id: int, group_id: int) -> list[dict]:
     if not group:
         abort(404, 'Group not found')
 
-    # Перевіряємо, чи є запит включити поточного користувача
-    include_current = request.args.get('include_current', 'false').lower() == 'true'
-
-    # Знаходимо всіх користувачів групи
-    users = db.session().query(User).join(
+    # Оновлений запит для отримання користувачів разом з асоціативними даними
+    query_result = db.session().query(
+        User, UserGroupAssociation
+    ).join(
         UserGroupAssociation, User.id == UserGroupAssociation.user_id
     ).filter(
         UserGroupAssociation.group_id == group_id
     ).all()
 
-    if not users:
+    if not query_result:
         abort(404, 'Users not found in this group')
 
-    # Перетворюємо користувачів у список словників
-    user_list = [user.to_dict() for user in users]
+    # Перетворюємо результати в список словників з доданими даними про відносини
+    user_list = []
+    for user, association in query_result:
+        user_dict = user.to_dict()
+        user_dict['role'] = association.role
+        user_dict['relation_type'] = association.relation_type
+        user_list.append(user_dict)
 
     return user_list
 
@@ -324,6 +329,38 @@ def create_group_invitation_(user_id, group_id):
     if group.owner_id != user_id:
         abort(403, 'Not authorized to create invitations for this group')
 
+    # Перевіряємо, чи вказаний email
+    email = data.get('email')
+
+    # Якщо email вказаний, перевіряємо чи вже існує активне запрошення для цього email
+    if email:
+        existing_invitation = db.session().query(GroupInvitation).filter(
+            and_(
+                GroupInvitation.group_id == group_id,
+                GroupInvitation.email == email,
+                GroupInvitation.is_active == True
+            )
+        ).one_or_none()
+
+        if existing_invitation:
+            abort(400, 'Для цього email вже існує активне запрошення')
+
+        # Перевіряємо, чи користувач з таким email вже є в групі
+        user_with_email = db.session().query(User).filter(
+            User.email == email
+        ).one_or_none()
+
+        if user_with_email:
+            user_in_group = db.session().query(UserGroupAssociation).filter(
+                and_(
+                    UserGroupAssociation.user_id == user_with_email.id,
+                    UserGroupAssociation.group_id == group_id
+                )
+            ).one_or_none()
+
+            if user_in_group:
+                abort(400, 'Користувач з цим email вже є в групі')
+
     # Створюємо нове запрошення
     invitation = GroupInvitation()
     invitation.group_id = group_id
@@ -333,8 +370,8 @@ def create_group_invitation_(user_id, group_id):
     invitation.created = datetime.datetime.now(datetime.timezone.utc)
 
     # Опціональні поля
-    if 'email' in data and data['email']:
-        invitation.email = data['email']
+    if email:
+        invitation.email = email
 
     if 'expires' in data and data['expires']:
         invitation.expires = datetime.datetime.fromisoformat(
@@ -350,3 +387,42 @@ def create_group_invitation_(user_id, group_id):
         abort(500, 'Group invitation creation failed')
 
     return invitation.to_dict()
+
+def update_user_relation_(user_id_current, group_id, user_id_to_update):
+    """
+    Оновити інформацію про користувача в групі
+    """
+    group = db.session().query(Group).get(group_id)
+    if not group:
+        abort(404, 'Group not found')
+
+    # Перевіряємо, чи користувач є власником групи
+    if group.owner_id != user_id_current:
+        # Перевіряємо, чи користувач є адміністратором
+        user = db.session().query(User).get(user_id_current)
+        if not user or not user.is_admin:
+            abort(403, 'Not authorized to update users in this group')
+
+    # Перевіряємо, чи користувач є в групі
+    user_group = db.session().query(UserGroupAssociation).filter(
+        UserGroupAssociation.user_id == user_id_to_update,
+        UserGroupAssociation.group_id == group_id
+    ).one_or_none()
+
+    if not user_group:
+        abort(404, 'User is not in the group')
+
+    # Оновлюємо інформацію про користувача в групі
+    try:
+        data = request.get_json()
+        if 'relation_type' in data:
+            user_group.relation_type = data['relation_type']
+        if 'role' in data:
+            user_group.role = data['role']
+        db.session().commit()
+    except Exception as err:
+        db.session().rollback()
+        logger.error(f'user group association update failed {err}')
+        abort(500, 'user group association update failed')
+
+    return {"result": "ok"}

@@ -221,7 +221,6 @@ class UserGroupAssociation(Base):
 class GroupInvitation(Base):
     __tablename__ = 'group_invitations'
 
-    id = Column(Integer, primary_key=True)
     group_id = Column(Integer, ForeignKey('groups.id'), nullable=False)
     created_by = Column(Integer, ForeignKey('users.id'), nullable=False)
     invitation_code = Column(String(36), unique=True, default=generate_uuid4)
@@ -234,3 +233,7 @@ class GroupInvitation(Base):
 
     group = relationship('Group')
     creator = relationship('User', foreign_keys=[created_by])
+
+    _default_fields = [
+        "group_id", "created_by", "invitation_code", "email", "created", "expires"
+    ]

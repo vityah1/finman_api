@@ -11,13 +11,40 @@ logger = logging.getLogger()
 
 def get_categories_(user_id) -> list[dict]:
     """
-    get categories
+    Отримує категорії для користувача, включаючи категорії групи, якщо користувач є членом групи
     """
-    categories = db.session().query(Category).filter_by(user_id=user_id).all()
-    if not categories:
-        abort(404, 'Not found categories')
+    # Спочатку отримуємо категорії, які належать користувачу напряму
+    user_categories = db.session().query(Category).filter_by(user_id=user_id).all()
 
-    return [item.to_dict() for item in categories]
+    # Отримуємо групу користувача, якщо вона є
+    user_group = db.session().query(Group).join(
+        UserGroupAssociation, Group.id == UserGroupAssociation.group_id
+    ).filter(
+        UserGroupAssociation.user_id == user_id
+    ).one_or_none()
+
+    # Якщо користувач є членом групи, додаємо також категорії групи
+    group_categories = []
+    if user_group:
+        group_categories = db.session().query(Category).filter_by(
+            group_id=user_group.id
+        ).all()
+
+    # Об'єднуємо особисті категорії користувача та категорії групи
+    all_categories = user_categories + group_categories
+
+    # Якщо немає жодних категорій, повертаємо стандартний набір
+    if not all_categories:
+        default_categories = [
+            # {"id": 1, "name": "Продукти", "parent_id": 0, "is_visible": True},
+            # {"id": 2, "name": "Транспорт", "parent_id": 0, "is_visible": True},
+            # {"id": 3, "name": "Розваги", "parent_id": 0, "is_visible": True},
+            # {"id": 4, "name": "Комунальні послуги", "parent_id": 0, "is_visible": True},
+            # {"id": 5, "name": "Інше", "parent_id": 0, "is_visible": True},
+        ]
+        return default_categories
+
+    return [item.to_dict() for item in all_categories]
 
 
 def add_category_(user_id: int) -> dict:

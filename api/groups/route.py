@@ -7,7 +7,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from api.groups.service import (
     add_user_to_group_, create_group_, delete_group_, get_group_, get_group_users_,
     get_groups_,
-    remove_user_from_group_, update_group_,
+    remove_user_from_group_, update_group_, update_user_relation_,
 )
 
 # Додаємо новий імпорт
@@ -19,6 +19,17 @@ groups_bp = Blueprint(
     "groups_bp",
     __name__,
 )
+
+@groups_bp.route("/api/groups/<int:group_id>/users/<int:user_id>", methods=["PATCH"])
+@cross_origin()
+@jwt_required()
+def update_user_relation(group_id, user_id):
+    """
+    Оновити інформацію про користувача в групі
+    """
+    current_user = get_jwt_identity()
+    user_id_current = current_user.get('user_id')
+    return update_user_relation_(user_id_current, group_id, user_id)
 
 
 @groups_bp.route("/api/groups/<int:group_id>/invitations", methods=["GET"])

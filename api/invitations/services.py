@@ -78,10 +78,16 @@ def accept_invitation_(user_id, invitation_code):
         abort(404, 'Запрошення не знайдено або воно неактивне')
 
     # Перевіряємо, чи дійсне запрошення за часом
-    if invitation.expires and invitation.expires < datetime.datetime.now(
-            datetime.timezone.utc
-    ):
-        abort(400, 'Термін дії запрошення закінчився')
+    if invitation.expires:
+        # Якщо invitation.expires не має часового поясу, вважаємо що це UTC
+        expires = invitation.expires
+        if expires.tzinfo is None:
+            expires = expires.replace(tzinfo=datetime.timezone.utc)
+
+        now = datetime.datetime.now(datetime.timezone.utc)
+
+        if expires < now:
+            abort(400, 'Термін дії запрошення закінчився')
 
     # Перевіряємо, чи користувач вже в групі
     user_in_group = db.session().query(UserGroupAssociation).filter(
@@ -158,5 +164,83 @@ def delete_invitation_(user_id, invitation_id):
         db.session().rollback()
         logger.error(f'Помилка при видаленні запрошення: {err}')
         abort(500, 'Помилка при видаленні запрошення')
+
+    return jsonify({"result": "ok"})
+
+
+def check_user_invitations_(user_id):
+    """
+    Перевірка наявності запрошень для користувача за email
+    """
+    # Отримуємо інформацію про користувача
+    user = db.session().query(User).get(user_id)
+    if not user or not user.email:
+        return []
+
+    # Перевіряємо, чи користувач вже є членом якоїсь групи
+    user_in_any_group = db.session().query(UserGroupAssociation).filter(
+        UserGroupAssociation.user_id == user_id
+    ).one_or_none()
+
+    # Якщо користувач вже в групі, не показуємо жодних запрошень
+    if user_in_any_group:
+        return []
+
+    # Шукаємо активні запрошення за email користувача
+    invitations = db.session().query(GroupInvitation).filter(
+        and_(
+            GroupInvitation.email == user.email,
+            GroupInvitation.is_active == True
+        )
+    ).all()
+
+    # Перевіряємо термін дії запрошень
+    valid_invitations = []
+    for invitation in invitations:
+        # Перевіряємо, чи не прострочене запрошення
+        if invitation.expires:
+            expires_aware = invitation.expires
+            if expires_aware.tzinfo is None:
+                expires_aware = expires_aware.replace(tzinfo=datetime.timezone.utc)
+
+            now_aware = datetime.datetime.now(datetime.timezone.utc)
+
+            if expires_aware < now_aware:
+                continue
+
+        # Додаємо інформацію про групу та творця запрошення
+        invitation_dict = invitation.to_dict()
+        group = db.session().query(Group).get(invitation.group_id)
+        if group:
+            invitation_dict['group'] = group.to_dict()
+            creator = db.session().query(User).get(invitation.created_by)
+            if creator:
+                invitation_dict['creator'] = creator.to_dict()
+            valid_invitations.append(invitation_dict)
+
+    return valid_invitations
+
+def ignore_invitation_(user_id, invitation_id):
+    """
+    Ігнорування запрошення
+    """
+    invitation = db.session().query(GroupInvitation).get(invitation_id)
+
+    if not invitation:
+        abort(404, 'Запрошення не знайдено')
+
+    # Перевіряємо, чи запрошення стосується цього користувача
+    user = db.session().query(User).get(user_id)
+    if not user or user.email != invitation.email:
+        abort(403, 'Ви не можете ігнорувати це запрошення')
+
+    try:
+        # Позначаємо запрошення як неактивне
+        invitation.is_active = False
+        db.session().commit()
+    except Exception as err:
+        db.session().rollback()
+        logger.error(f'Помилка при ігноруванні запрошення: {err}')
+        abort(500, 'Помилка при ігноруванні запрошення')
 
     return jsonify({"result": "ok"})
