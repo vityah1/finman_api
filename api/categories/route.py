@@ -2,6 +2,8 @@
 
 from fastapi import APIRouter, Depends
 from app.jwt import get_current_user
+from pydantic import BaseModel
+from typing import Optional, List
 
 from api.categories.services import (
     get_categories_,
@@ -15,26 +17,51 @@ from api.categories.services import (
 router = APIRouter(prefix="/api/categories", tags=["categories"])
 
 
-@router.get("")
+class CategoryOut(BaseModel):
+    id: int
+    name: str
+    parent_id: Optional[int] = None
+    ord: Optional[int] = None
+    is_visible: Optional[bool] = None
+    user_id: Optional[int] = None
+    group_id: Optional[int] = None
+    is_fuel: Optional[bool] = None
+
+class CategoryListResponse(BaseModel):
+    data: List[CategoryOut]
+
+class CategoryResponse(BaseModel):
+    data: CategoryOut
+
+class StatusOkResponse(BaseModel):
+    result: str
+
+
+@router.get("", response_model=CategoryListResponse)
 def get_categories(user_id: str = Depends(get_current_user)):
-    return get_categories_(user_id)
+    cats = get_categories_(user_id)
+    return CategoryListResponse(data=[CategoryOut(**cat) for cat in cats])
 
 
-@router.post("")
+@router.post("", response_model=CategoryResponse)
 def add_category(user_id: str = Depends(get_current_user)):
-    return add_category_(user_id)
+    cat = add_category_(user_id)
+    return CategoryResponse(data=CategoryOut(**cat))
 
 
-@router.delete("/{category_id}")
+@router.delete("/{category_id}", response_model=StatusOkResponse)
 def delete_category(category_id: int, user_id: str = Depends(get_current_user)):
-    return delete_category_(category_id)
+    res = delete_category_(category_id)
+    return StatusOkResponse(**res)
 
 
-@router.patch("/{category_id}")
+@router.patch("/{category_id}", response_model=CategoryResponse)
 def edit_category(category_id: int, user_id: str = Depends(get_current_user)):
-    return edit_category_(user_id, category_id)
+    cat = edit_category_(user_id, category_id)
+    return CategoryResponse(data=CategoryOut(**cat))
 
 
-@router.get("/{category_id}")
+@router.get("/{category_id}", response_model=CategoryResponse)
 def get_category(category_id: int, user_id: str = Depends(get_current_user)):
-    return get_category_(category_id)
+    cat = get_category_(category_id)
+    return CategoryResponse(data=CategoryOut(**cat))

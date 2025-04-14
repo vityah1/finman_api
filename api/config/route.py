@@ -1,8 +1,9 @@
 # _*_ coding:UTF-8 _*_
 
-
-
-
+from fastapi import APIRouter, Depends
+from app.jwt import get_current_user
+from pydantic import BaseModel
+from typing import Optional, List
 
 from api.config.services import (
     get_user_config_,
@@ -13,71 +14,50 @@ from api.config.services import (
     get_config_types_,
 )
 
+router = APIRouter(prefix="/api/config", tags=["config"])
 
-config_bp = Blueprint(
-    "config_bp",
-    __name__,
-)
+class ConfigOut(BaseModel):
+    id: int
+    user_id: int
+    type_data: str
+    value_data: Optional[str] = None
+    add_value: Optional[str] = None
 
+class ConfigListResponse(BaseModel):
+    data: List[ConfigOut]
 
-@config_bp.route("/api/config/config_types", methods=["GET"])
+class ConfigResponse(BaseModel):
+    data: ConfigOut
 
+class StatusOkResponse(BaseModel):
+    result: str
+
+@router.get("/config_types", response_model=List[str])
 def get_config_types():
-    """
-    get configs
-    """
-    return get_config_types_()
+    types = get_config_types_()
+    return [t['type_data'] for t in types]
 
+@router.get("/users/config", response_model=ConfigListResponse)
+def get_user_config(user_id: str = Depends(get_current_user)):
+    configs = get_user_config_(user_id)
+    return ConfigListResponse(data=[ConfigOut(**c) for c in configs])
 
-@config_bp.route("/api/users/config", methods=["GET"])
+@router.post("/users/config", response_model=ConfigListResponse)
+def add_config(user_id: str = Depends(get_current_user)):
+    configs = add_config_(user_id)
+    return ConfigListResponse(data=[ConfigOut(**c) for c in configs])
 
+@router.delete("/{config_id}", response_model=StatusOkResponse)
+def delete_config(config_id: int, user_id: str = Depends(get_current_user)):
+    res = delete_config_(config_id)
+    return StatusOkResponse(**res)
 
-def get_user_config():
-    """
-    get user configs
-    """
-    current_user = 
-    user_id = current_user.get('user_id')
-    return get_user_config_(user_id)
+@router.patch("/{config_id}", response_model=ConfigResponse)
+def edit_config(config_id: int, user_id: str = Depends(get_current_user)):
+    config = edit_config_(config_id)
+    return ConfigResponse(data=ConfigOut(**config))
 
-
-@config_bp.route("/api/users/config", methods=["POST"])
-
-
-def add_config():
-    """
-    add user config
-    """
-    current_user = 
-    user_id = current_user.get('user_id')
-    return add_config_(user_id)
-
-
-@config_bp.route("/api/config/<config_id>", methods=["DELETE"])
-
-
-def delete_config(config_id):
-    """
-    delete config
-    """
-    return delete_config_(config_id)
-
-
-@config_bp.route("/api/config/<config_id>", methods=["PATCH"])
-
-
-def edit_config(config_id):
-    """
-    edit config
-    """
-    return edit_config_(config_id)
-
-
-@config_bp.route("/api/config/<config_id>", methods=["GET"])
-
-
-def get_config(config_id):
-    """
-    get config
-    """
-    return get_config_(config_id)
+@router.get("/{config_id}", response_model=ConfigResponse)
+def get_config(config_id: int, user_id: str = Depends(get_current_user)):
+    config = get_config_(config_id)
+    return ConfigResponse(data=ConfigOut(**config))
