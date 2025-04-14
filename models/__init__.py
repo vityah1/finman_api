@@ -10,7 +10,14 @@ from .models import (
     Config, 
     Payment,
     SprExchangeRates,
-    GroupInvitation,
+    GroupInvitation, 
+    SprUtilityType, 
+    UtilityMeter, 
+    UtilityTariff, 
+    UtilityMeterReading,
+    Group,
+    UserGroupAssociation,
+    
 )
 
 __all__ = [
@@ -26,4 +33,10 @@ __all__ = [
     "Payment",
     "SprExchangeRates",
     "GroupInvitation",
+    "SprUtilityType",
+    "UtilityMeter",
+    "UtilityTariff",
+    "UtilityMeterReading",
+    "Group",
+    "UserGroupAssociation"
 ]

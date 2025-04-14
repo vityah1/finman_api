@@ -1,0 +1,1381 @@
+from flask import Blueprint, request, jsonify, abort
+from flask_jwt_extended import jwt_required, get_jwt_identity
+from flask_pydantic import validate
+from flask_cors import cross_origin
+from sqlalchemy import and_, or_, func
+from sqlalchemy.exc import SQLAlchemyError
+import datetime
+
+from models import (
+    SprUtilityType, UtilityMeter, UtilityTariff, UtilityMeterReading,
+    User, Group, UserGroupAssociation
+)
+from api.schemas import (
+    UtilityTypeData, UtilityMeterData, UtilityTariffData, UtilityMeterReadingData
+)
+from mydb import db
+from utils import do_sql_sel
+
+utilities_bp = Blueprint(
+    "utilities_bp",
+    __name__,
+    static_folder="static",
+)
+
+
+# Функція для перевірки доступу користувача до групи
+def check_group_access(user_id, group_id):
+    if not group_id:
+        return True
+    
+    association = UserGroupAssociation.query.filter(
+        and_(
+            UserGroupAssociation.user_id == user_id,
+            UserGroupAssociation.group_id == group_id
+        )
+    ).first()
+    
+    return association is not None
+
+
+# Функція для визначення ресурсів доступних користувачу
+def get_user_resources(user_id, model_class, include_group_resources=True):
+    # Запит для об'єктів, які безпосередньо належать користувачу
+    user_resources = model_class.query.filter(model_class.user_id == user_id)
+    
+    if include_group_resources:
+        # Отримуємо ID груп, до яких належить користувач
+        user_groups = UserGroupAssociation.query.filter(
+            UserGroupAssociation.user_id == user_id
+        ).with_entities(UserGroupAssociation.group_id).all()
+        
+        group_ids = [group.group_id for group in user_groups]
+        
+        if group_ids:
+            # Запит для об'єктів, які належать групам користувача
+            group_resources = model_class.query.filter(
+                model_class.group_id.in_(group_ids)
+            )
+            
+            # Об'єднуємо результати
+            return user_resources.union(group_resources)
+    
+    return user_resources
+
+
+# API для типів комунальних послуг
+@utilities_bp.route("/api/utilities/types", methods=["GET"])
+@cross_origin()
+@jwt_required()
+def get_utility_types():
+    current_user = get_jwt_identity()
+    user_id = current_user.get('user_id')
+    
+    utility_types = get_user_resources(user_id, SprUtilityType).all()
+    
+    result = []
+    for ut in utility_types:
+        result.append({
+            "id": ut.id,
+            "name": ut.name,
+            "description": ut.description,
+            "user_id": ut.user_id,
+            "group_id": ut.group_id,
+            "created": ut.created.isoformat() if ut.created else None,
+            "updated": ut.updated.isoformat() if ut.updated else None
+        })
+    
+    return jsonify({"status": "ok", "data": result})
+
+
+@utilities_bp.route("/api/utilities/types", methods=["POST"])
+@cross_origin()
+@jwt_required()
+@validate()
+def create_utility_type(body: UtilityTypeData):
+    current_user = get_jwt_identity()
+    user_id = current_user.get('user_id')
+    
+    # Перевірка доступу до групи
+    if body.group_id and not check_group_access(user_id, body.group_id):
+        abort(403, "Немає доступу до цієї групи")
+    
+    # Встановлюємо ID користувача, якщо він не вказаний
+    if not body.group_id and not body.user_id:
+        body.user_id = user_id
+    
+    try:
+        utility_type = SprUtilityType(**body.dict())
+        db.session.add(utility_type)
+        db.session.commit()
+        
+        return jsonify({
+            "status": "ok", 
+            "data": {
+                "id": utility_type.id,
+                "name": utility_type.name,
+                "description": utility_type.description,
+                "user_id": utility_type.user_id,
+                "group_id": utility_type.group_id,
+                "created": utility_type.created.isoformat(),
+                "updated": utility_type.updated.isoformat() if utility_type.updated else None
+            }
+        })
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        return jsonify({"status": "error", "message": str(e)}), 400
+
+
+@utilities_bp.route("/api/utilities/types/<int:type_id>", methods=["GET"])
+@cross_origin()
+@jwt_required()
+def get_utility_type(type_id):
+    current_user = get_jwt_identity()
+    user_id = current_user.get('user_id')
+    
+    utility_type = SprUtilityType.query.filter(
+        and_(
+            SprUtilityType.id == type_id,
+            or_(
+                SprUtilityType.user_id == user_id,
+                SprUtilityType.id.in_(
+                    db.session.query(SprUtilityType.id)
+                    .join(Group, SprUtilityType.group_id == Group.id)
+                    .join(UserGroupAssociation, Group.id == UserGroupAssociation.group_id)
+                    .filter(UserGroupAssociation.user_id == user_id)
+                )
+            )
+        )
+    ).first()
+    
+    if not utility_type:
+        return jsonify({"status": "error", "message": "Тип комунальної послуги не знайдено"}), 404
+    
+    return jsonify({
+        "status": "ok", 
+        "data": {
+            "id": utility_type.id,
+            "name": utility_type.name,
+            "description": utility_type.description,
+            "user_id": utility_type.user_id,
+            "group_id": utility_type.group_id,
+            "created": utility_type.created.isoformat(),
+            "updated": utility_type.updated.isoformat() if utility_type.updated else None
+        }
+    })
+
+
+@utilities_bp.route("/api/utilities/types/<int:type_id>", methods=["PUT"])
+@cross_origin()
+@jwt_required()
+@validate()
+def update_utility_type(type_id, body: UtilityTypeData):
+    current_user = get_jwt_identity()
+    user_id = current_user.get('user_id')
+    
+    utility_type = SprUtilityType.query.filter(
+        and_(
+            SprUtilityType.id == type_id,
+            or_(
+                SprUtilityType.user_id == user_id,
+                SprUtilityType.id.in_(
+                    db.session.query(SprUtilityType.id)
+                    .join(Group, SprUtilityType.group_id == Group.id)
+                    .join(UserGroupAssociation, Group.id == UserGroupAssociation.group_id)
+                    .filter(UserGroupAssociation.user_id == user_id)
+                )
+            )
+        )
+    ).first()
+    
+    if not utility_type:
+        return jsonify({"status": "error", "message": "Тип комунальної послуги не знайдено"}), 404
+    
+    # Перевірка доступу до групи
+    if body.group_id and not check_group_access(user_id, body.group_id):
+        abort(403, "Немає доступу до цієї групи")
+    
+    try:
+        utility_type.name = body.name
+        utility_type.description = body.description
+        utility_type.user_id = body.user_id
+        utility_type.group_id = body.group_id
+        
+        db.session.commit()
+        
+        return jsonify({
+            "status": "ok", 
+            "data": {
+                "id": utility_type.id,
+                "name": utility_type.name,
+                "description": utility_type.description,
+                "user_id": utility_type.user_id,
+                "group_id": utility_type.group_id,
+                "created": utility_type.created.isoformat(),
+                "updated": utility_type.updated.isoformat() if utility_type.updated else None
+            }
+        })
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        return jsonify({"status": "error", "message": str(e)}), 400
+
+
+@utilities_bp.route("/api/utilities/types/<int:type_id>", methods=["DELETE"])
+@cross_origin()
+@jwt_required()
+def delete_utility_type(type_id):
+    current_user = get_jwt_identity()
+    user_id = current_user.get('user_id')
+    
+    utility_type = SprUtilityType.query.filter(
+        and_(
+            SprUtilityType.id == type_id,
+            or_(
+                SprUtilityType.user_id == user_id,
+                SprUtilityType.id.in_(
+                    db.session.query(SprUtilityType.id)
+                    .join(Group, SprUtilityType.group_id == Group.id)
+                    .join(UserGroupAssociation, Group.id == UserGroupAssociation.group_id)
+                    .filter(UserGroupAssociation.user_id == user_id)
+                )
+            )
+        )
+    ).first()
+    
+    if not utility_type:
+        return jsonify({"status": "error", "message": "Тип комунальної послуги не знайдено"}), 404
+    
+    try:
+        # Перевіряємо, чи є прив'язані лічильники чи тарифи
+        meters = UtilityMeter.query.filter_by(utility_type_id=type_id).count()
+        tariffs = UtilityTariff.query.filter_by(utility_type_id=type_id).count()
+        
+        if meters > 0 or tariffs > 0:
+            return jsonify({
+                "status": "error", 
+                "message": "Неможливо видалити тип комунальної послуги, до якого прив'язані лічильники або тарифи"
+            }), 400
+        
+        db.session.delete(utility_type)
+        db.session.commit()
+        
+        return jsonify({"status": "ok"})
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        return jsonify({"status": "error", "message": str(e)}), 400
+
+
+# API для лічильників
+@utilities_bp.route("/api/utilities/meters", methods=["GET"])
+@cross_origin()
+@jwt_required()
+def get_utility_meters():
+    current_user = get_jwt_identity()
+    user_id = current_user.get('user_id')
+    
+    utility_type_id = request.args.get("utility_type_id")
+    
+    query = get_user_resources(user_id, UtilityMeter)
+    
+    if utility_type_id:
+        query = query.filter(UtilityMeter.utility_type_id == utility_type_id)
+    
+    utility_meters = query.all()
+    
+    result = []
+    for meter in utility_meters:
+        result.append({
+            "id": meter.id,
+            "name": meter.name,
+            "description": meter.description,
+            "utility_type_id": meter.utility_type_id,
+            "user_id": meter.user_id,
+            "group_id": meter.group_id,
+            "is_active": meter.is_active,
+            "serial_number": meter.serial_number,
+            "created": meter.created.isoformat() if meter.created else None,
+            "updated": meter.updated.isoformat() if meter.updated else None
+        })
+    
+    return jsonify({"status": "ok", "data": result})
+
+
+@utilities_bp.route("/api/utilities/meters", methods=["POST"])
+@cross_origin()
+@jwt_required()
+@validate()
+def create_utility_meter(body: UtilityMeterData):
+    current_user = get_jwt_identity()
+    user_id = current_user.get('user_id')
+    
+    # Перевірка доступу до групи
+    if body.group_id and not check_group_access(user_id, body.group_id):
+        abort(403, "Немає доступу до цієї групи")
+    
+    # Перевірка існування типу комунальної послуги
+    utility_type = SprUtilityType.query.filter(
+        and_(
+            SprUtilityType.id == body.utility_type_id,
+            or_(
+                SprUtilityType.user_id == user_id,
+                SprUtilityType.id.in_(
+                    db.session.query(SprUtilityType.id)
+                    .join(Group, SprUtilityType.group_id == Group.id)
+                    .join(UserGroupAssociation, Group.id == UserGroupAssociation.group_id)
+                    .filter(UserGroupAssociation.user_id == user_id)
+                )
+            )
+        )
+    ).first()
+    
+    if not utility_type:
+        return jsonify({"status": "error", "message": "Тип комунальної послуги не знайдено"}), 404
+    
+    # Встановлюємо ID користувача, якщо він не вказаний
+    if not body.group_id and not body.user_id:
+        body.user_id = user_id
+    
+    try:
+        meter = UtilityMeter(**body.dict())
+        db.session.add(meter)
+        db.session.commit()
+        
+        return jsonify({
+            "status": "ok", 
+            "data": {
+                "id": meter.id,
+                "name": meter.name,
+                "description": meter.description,
+                "utility_type_id": meter.utility_type_id,
+                "user_id": meter.user_id,
+                "group_id": meter.group_id,
+                "is_active": meter.is_active,
+                "serial_number": meter.serial_number,
+                "created": meter.created.isoformat(),
+                "updated": meter.updated.isoformat() if meter.updated else None
+            }
+        })
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        return jsonify({"status": "error", "message": str(e)}), 400
+
+
+@utilities_bp.route("/api/utilities/meters/<int:meter_id>", methods=["GET"])
+@cross_origin()
+@jwt_required()
+def get_utility_meter(meter_id):
+    current_user = get_jwt_identity()
+    user_id = current_user.get('user_id')
+    
+    meter = UtilityMeter.query.filter(
+        and_(
+            UtilityMeter.id == meter_id,
+            or_(
+                UtilityMeter.user_id == user_id,
+                UtilityMeter.id.in_(
+                    db.session.query(UtilityMeter.id)
+                    .join(Group, UtilityMeter.group_id == Group.id)
+                    .join(UserGroupAssociation, Group.id == UserGroupAssociation.group_id)
+                    .filter(UserGroupAssociation.user_id == user_id)
+                )
+            )
+        )
+    ).first()
+    
+    if not meter:
+        return jsonify({"status": "error", "message": "Лічильник не знайдено"}), 404
+    
+    return jsonify({
+        "status": "ok", 
+        "data": {
+            "id": meter.id,
+            "name": meter.name,
+            "description": meter.description,
+            "utility_type_id": meter.utility_type_id,
+            "user_id": meter.user_id,
+            "group_id": meter.group_id,
+            "is_active": meter.is_active,
+            "serial_number": meter.serial_number,
+            "created": meter.created.isoformat(),
+            "updated": meter.updated.isoformat() if meter.updated else None
+        }
+    })
+
+
+@utilities_bp.route("/api/utilities/meters/<int:meter_id>", methods=["PUT"])
+@cross_origin()
+@jwt_required()
+@validate()
+def update_utility_meter(meter_id, body: UtilityMeterData):
+    current_user = get_jwt_identity()
+    user_id = current_user.get('user_id')
+    
+    meter = UtilityMeter.query.filter(
+        and_(
+            UtilityMeter.id == meter_id,
+            or_(
+                UtilityMeter.user_id == user_id,
+                UtilityMeter.id.in_(
+                    db.session.query(UtilityMeter.id)
+                    .join(Group, UtilityMeter.group_id == Group.id)
+                    .join(UserGroupAssociation, Group.id == UserGroupAssociation.group_id)
+                    .filter(UserGroupAssociation.user_id == user_id)
+                )
+            )
+        )
+    ).first()
+    
+    if not meter:
+        return jsonify({"status": "error", "message": "Лічильник не знайдено"}), 404
+    
+    # Перевірка доступу до групи
+    if body.group_id and not check_group_access(user_id, body.group_id):
+        abort(403, "Немає доступу до цієї групи")
+    
+    # Перевірка існування типу комунальної послуги
+    utility_type = SprUtilityType.query.filter(
+        and_(
+            SprUtilityType.id == body.utility_type_id,
+            or_(
+                SprUtilityType.user_id == user_id,
+                SprUtilityType.id.in_(
+                    db.session.query(SprUtilityType.id)
+                    .join(Group, SprUtilityType.group_id == Group.id)
+                    .join(UserGroupAssociation, Group.id == UserGroupAssociation.group_id)
+                    .filter(UserGroupAssociation.user_id == user_id)
+                )
+            )
+        )
+    ).first()
+    
+    if not utility_type:
+        return jsonify({"status": "error", "message": "Тип комунальної послуги не знайдено"}), 404
+    
+    try:
+        meter.name = body.name
+        meter.description = body.description
+        meter.utility_type_id = body.utility_type_id
+        meter.user_id = body.user_id
+        meter.group_id = body.group_id
+        meter.is_active = body.is_active
+        meter.serial_number = body.serial_number
+        
+        db.session.commit()
+        
+        return jsonify({
+            "status": "ok", 
+            "data": {
+                "id": meter.id,
+                "name": meter.name,
+                "description": meter.description,
+                "utility_type_id": meter.utility_type_id,
+                "user_id": meter.user_id,
+                "group_id": meter.group_id,
+                "is_active": meter.is_active,
+                "serial_number": meter.serial_number,
+                "created": meter.created.isoformat(),
+                "updated": meter.updated.isoformat() if meter.updated else None
+            }
+        })
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        return jsonify({"status": "error", "message": str(e)}), 400
+
+
+@utilities_bp.route("/api/utilities/meters/<int:meter_id>", methods=["DELETE"])
+@cross_origin()
+@jwt_required()
+def delete_utility_meter(meter_id):
+    current_user = get_jwt_identity()
+    user_id = current_user.get('user_id')
+    
+    meter = UtilityMeter.query.filter(
+        and_(
+            UtilityMeter.id == meter_id,
+            or_(
+                UtilityMeter.user_id == user_id,
+                UtilityMeter.id.in_(
+                    db.session.query(UtilityMeter.id)
+                    .join(Group, UtilityMeter.group_id == Group.id)
+                    .join(UserGroupAssociation, Group.id == UserGroupAssociation.group_id)
+                    .filter(UserGroupAssociation.user_id == user_id)
+                )
+            )
+        )
+    ).first()
+    
+    if not meter:
+        return jsonify({"status": "error", "message": "Лічильник не знайдено"}), 404
+    
+    try:
+        # Перевіряємо, чи є показники для цього лічильника
+        readings = UtilityMeterReading.query.filter_by(meter_id=meter_id).count()
+        
+        if readings > 0:
+            return jsonify({
+                "status": "error", 
+                "message": "Неможливо видалити лічильник, для якого існують показники"
+            }), 400
+        
+        db.session.delete(meter)
+        db.session.commit()
+        
+        return jsonify({"status": "ok"})
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        return jsonify({"status": "error", "message": str(e)}), 400
+
+
+# API для тарифів
+@utilities_bp.route("/api/utilities/tariffs", methods=["GET"])
+@cross_origin()
+@jwt_required()
+def get_utility_tariffs():
+    current_user = get_jwt_identity()
+    user_id = current_user.get('user_id')
+    
+    utility_type_id = request.args.get("utility_type_id")
+    tariff_type = request.args.get("tariff_type")
+    include_expired = request.args.get("include_expired", "false").lower() == "true"
+    
+    query = get_user_resources(user_id, UtilityTariff)
+    
+    if utility_type_id:
+        query = query.filter(UtilityTariff.utility_type_id == utility_type_id)
+    
+    if tariff_type:
+        query = query.filter(UtilityTariff.tariff_type == tariff_type)
+    
+    if not include_expired:
+        current_date = datetime.datetime.now(datetime.timezone.utc)
+        query = query.filter(
+            or_(
+                UtilityTariff.valid_to.is_(None),
+                UtilityTariff.valid_to > current_date
+            )
+        )
+    
+    tariffs = query.order_by(UtilityTariff.valid_from.desc()).all()
+    
+    result = []
+    for tariff in tariffs:
+        result.append({
+            "id": tariff.id,
+            "name": tariff.name,
+            "description": tariff.description,
+            "utility_type_id": tariff.utility_type_id,
+            "rate": tariff.rate,
+            "currency": tariff.currency,
+            "valid_from": tariff.valid_from.isoformat() if tariff.valid_from else None,
+            "valid_to": tariff.valid_to.isoformat() if tariff.valid_to else None,
+            "user_id": tariff.user_id,
+            "group_id": tariff.group_id,
+            "tariff_type": tariff.tariff_type,
+            "created": tariff.created.isoformat() if tariff.created else None,
+            "updated": tariff.updated.isoformat() if tariff.updated else None
+        })
+    
+    return jsonify({"status": "ok", "data": result})
+
+
+@utilities_bp.route("/api/utilities/tariffs", methods=["POST"])
+@cross_origin()
+@jwt_required()
+@validate()
+def create_utility_tariff(body: UtilityTariffData):
+    current_user = get_jwt_identity()
+    user_id = current_user.get('user_id')
+    
+    # Перевірка доступу до групи
+    if body.group_id and not check_group_access(user_id, body.group_id):
+        abort(403, "Немає доступу до цієї групи")
+    
+    # Перевірка існування типу комунальної послуги
+    utility_type = SprUtilityType.query.filter(
+        and_(
+            SprUtilityType.id == body.utility_type_id,
+            or_(
+                SprUtilityType.user_id == user_id,
+                SprUtilityType.id.in_(
+                    db.session.query(SprUtilityType.id)
+                    .join(Group, SprUtilityType.group_id == Group.id)
+                    .join(UserGroupAssociation, Group.id == UserGroupAssociation.group_id)
+                    .filter(UserGroupAssociation.user_id == user_id)
+                )
+            )
+        )
+    ).first()
+    
+    if not utility_type:
+        return jsonify({"status": "error", "message": "Тип комунальної послуги не знайдено"}), 404
+    
+    # Встановлюємо ID користувача, якщо він не вказаний
+    if not body.group_id and not body.user_id:
+        body.user_id = user_id
+    
+    # Встановлюємо дату початку дії тарифу, якщо вона не вказана
+    if not body.valid_from:
+        body.valid_from = datetime.datetime.now(datetime.timezone.utc)
+    
+    try:
+        # Перевіряємо, чи є активні тарифи для цього ж типу комунальної послуги та типу тарифу
+        if body.tariff_type:
+            existing_tariffs = UtilityTariff.query.filter(
+                and_(
+                    UtilityTariff.utility_type_id == body.utility_type_id,
+                    UtilityTariff.tariff_type == body.tariff_type,
+                    or_(
+                        UtilityTariff.valid_to.is_(None),
+                        UtilityTariff.valid_to > body.valid_from
+                    ),
+                    or_(
+                        and_(UtilityTariff.user_id == body.user_id, body.user_id != None),
+                        and_(UtilityTariff.group_id == body.group_id, body.group_id != None)
+                    )
+                )
+            ).all()
+            
+            # Деактивуємо старі тарифи, встановлюючи їм дату закінчення
+            for et in existing_tariffs:
+                et.valid_to = body.valid_from
+        
+        tariff = UtilityTariff(**body.dict())
+        db.session.add(tariff)
+        db.session.commit()
+        
+        return jsonify({
+            "status": "ok", 
+            "data": {
+                "id": tariff.id,
+                "name": tariff.name,
+                "description": tariff.description,
+                "utility_type_id": tariff.utility_type_id,
+                "rate": tariff.rate,
+                "currency": tariff.currency,
+                "valid_from": tariff.valid_from.isoformat() if tariff.valid_from else None,
+                "valid_to": tariff.valid_to.isoformat() if tariff.valid_to else None,
+                "user_id": tariff.user_id,
+                "group_id": tariff.group_id,
+                "tariff_type": tariff.tariff_type,
+                "created": tariff.created.isoformat(),
+                "updated": tariff.updated.isoformat() if tariff.updated else None
+            }
+        })
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        return jsonify({"status": "error", "message": str(e)}), 400
+
+
+@utilities_bp.route("/api/utilities/tariffs/<int:tariff_id>", methods=["GET"])
+@cross_origin()
+@jwt_required()
+def get_utility_tariff(tariff_id):
+    current_user = get_jwt_identity()
+    user_id = current_user.get('user_id')
+    
+    tariff = UtilityTariff.query.filter(
+        and_(
+            UtilityTariff.id == tariff_id,
+            or_(
+                UtilityTariff.user_id == user_id,
+                UtilityTariff.id.in_(
+                    db.session.query(UtilityTariff.id)
+                    .join(Group, UtilityTariff.group_id == Group.id)
+                    .join(UserGroupAssociation, Group.id == UserGroupAssociation.group_id)
+                    .filter(UserGroupAssociation.user_id == user_id)
+                )
+            )
+        )
+    ).first()
+    
+    if not tariff:
+        return jsonify({"status": "error", "message": "Тариф не знайдено"}), 404
+    
+    return jsonify({
+        "status": "ok", 
+        "data": {
+            "id": tariff.id,
+            "name": tariff.name,
+            "description": tariff.description,
+            "utility_type_id": tariff.utility_type_id,
+            "rate": tariff.rate,
+            "currency": tariff.currency,
+            "valid_from": tariff.valid_from.isoformat() if tariff.valid_from else None,
+            "valid_to": tariff.valid_to.isoformat() if tariff.valid_to else None,
+            "user_id": tariff.user_id,
+            "group_id": tariff.group_id,
+            "tariff_type": tariff.tariff_type,
+            "created": tariff.created.isoformat(),
+            "updated": tariff.updated.isoformat() if tariff.updated else None
+        }
+    })
+
+
+@utilities_bp.route("/api/utilities/tariffs/<int:tariff_id>", methods=["PUT"])
+@cross_origin()
+@jwt_required()
+@validate()
+def update_utility_tariff(tariff_id, body: UtilityTariffData):
+    current_user = get_jwt_identity()
+    user_id = current_user.get('user_id')
+    
+    tariff = UtilityTariff.query.filter(
+        and_(
+            UtilityTariff.id == tariff_id,
+            or_(
+                UtilityTariff.user_id == user_id,
+                UtilityTariff.id.in_(
+                    db.session.query(UtilityTariff.id)
+                    .join(Group, UtilityTariff.group_id == Group.id)
+                    .join(UserGroupAssociation, Group.id == UserGroupAssociation.group_id)
+                    .filter(UserGroupAssociation.user_id == user_id)
+                )
+            )
+        )
+    ).first()
+    
+    if not tariff:
+        return jsonify({"status": "error", "message": "Тариф не знайдено"}), 404
+    
+    # Перевірка доступу до групи
+    if body.group_id and not check_group_access(user_id, body.group_id):
+        abort(403, "Немає доступу до цієї групи")
+    
+    # Перевірка існування типу комунальної послуги
+    utility_type = SprUtilityType.query.filter(
+        and_(
+            SprUtilityType.id == body.utility_type_id,
+            or_(
+                SprUtilityType.user_id == user_id,
+                SprUtilityType.id.in_(
+                    db.session.query(SprUtilityType.id)
+                    .join(Group, SprUtilityType.group_id == Group.id)
+                    .join(UserGroupAssociation, Group.id == UserGroupAssociation.group_id)
+                    .filter(UserGroupAssociation.user_id == user_id)
+                )
+            )
+        )
+    ).first()
+    
+    if not utility_type:
+        return jsonify({"status": "error", "message": "Тип комунальної послуги не знайдено"}), 404
+    
+    try:
+        tariff.name = body.name
+        tariff.description = body.description
+        tariff.utility_type_id = body.utility_type_id
+        tariff.rate = body.rate
+        tariff.currency = body.currency
+        tariff.valid_from = body.valid_from
+        tariff.valid_to = body.valid_to
+        tariff.user_id = body.user_id
+        tariff.group_id = body.group_id
+        tariff.tariff_type = body.tariff_type
+        
+        db.session.commit()
+        
+        return jsonify({
+            "status": "ok", 
+            "data": {
+                "id": tariff.id,
+                "name": tariff.name,
+                "description": tariff.description,
+                "utility_type_id": tariff.utility_type_id,
+                "rate": tariff.rate,
+                "currency": tariff.currency,
+                "valid_from": tariff.valid_from.isoformat() if tariff.valid_from else None,
+                "valid_to": tariff.valid_to.isoformat() if tariff.valid_to else None,
+                "user_id": tariff.user_id,
+                "group_id": tariff.group_id,
+                "tariff_type": tariff.tariff_type,
+                "created": tariff.created.isoformat(),
+                "updated": tariff.updated.isoformat() if tariff.updated else None
+            }
+        })
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        return jsonify({"status": "error", "message": str(e)}), 400
+
+
+@utilities_bp.route("/api/utilities/tariffs/<int:tariff_id>", methods=["DELETE"])
+@cross_origin()
+@jwt_required()
+def delete_utility_tariff(tariff_id):
+    current_user = get_jwt_identity()
+    user_id = current_user.get('user_id')
+    
+    tariff = UtilityTariff.query.filter(
+        and_(
+            UtilityTariff.id == tariff_id,
+            or_(
+                UtilityTariff.user_id == user_id,
+                UtilityTariff.id.in_(
+                    db.session.query(UtilityTariff.id)
+                    .join(Group, UtilityTariff.group_id == Group.id)
+                    .join(UserGroupAssociation, Group.id == UserGroupAssociation.group_id)
+                    .filter(UserGroupAssociation.user_id == user_id)
+                )
+            )
+        )
+    ).first()
+    
+    if not tariff:
+        return jsonify({"status": "error", "message": "Тариф не знайдено"}), 404
+    
+    try:
+        # Перевіряємо, чи є показники для цього тарифу
+        readings = UtilityMeterReading.query.filter_by(tariff_id=tariff_id).count()
+        
+        if readings > 0:
+            return jsonify({
+                "status": "error", 
+                "message": "Неможливо видалити тариф, для якого існують показники"
+            }), 400
+        
+        db.session.delete(tariff)
+        db.session.commit()
+        
+        return jsonify({"status": "ok"})
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        return jsonify({"status": "error", "message": str(e)}), 400
+
+
+# API для показників лічильників
+@utilities_bp.route("/api/utilities/readings", methods=["GET"])
+@cross_origin()
+@jwt_required()
+def get_utility_readings():
+    current_user = get_jwt_identity()
+    user_id = current_user.get('user_id')
+    
+    meter_id = request.args.get("meter_id")
+    year = request.args.get("year")
+    month = request.args.get("month")
+    limit = request.args.get("limit", "12")
+    
+    query = get_user_resources(user_id, UtilityMeterReading)
+    
+    if meter_id:
+        query = query.filter(UtilityMeterReading.meter_id == meter_id)
+    
+    if year:
+        query = query.filter(UtilityMeterReading.year == year)
+    
+    if month:
+        query = query.filter(UtilityMeterReading.month == month)
+    
+    try:
+        limit_value = int(limit)
+    except ValueError:
+        limit_value = 12
+    
+    readings = query.order_by(UtilityMeterReading.year.desc(), UtilityMeterReading.month.desc()).limit(limit_value).all()
+    
+    result = []
+    for reading in readings:
+        result.append({
+            "id": reading.id,
+            "meter_id": reading.meter_id,
+            "reading_date": reading.reading_date.isoformat() if reading.reading_date else None,
+            "reading_value": reading.reading_value,
+            "previous_reading_id": reading.previous_reading_id,
+            "consumption": reading.consumption,
+            "user_id": reading.user_id,
+            "group_id": reading.group_id,
+            "tariff_id": reading.tariff_id,
+            "image_url": reading.image_url,
+            "month": reading.month,
+            "year": reading.year,
+            "cost": reading.cost,
+            "created": reading.created.isoformat() if reading.created else None,
+            "updated": reading.updated.isoformat() if reading.updated else None
+        })
+    
+    return jsonify({"status": "ok", "data": result})
+
+
+@utilities_bp.route("/api/utilities/readings", methods=["POST"])
+@cross_origin()
+@jwt_required()
+@validate()
+def create_utility_reading(body: UtilityMeterReadingData):
+    current_user = get_jwt_identity()
+    user_id = current_user.get('user_id')
+    
+    # Перевірка доступу до групи
+    if body.group_id and not check_group_access(user_id, body.group_id):
+        abort(403, "Немає доступу до цієї групи")
+    
+    # Перевірка існування лічильника
+    meter = UtilityMeter.query.filter(
+        and_(
+            UtilityMeter.id == body.meter_id,
+            or_(
+                UtilityMeter.user_id == user_id,
+                UtilityMeter.id.in_(
+                    db.session.query(UtilityMeter.id)
+                    .join(Group, UtilityMeter.group_id == Group.id)
+                    .join(UserGroupAssociation, Group.id == UserGroupAssociation.group_id)
+                    .filter(UserGroupAssociation.user_id == user_id)
+                )
+            )
+        )
+    ).first()
+    
+    if not meter:
+        return jsonify({"status": "error", "message": "Лічильник не знайдено"}), 404
+    
+    # Перевірка існування тарифу, якщо він вказаний
+    if body.tariff_id:
+        tariff = UtilityTariff.query.filter(
+            and_(
+                UtilityTariff.id == body.tariff_id,
+                or_(
+                    UtilityTariff.user_id == user_id,
+                    UtilityTariff.id.in_(
+                        db.session.query(UtilityTariff.id)
+                        .join(Group, UtilityTariff.group_id == Group.id)
+                        .join(UserGroupAssociation, Group.id == UserGroupAssociation.group_id)
+                        .filter(UserGroupAssociation.user_id == user_id)
+                    )
+                )
+            )
+        ).first()
+        
+        if not tariff:
+            return jsonify({"status": "error", "message": "Тариф не знайдено"}), 404
+    
+    # Встановлюємо ID користувача, якщо він не вказаний
+    if not body.group_id and not body.user_id:
+        body.user_id = user_id
+    
+    # Встановлюємо дату показника, якщо вона не вказана
+    if not body.reading_date:
+        body.reading_date = datetime.datetime.now(datetime.timezone.utc)
+    
+    try:
+        # Перевіряємо, чи вже існує показник для цього лічильника за цей місяць та рік
+        existing_reading = UtilityMeterReading.query.filter(
+            and_(
+                UtilityMeterReading.meter_id == body.meter_id,
+                UtilityMeterReading.month == body.month,
+                UtilityMeterReading.year == body.year
+            )
+        ).first()
+        
+        if existing_reading:
+            return jsonify({
+                "status": "error", 
+                "message": f"Показник для цього лічильника за {body.month}/{body.year} вже існує"
+            }), 400
+        
+        # Знаходимо попередній показник для розрахунку споживання
+        previous_reading = UtilityMeterReading.query.filter(
+            UtilityMeterReading.meter_id == body.meter_id
+        ).order_by(
+            UtilityMeterReading.year.desc(),
+            UtilityMeterReading.month.desc()
+        ).first()
+        
+        if previous_reading:
+            body.previous_reading_id = previous_reading.id
+            body.consumption = body.reading_value - previous_reading.reading_value
+            
+            # Розраховуємо вартість, якщо вказаний тариф
+            if body.tariff_id and (body.consumption is not None) and body.consumption > 0:
+                tariff = UtilityTariff.query.get(body.tariff_id)
+                if tariff:
+                    body.cost = body.consumption * tariff.rate
+        
+        reading = UtilityMeterReading(**body.dict())
+        db.session.add(reading)
+        db.session.commit()
+        
+        return jsonify({
+            "status": "ok", 
+            "data": {
+                "id": reading.id,
+                "meter_id": reading.meter_id,
+                "reading_date": reading.reading_date.isoformat() if reading.reading_date else None,
+                "reading_value": reading.reading_value,
+                "previous_reading_id": reading.previous_reading_id,
+                "consumption": reading.consumption,
+                "user_id": reading.user_id,
+                "group_id": reading.group_id,
+                "tariff_id": reading.tariff_id,
+                "image_url": reading.image_url,
+                "month": reading.month,
+                "year": reading.year,
+                "cost": reading.cost,
+                "created": reading.created.isoformat(),
+                "updated": reading.updated.isoformat() if reading.updated else None
+            }
+        })
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        return jsonify({"status": "error", "message": str(e)}), 400
+
+
+@utilities_bp.route("/api/utilities/readings/<int:reading_id>", methods=["GET"])
+@cross_origin()
+@jwt_required()
+def get_utility_reading(reading_id):
+    current_user = get_jwt_identity()
+    user_id = current_user.get('user_id')
+    
+    reading = UtilityMeterReading.query.filter(
+        and_(
+            UtilityMeterReading.id == reading_id,
+            or_(
+                UtilityMeterReading.user_id == user_id,
+                UtilityMeterReading.id.in_(
+                    db.session.query(UtilityMeterReading.id)
+                    .join(Group, UtilityMeterReading.group_id == Group.id)
+                    .join(UserGroupAssociation, Group.id == UserGroupAssociation.group_id)
+                    .filter(UserGroupAssociation.user_id == user_id)
+                )
+            )
+        )
+    ).first()
+    
+    if not reading:
+        return jsonify({"status": "error", "message": "Показник не знайдено"}), 404
+    
+    return jsonify({
+        "status": "ok", 
+        "data": {
+            "id": reading.id,
+            "meter_id": reading.meter_id,
+            "reading_date": reading.reading_date.isoformat() if reading.reading_date else None,
+            "reading_value": reading.reading_value,
+            "previous_reading_id": reading.previous_reading_id,
+            "consumption": reading.consumption,
+            "user_id": reading.user_id,
+            "group_id": reading.group_id,
+            "tariff_id": reading.tariff_id,
+            "image_url": reading.image_url,
+            "month": reading.month,
+            "year": reading.year,
+            "cost": reading.cost,
+            "created": reading.created.isoformat(),
+            "updated": reading.updated.isoformat() if reading.updated else None
+        }
+    })
+
+
+@utilities_bp.route("/api/utilities/readings/<int:reading_id>", methods=["PUT"])
+@cross_origin()
+@jwt_required()
+@validate()
+def update_utility_reading(reading_id, body: UtilityMeterReadingData):
+    current_user = get_jwt_identity()
+    user_id = current_user.get('user_id')
+    
+    reading = UtilityMeterReading.query.filter(
+        and_(
+            UtilityMeterReading.id == reading_id,
+            or_(
+                UtilityMeterReading.user_id == user_id,
+                UtilityMeterReading.id.in_(
+                    db.session.query(UtilityMeterReading.id)
+                    .join(Group, UtilityMeterReading.group_id == Group.id)
+                    .join(UserGroupAssociation, Group.id == UserGroupAssociation.group_id)
+                    .filter(UserGroupAssociation.user_id == user_id)
+                )
+            )
+        )
+    ).first()
+    
+    if not reading:
+        return jsonify({"status": "error", "message": "Показник не знайдено"}), 404
+    
+    # Перевірка доступу до групи
+    if body.group_id and not check_group_access(user_id, body.group_id):
+        abort(403, "Немає доступу до цієї групи")
+    
+    # Перевірка існування лічильника
+    meter = UtilityMeter.query.filter(
+        and_(
+            UtilityMeter.id == body.meter_id,
+            or_(
+                UtilityMeter.user_id == user_id,
+                UtilityMeter.id.in_(
+                    db.session.query(UtilityMeter.id)
+                    .join(Group, UtilityMeter.group_id == Group.id)
+                    .join(UserGroupAssociation, Group.id == UserGroupAssociation.group_id)
+                    .filter(UserGroupAssociation.user_id == user_id)
+                )
+            )
+        )
+    ).first()
+    
+    if not meter:
+        return jsonify({"status": "error", "message": "Лічильник не знайдено"}), 404
+    
+    # Перевірка існування тарифу, якщо він вказаний
+    if body.tariff_id:
+        tariff = UtilityTariff.query.filter(
+            and_(
+                UtilityTariff.id == body.tariff_id,
+                or_(
+                    UtilityTariff.user_id == user_id,
+                    UtilityTariff.id.in_(
+                        db.session.query(UtilityTariff.id)
+                        .join(Group, UtilityTariff.group_id == Group.id)
+                        .join(UserGroupAssociation, Group.id == UserGroupAssociation.group_id)
+                        .filter(UserGroupAssociation.user_id == user_id)
+                    )
+                )
+            )
+        ).first()
+        
+        if not tariff:
+            return jsonify({"status": "error", "message": "Тариф не знайдено"}), 404
+    
+    try:
+        # Перевіряємо, чи вже існує інший показник для цього лічильника за цей місяць та рік
+        if reading.month != body.month or reading.year != body.year:
+            existing_reading = UtilityMeterReading.query.filter(
+                and_(
+                    UtilityMeterReading.meter_id == body.meter_id,
+                    UtilityMeterReading.month == body.month,
+                    UtilityMeterReading.year == body.year,
+                    UtilityMeterReading.id != reading_id
+                )
+            ).first()
+            
+            if existing_reading:
+                return jsonify({
+                    "status": "error", 
+                    "message": f"Показник для цього лічильника за {body.month}/{body.year} вже існує"
+                }), 400
+        
+        # Оновлюємо показник
+        reading.meter_id = body.meter_id
+        reading.reading_date = body.reading_date
+        reading.reading_value = body.reading_value
+        reading.previous_reading_id = body.previous_reading_id
+        reading.user_id = body.user_id
+        reading.group_id = body.group_id
+        reading.tariff_id = body.tariff_id
+        reading.image_url = body.image_url
+        reading.month = body.month
+        reading.year = body.year
+        
+        # Перераховуємо споживання, якщо є попередній показник
+        if reading.previous_reading_id:
+            previous_reading = UtilityMeterReading.query.get(reading.previous_reading_id)
+            if previous_reading:
+                reading.consumption = reading.reading_value - previous_reading.reading_value
+        else:
+            reading.consumption = body.consumption
+        
+        # Перераховуємо вартість, якщо вказаний тариф
+        if reading.tariff_id and (reading.consumption is not None) and reading.consumption > 0:
+            tariff = UtilityTariff.query.get(reading.tariff_id)
+            if tariff:
+                reading.cost = reading.consumption * tariff.rate
+        else:
+            reading.cost = body.cost
+        
+        db.session.commit()
+        
+        return jsonify({
+            "status": "ok", 
+            "data": {
+                "id": reading.id,
+                "meter_id": reading.meter_id,
+                "reading_date": reading.reading_date.isoformat() if reading.reading_date else None,
+                "reading_value": reading.reading_value,
+                "previous_reading_id": reading.previous_reading_id,
+                "consumption": reading.consumption,
+                "user_id": reading.user_id,
+                "group_id": reading.group_id,
+                "tariff_id": reading.tariff_id,
+                "image_url": reading.image_url,
+                "month": reading.month,
+                "year": reading.year,
+                "cost": reading.cost,
+                "created": reading.created.isoformat(),
+                "updated": reading.updated.isoformat() if reading.updated else None
+            }
+        })
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        return jsonify({"status": "error", "message": str(e)}), 400
+
+
+@utilities_bp.route("/api/utilities/readings/<int:reading_id>", methods=["DELETE"])
+@cross_origin()
+@jwt_required()
+def delete_utility_reading(reading_id):
+    current_user = get_jwt_identity()
+    user_id = current_user.get('user_id')
+    
+    reading = UtilityMeterReading.query.filter(
+        and_(
+            UtilityMeterReading.id == reading_id,
+            or_(
+                UtilityMeterReading.user_id == user_id,
+                UtilityMeterReading.id.in_(
+                    db.session.query(UtilityMeterReading.id)
+                    .join(Group, UtilityMeterReading.group_id == Group.id)
+                    .join(UserGroupAssociation, Group.id == UserGroupAssociation.group_id)
+                    .filter(UserGroupAssociation.user_id == user_id)
+                )
+            )
+        )
+    ).first()
+    
+    if not reading:
+        return jsonify({"status": "error", "message": "Показник не знайдено"}), 404
+    
+    try:
+        # Перевіряємо, чи є показники, які посилаються на цей як на попередній
+        dependent_readings = UtilityMeterReading.query.filter_by(previous_reading_id=reading_id).count()
+        
+        if dependent_readings > 0:
+            return jsonify({
+                "status": "error", 
+                "message": "Неможливо видалити показник, на який посилаються інші показники"
+            }), 400
+        
+        db.session.delete(reading)
+        db.session.commit()
+        
+        return jsonify({"status": "ok"})
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        return jsonify({"status": "error", "message": str(e)}), 400
+
+
+# API для статистики
+@utilities_bp.route("/api/utilities/statistics", methods=["GET"])
+@cross_origin()
+@jwt_required()
+def get_utility_statistics():
+    current_user = get_jwt_identity()
+    user_id = current_user.get('user_id')
+    
+    meter_id = request.args.get("meter_id")
+    utility_type_id = request.args.get("utility_type_id")
+    year = request.args.get("year")
+    
+    if not meter_id and not utility_type_id:
+        return jsonify({"status": "error", "message": "Потрібно вказати meter_id або utility_type_id"}), 400
+    
+    if meter_id:
+        # Статистика для конкретного лічильника
+        meter = UtilityMeter.query.filter(
+            and_(
+                UtilityMeter.id == meter_id,
+                or_(
+                    UtilityMeter.user_id == user_id,
+                    UtilityMeter.id.in_(
+                        db.session.query(UtilityMeter.id)
+                        .join(Group, UtilityMeter.group_id == Group.id)
+                        .join(UserGroupAssociation, Group.id == UserGroupAssociation.group_id)
+                        .filter(UserGroupAssociation.user_id == user_id)
+                    )
+                )
+            )
+        ).first()
+        
+        if not meter:
+            return jsonify({"status": "error", "message": "Лічильник не знайдено"}), 404
+        
+        query = UtilityMeterReading.query.filter(UtilityMeterReading.meter_id == meter_id)
+        
+    else:
+        # Статистика для всіх лічильників певного типу
+        utility_type = SprUtilityType.query.filter(
+            and_(
+                SprUtilityType.id == utility_type_id,
+                or_(
+                    SprUtilityType.user_id == user_id,
+                    SprUtilityType.id.in_(
+                        db.session.query(SprUtilityType.id)
+                        .join(Group, SprUtilityType.group_id == Group.id)
+                        .join(UserGroupAssociation, Group.id == UserGroupAssociation.group_id)
+                        .filter(UserGroupAssociation.user_id == user_id)
+                    )
+                )
+            )
+        ).first()
+        
+        if not utility_type:
+            return jsonify({"status": "error", "message": "Тип комунальної послуги не знайдено"}), 404
+        
+        # Отримуємо всі лічильники даного типу, які належать користувачу або його групам
+        meters = UtilityMeter.query.filter(
+            and_(
+                UtilityMeter.utility_type_id == utility_type_id,
+                or_(
+                    UtilityMeter.user_id == user_id,
+                    UtilityMeter.id.in_(
+                        db.session.query(UtilityMeter.id)
+                        .join(Group, UtilityMeter.group_id == Group.id)
+                        .join(UserGroupAssociation, Group.id == UserGroupAssociation.group_id)
+                        .filter(UserGroupAssociation.user_id == user_id)
+                    )
+                )
+            )
+        ).all()
+        
+        meter_ids = [meter.id for meter in meters]
+        
+        if not meter_ids:
+            return jsonify({"status": "ok", "data": []}), 200
+        
+        query = UtilityMeterReading.query.filter(UtilityMeterReading.meter_id.in_(meter_ids))
+    
+    if year:
+        query = query.filter(UtilityMeterReading.year == year)
+    
+    # Отримуємо показники, згруповані за місяцем та роком
+    if meter_id:
+        # Для одного лічильника - просто вибираємо показники
+        readings = query.order_by(UtilityMeterReading.year.asc(), UtilityMeterReading.month.asc()).all()
+        
+        result = []
+        for reading in readings:
+            result.append({
+                "month": reading.month,
+                "year": reading.year,
+                "reading_value": reading.reading_value,
+                "consumption": reading.consumption,
+                "cost": reading.cost
+            })
+    else:
+        # Для всіх лічильників - групуємо по місяцю та року
+        readings = db.session.query(
+            UtilityMeterReading.year,
+            UtilityMeterReading.month,
+            func.sum(UtilityMeterReading.consumption).label('total_consumption'),
+            func.sum(UtilityMeterReading.cost).label('total_cost')
+        ).filter(
+            UtilityMeterReading.meter_id.in_(meter_ids)
+        )
+        
+        if year:
+            readings = readings.filter(UtilityMeterReading.year == year)
+        
+        readings = readings.group_by(
+            UtilityMeterReading.year,
+            UtilityMeterReading.month
+        ).order_by(
+            UtilityMeterReading.year.asc(),
+            UtilityMeterReading.month.asc()
+        ).all()
+        
+        result = []
+        for reading in readings:
+            result.append({
+                "month": reading.month,
+                "year": reading.year,
+                "total_consumption": float(reading.total_consumption) if reading.total_consumption else 0,
+                "total_cost": float(reading.total_cost) if reading.total_cost else 0
+            })
+    
+    return jsonify({"status": "ok", "data": result}) 

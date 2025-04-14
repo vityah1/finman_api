@@ -42,6 +42,7 @@ from api.categories import categories_bp
 from api.payments import payments_bp
 from api.groups import groups_bp
 from api.invitations.route import invitations_bp
+from api.utilities.api import utilities_bp
 
 app.register_blueprint(config_bp)
 app.register_blueprint(auth_bp)
@@ -56,6 +57,7 @@ app.register_blueprint(p24_bp)
 app.register_blueprint(categories_bp)
 app.register_blueprint(groups_bp)
 app.register_blueprint(invitations_bp)
+app.register_blueprint(utilities_bp)
 
 from api.config.funcs import check_and_fill_spr_config_table, check_exsists_table
 with app.app_context():

@@ -237,3 +237,102 @@ class GroupInvitation(Base):
     _default_fields = [
         "group_id", "created_by", "invitation_code", "email", "created", "expires"
     ]
+
+class SprUtilityType(Base):
+    __tablename__ = 'spr_utility_types'
+
+    name = Column(String(100), nullable=False)
+    description = Column(String(255))
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
+    group_id = Column(Integer, ForeignKey('groups.id'), nullable=True)
+    
+    user = relationship('User')
+    group = relationship('Group')
+    
+    _default_fields = ["name", "description", "user_id", "group_id"]
+    
+    __table_args__ = (
+        Index(None, 'user_id', 'name', unique=True),
+        Index(None, 'group_id', 'name', unique=True),
+    )
+
+
+class UtilityMeter(Base):
+    __tablename__ = 'utility_meters'
+    
+    name = Column(String(100), nullable=False)
+    description = Column(String(255))
+    utility_type_id = Column(Integer, ForeignKey('spr_utility_types.id'), nullable=False)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
+    group_id = Column(Integer, ForeignKey('groups.id'), nullable=True)
+    is_active = Column(Boolean, default=True)
+    serial_number = Column(String(50))
+    
+    utility_type = relationship('SprUtilityType')
+    user = relationship('User')
+    group = relationship('Group')
+    readings = relationship('UtilityMeterReading', back_populates='meter', lazy=True)
+    
+    _default_fields = ["name", "description", "utility_type_id", "user_id", "group_id", "is_active", "serial_number"]
+    
+    __table_args__ = (
+        Index(None, 'user_id', 'name', 'utility_type_id', unique=True),
+        Index(None, 'group_id', 'name', 'utility_type_id', unique=True),
+    )
+
+
+class UtilityTariff(Base):
+    __tablename__ = 'utility_tariffs'
+    
+    name = Column(String(100), nullable=False)
+    description = Column(String(255))
+    utility_type_id = Column(Integer, ForeignKey('spr_utility_types.id'), nullable=False)
+    rate = Column(Float, nullable=False)
+    currency = Column(String(3), default="UAH")
+    valid_from = Column(DateTime, default=datetime.datetime.now(datetime.timezone.utc))
+    valid_to = Column(DateTime, nullable=True)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
+    group_id = Column(Integer, ForeignKey('groups.id'), nullable=True)
+    tariff_type = Column(String(50), comment="day|night|water_supply|sewage")
+    
+    utility_type = relationship('SprUtilityType')
+    user = relationship('User')
+    group = relationship('Group')
+    
+    _default_fields = ["name", "description", "utility_type_id", "rate", "currency", 
+                        "valid_from", "valid_to", "user_id", "group_id", "tariff_type"]
+    
+    __table_args__ = (
+        Index(None, 'user_id', 'utility_type_id', 'tariff_type', 'valid_from', unique=True),
+        Index(None, 'group_id', 'utility_type_id', 'tariff_type', 'valid_from', unique=True),
+    )
+
+
+class UtilityMeterReading(Base):
+    __tablename__ = 'utility_meter_readings'
+    
+    meter_id = Column(Integer, ForeignKey('utility_meters.id'), nullable=False)
+    reading_date = Column(DateTime, default=datetime.datetime.now(datetime.timezone.utc))
+    reading_value = Column(Float, nullable=False)
+    previous_reading_id = Column(Integer, ForeignKey('utility_meter_readings.id'), nullable=True)
+    consumption = Column(Float, nullable=True, comment="Автоматично розраховане споживання")
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
+    group_id = Column(Integer, ForeignKey('groups.id'), nullable=True)
+    tariff_id = Column(Integer, ForeignKey('utility_tariffs.id'), nullable=True)
+    image_url = Column(String(255), nullable=True, comment="URL фото показника лічильника")
+    month = Column(Integer, nullable=False, comment="Місяць зняття показника")
+    year = Column(Integer, nullable=False, comment="Рік зняття показника")
+    cost = Column(Float, nullable=True, comment="Розрахункова вартість за показниками")
+    
+    meter = relationship('UtilityMeter', back_populates='readings')
+    user = relationship('User')
+    group = relationship('Group')
+    tariff = relationship('UtilityTariff')
+    previous_reading = relationship('UtilityMeterReading', remote_side=[id])
+    
+    _default_fields = ["meter_id", "reading_date", "reading_value", "consumption", 
+                       "user_id", "group_id", "tariff_id", "month", "year", "cost"]
+    
+    __table_args__ = (
+        Index(None, 'meter_id', 'month', 'year', unique=True),
+    )

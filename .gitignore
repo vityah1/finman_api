@@ -12,6 +12,8 @@ finman.log.*
 *.pem
 *.gz
 *.sql
-r.txt
+*.txt
 *.xlsx
 /.idea
+.venv
+startup_log.txt
