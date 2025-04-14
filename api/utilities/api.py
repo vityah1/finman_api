@@ -61,21 +61,146 @@ def get_user_resources(user_id, model_class, include_group_resources=True):
 
 from fastapi import Body
 
-@router.get("/types")
+from typing import List
+from api.schemas import UtilityTypeData
+from pydantic import BaseModel
+from typing import Optional
+
+# --- Pydantic Response Schemas (перенесено вгору для уникнення NameError) ---
+class UtilityTypeOut(BaseModel):
+    id: int
+    name: str
+    description: str | None = None
+    user_id: int | None = None
+    group_id: int | None = None
+    created: str | None = None
+    updated: str | None = None
+
+class UtilityTypeDataOut(BaseModel):
+    id: int
+    name: str
+    description: Optional[str] = None
+    user_id: Optional[int] = None
+    group_id: Optional[int] = None
+    created: Optional[str] = None
+    updated: Optional[str] = None
+
+class StatusDataResponse(BaseModel):
+    status: str
+    data: UtilityTypeDataOut
+
+class StatusOkResponse(BaseModel):
+    status: str
+
+class UtilityMeterOut(BaseModel):
+    id: int
+    name: str
+    description: Optional[str] = None
+    utility_type_id: int
+    user_id: Optional[int] = None
+    group_id: Optional[int] = None
+    is_active: Optional[bool] = None
+    serial_number: Optional[str] = None
+    created: Optional[str] = None
+    updated: Optional[str] = None
+
+class StatusDataListResponse(BaseModel):
+    status: str
+    data: List[UtilityMeterOut]
+
+class StatusErrorResponse(BaseModel):
+    status: str
+    message: str
+
+# --- Tariff ---
+class UtilityTariffOut(BaseModel):
+    id: int
+    name: str
+    description: Optional[str] = None
+    utility_type_id: int
+    rate: float
+    currency: str
+    valid_from: Optional[str] = None
+    valid_to: Optional[str] = None
+    user_id: Optional[int] = None
+    group_id: Optional[int] = None
+    tariff_type: Optional[str] = None
+    created: Optional[str] = None
+    updated: Optional[str] = None
+
+class StatusTariffListResponse(BaseModel):
+    status: str
+    data: List[UtilityTariffOut]
+
+class StatusTariffResponse(BaseModel):
+    status: str
+    data: UtilityTariffOut
+
+# --- Meter Reading ---
+class UtilityMeterReadingOut(BaseModel):
+    id: int
+    meter_id: int
+    reading_date: Optional[str] = None
+    reading_value: float
+    previous_reading_id: Optional[int] = None
+    consumption: Optional[float] = None
+    user_id: Optional[int] = None
+    group_id: Optional[int] = None
+    tariff_id: Optional[int] = None
+    image_url: Optional[str] = None
+    month: int
+    year: int
+    cost: Optional[float] = None
+    created: Optional[str] = None
+    updated: Optional[str] = None
+
+class StatusReadingListResponse(BaseModel):
+    status: str
+    data: List[UtilityMeterReadingOut]
+
+class StatusReadingResponse(BaseModel):
+    status: str
+    data: UtilityMeterReadingOut
+
+# --- Statistics ---
+class MeterStatisticsOut(BaseModel):
+    month: int
+    year: int
+    reading_value: Optional[float] = None
+    consumption: Optional[float] = None
+    cost: Optional[float] = None
+
+class TypeStatisticsOut(BaseModel):
+    month: int
+    year: int
+    total_consumption: float
+    total_cost: float
+
+class StatusMeterStatisticsResponse(BaseModel):
+    status: str
+    data: List[MeterStatisticsOut]
+
+class StatusTypeStatisticsResponse(BaseModel):
+    status: str
+    data: List[TypeStatisticsOut]
+# --- END Schemas ---
+
+@router.get("/types", response_model=List[UtilityTypeOut])
 def get_utility_types(user_id: str = Depends(get_current_user)):
     utility_types = get_user_resources(user_id, SprUtilityType).all()
-    result = [{
-        "id": ut.id,
-        "name": ut.name,
-        "description": ut.description,
-        "user_id": ut.user_id,
-        "group_id": ut.group_id,
-        "created": ut.created.isoformat() if ut.created else None,
-        "updated": ut.updated.isoformat() if ut.updated else None
-    } for ut in utility_types]
-    return {"status": "ok", "data": result}
+    return [
+        UtilityTypeOut(
+            id=ut.id,
+            name=ut.name,
+            description=ut.description,
+            user_id=ut.user_id,
+            group_id=ut.group_id,
+            created=ut.created.isoformat() if ut.created else None,
+            updated=ut.updated.isoformat() if ut.updated else None
+        ) for ut in utility_types
+    ]
 
-@router.post("/types")
+@router.post("/types", response_model=StatusDataResponse)
 def create_utility_type(body: UtilityTypeData = Body(...), user_id: str = Depends(get_current_user)):
     if body.group_id and not check_group_access(user_id, body.group_id):
         raise HTTPException(403, "Немає доступу до цієї групи")
@@ -85,23 +210,23 @@ def create_utility_type(body: UtilityTypeData = Body(...), user_id: str = Depend
         utility_type = SprUtilityType(**body.dict())
         db.session.add(utility_type)
         db.session.commit()
-        return {
-            "status": "ok",
-            "data": {
-                "id": utility_type.id,
-                "name": utility_type.name,
-                "description": utility_type.description,
-                "user_id": utility_type.user_id,
-                "group_id": utility_type.group_id,
-                "created": utility_type.created.isoformat(),
-                "updated": utility_type.updated.isoformat() if utility_type.updated else None
-            }
-        }
+        return StatusDataResponse(
+            status="ok",
+            data=UtilityTypeDataOut(
+                id=utility_type.id,
+                name=utility_type.name,
+                description=utility_type.description,
+                user_id=utility_type.user_id,
+                group_id=utility_type.group_id,
+                created=utility_type.created.isoformat(),
+                updated=utility_type.updated.isoformat() if utility_type.updated else None
+            )
+        )
     except SQLAlchemyError as e:
         db.session.rollback()
         raise HTTPException(400, detail=str(e))
 
-@router.get("/types/{type_id}")
+@router.get("/types/{type_id}", response_model=StatusDataResponse)
 def get_utility_type(type_id: int, user_id: str = Depends(get_current_user)):
     utility_type = SprUtilityType.query.filter(
         and_(
@@ -119,20 +244,20 @@ def get_utility_type(type_id: int, user_id: str = Depends(get_current_user)):
     ).first()
     if not utility_type:
         raise HTTPException(404, detail="Тип комунальної послуги не знайдено")
-    return {
-        "status": "ok",
-        "data": {
-            "id": utility_type.id,
-            "name": utility_type.name,
-            "description": utility_type.description,
-            "user_id": utility_type.user_id,
-            "group_id": utility_type.group_id,
-            "created": utility_type.created.isoformat(),
-            "updated": utility_type.updated.isoformat() if utility_type.updated else None
-        }
-    }
+    return StatusDataResponse(
+        status="ok",
+        data=UtilityTypeDataOut(
+            id=utility_type.id,
+            name=utility_type.name,
+            description=utility_type.description,
+            user_id=utility_type.user_id,
+            group_id=utility_type.group_id,
+            created=utility_type.created.isoformat(),
+            updated=utility_type.updated.isoformat() if utility_type.updated else None
+        )
+    )
 
-@router.put("/types/{type_id}")
+@router.put("/types/{type_id}", response_model=StatusDataResponse)
 def update_utility_type(type_id: int, body: UtilityTypeData = Body(...), user_id: str = Depends(get_current_user)):
     utility_type = SprUtilityType.query.filter(
         and_(
@@ -158,18 +283,18 @@ def update_utility_type(type_id: int, body: UtilityTypeData = Body(...), user_id
         utility_type.user_id = body.user_id
         utility_type.group_id = body.group_id
         db.session.commit()
-        return {
-            "status": "ok",
-            "data": {
-                "id": utility_type.id,
-                "name": utility_type.name,
-                "description": utility_type.description,
-                "user_id": utility_type.user_id,
-                "group_id": utility_type.group_id,
-                "created": utility_type.created.isoformat(),
-                "updated": utility_type.updated.isoformat() if utility_type.updated else None
-            }
-        }
+        return StatusDataResponse(
+            status="ok",
+            data=UtilityTypeDataOut(
+                id=utility_type.id,
+                name=utility_type.name,
+                description=utility_type.description,
+                user_id=utility_type.user_id,
+                group_id=utility_type.group_id,
+                created=utility_type.created.isoformat(),
+                updated=utility_type.updated.isoformat() if utility_type.updated else None
+            )
+        )
     except SQLAlchemyError as e:
         db.session.rollback()
         raise HTTPException(400, detail=str(e))
@@ -196,19 +321,36 @@ def delete_utility_type(type_id: int, user_id: str = Depends(get_current_user)):
     tariffs = UtilityTariff.query.filter_by(utility_type_id=type_id).count()
     if meters > 0 or tariffs > 0:
         raise HTTPException(400, detail="Неможливо видалити тип комунальної послуги, до якого прив'язані лічильники або тарифи")
+
+@router.delete("/types/{type_id}", response_model=StatusOkResponse)
+def delete_utility_type(type_id: int, user_id: str = Depends(get_current_user)):
+    utility_type = SprUtilityType.query.filter(
+        and_(
+            SprUtilityType.id == type_id,
+            or_(
+                SprUtilityType.user_id == user_id,
+                SprUtilityType.id.in_(
+                    db.session.query(SprUtilityType.id)
+                    .join(Group, SprUtilityType.group_id == Group.id)
+                    .join(UserGroupAssociation, Group.id == UserGroupAssociation.group_id)
+                    .filter(UserGroupAssociation.user_id == user_id)
+                )
+            )
+        )
+    ).first()
+    if not utility_type:
+        raise HTTPException(404, detail="Тип комунальної послуги не знайдено")
+    meters = UtilityMeter.query.filter_by(utility_type_id=type_id).count()
+    tariffs = UtilityTariff.query.filter_by(utility_type_id=type_id).count()
+    if meters > 0 or tariffs > 0:
+        raise HTTPException(400, detail="Неможливо видалити тип комунальної послуги, до якого прив'язані лічильники або тарифи")
     try:
         db.session.delete(utility_type)
         db.session.commit()
-        return {"status": "ok"}
+        return StatusOkResponse(status="ok")
     except SQLAlchemyError as e:
         db.session.rollback()
         raise HTTPException(400, detail=str(e))
-
-
-
-
-
-
 
 @router.put("/api/utilities/types/{type_id}")
 async def update_utility_type(type_id, body: UtilityTypeData, user_id: str = Depends(get_current_user)):
@@ -243,22 +385,21 @@ async def update_utility_type(type_id, body: UtilityTypeData, user_id: str = Dep
         
         db.session.commit()
         
-        return {
-            "status": "ok", 
-            "data": {
-                "id": utility_type.id,
-                "name": utility_type.name,
-                "description": utility_type.description,
-                "user_id": utility_type.user_id,
-                "group_id": utility_type.group_id,
-                "created": utility_type.created.isoformat(),
-                "updated": utility_type.updated.isoformat() if utility_type.updated else None
-            }
-        }
+        return StatusDataResponse(
+            status="ok",
+            data=UtilityTypeDataOut(
+                id=utility_type.id,
+                name=utility_type.name,
+                description=utility_type.description,
+                user_id=utility_type.user_id,
+                group_id=utility_type.group_id,
+                created=utility_type.created.isoformat(),
+                updated=utility_type.updated.isoformat() if utility_type.updated else None
+            )
+        )
     except SQLAlchemyError as e:
         db.session.rollback()
         raise HTTPException(400, detail=str(e))
-
 
 @router.delete("/api/utilities/types/{type_id}")
 async def delete_utility_type(type_id, user_id: str = Depends(get_current_user)):
@@ -292,43 +433,36 @@ async def delete_utility_type(type_id, user_id: str = Depends(get_current_user))
         db.session.delete(utility_type)
         db.session.commit()
         
-        return {"status": "ok"}
+        return StatusOkResponse(status="ok")
     except SQLAlchemyError as e:
         db.session.rollback()
         raise HTTPException(400, detail=str(e))
 
-
 # API для лічильників
-@router.get("/api/utilities/meters")
+@router.get("/api/utilities/meters", response_model=StatusDataListResponse)
 def get_utility_meters(user_id: str = Depends(get_current_user)):
     utility_type_id = request.args.get("utility_type_id")
-    
     query = get_user_resources(user_id, UtilityMeter)
-    
     if utility_type_id:
         query = query.filter(UtilityMeter.utility_type_id == utility_type_id)
-    
     utility_meters = query.all()
-    
-    result = []
-    for meter in utility_meters:
-        result.append({
-            "id": meter.id,
-            "name": meter.name,
-            "description": meter.description,
-            "utility_type_id": meter.utility_type_id,
-            "user_id": meter.user_id,
-            "group_id": meter.group_id,
-            "is_active": meter.is_active,
-            "serial_number": meter.serial_number,
-            "created": meter.created.isoformat() if meter.created else None,
-            "updated": meter.updated.isoformat() if meter.updated else None
-        })
-    
-    return {"status": "ok", "data": result}
+    result = [
+        UtilityMeterOut(
+            id=meter.id,
+            name=meter.name,
+            description=meter.description,
+            utility_type_id=meter.utility_type_id,
+            user_id=meter.user_id,
+            group_id=meter.group_id,
+            is_active=meter.is_active,
+            serial_number=meter.serial_number,
+            created=meter.created.isoformat() if meter.created else None,
+            updated=meter.updated.isoformat() if meter.updated else None
+        ) for meter in utility_meters
+    ]
+    return StatusDataListResponse(status="ok", data=result)
 
-
-@router.post("/api/utilities/meters")
+@router.post("/api/utilities/meters", response_model=StatusDataResponse, responses={404: {"model": StatusErrorResponse}})
 async def create_utility_meter(body: UtilityMeterData = Body(...), user_id: str = Depends(get_current_user)):
     # Перевірка доступу до групи
     if body.group_id and not check_group_access(user_id, body.group_id):
@@ -351,7 +485,7 @@ async def create_utility_meter(body: UtilityMeterData = Body(...), user_id: str 
     ).first()
     
     if not utility_type:
-        return {"status": "error", "message": "Тип комунальної послуги не знайдено"}, 404
+        return StatusErrorResponse(status="error", message="Тип комунальної послуги не знайдено")
     
     # Встановлюємо ID користувача, якщо він не вказаний
     if not body.group_id and not body.user_id:
@@ -362,28 +496,27 @@ async def create_utility_meter(body: UtilityMeterData = Body(...), user_id: str 
         db.session.add(meter)
         db.session.commit()
         
-        return {
-            "status": "ok", 
-            "data": {
-                "id": meter.id,
-                "name": meter.name,
-                "description": meter.description,
-                "utility_type_id": meter.utility_type_id,
-                "user_id": meter.user_id,
-                "group_id": meter.group_id,
-                "is_active": meter.is_active,
-                "serial_number": meter.serial_number,
-                "created": meter.created.isoformat(),
-                "updated": meter.updated.isoformat() if meter.updated else None
-            }
-        }
+        return StatusDataResponse(
+            status="ok",
+            data=UtilityMeterOut(
+                id=meter.id,
+                name=meter.name,
+                description=meter.description,
+                utility_type_id=meter.utility_type_id,
+                user_id=meter.user_id,
+                group_id=meter.group_id,
+                is_active=meter.is_active,
+                serial_number=meter.serial_number,
+                created=meter.created.isoformat(),
+                updated=meter.updated.isoformat() if meter.updated else None
+            )
+        )
     except SQLAlchemyError as e:
         db.session.rollback()
         raise HTTPException(400, detail=str(e))
 
-
-@router.get("/api/utilities/meters/<int:meter_id>")
-def get_utility_meter(meter_id):
+@router.get("/api/utilities/meters/<int:meter_id>", response_model=StatusDataResponse, responses={404: {"model": StatusErrorResponse}})
+def get_utility_meter(meter_id, user_id: str = Depends(get_current_user)):
     current_user = user_id
     user_id = current_user.get('user_id')
     
@@ -403,26 +536,24 @@ def get_utility_meter(meter_id):
     ).first()
     
     if not meter:
-        return {"status": "error", "message": "Лічильник не знайдено"}, 404
-    
-    return {
-        "status": "ok", 
-        "data": {
-            "id": meter.id,
-            "name": meter.name,
-            "description": meter.description,
-            "utility_type_id": meter.utility_type_id,
-            "user_id": meter.user_id,
-            "group_id": meter.group_id,
-            "is_active": meter.is_active,
-            "serial_number": meter.serial_number,
-            "created": meter.created.isoformat(),
-            "updated": meter.updated.isoformat() if meter.updated else None
-        }
-    }
+        return StatusErrorResponse(status="error", message="Лічильник не знайдено")
+    return StatusDataResponse(
+        status="ok",
+        data=UtilityMeterOut(
+            id=meter.id,
+            name=meter.name,
+            description=meter.description,
+            utility_type_id=meter.utility_type_id,
+            user_id=meter.user_id,
+            group_id=meter.group_id,
+            is_active=meter.is_active,
+            serial_number=meter.serial_number,
+            created=meter.created.isoformat(),
+            updated=meter.updated.isoformat() if meter.updated else None
+        )
+    )
 
-
-@router.put("/api/utilities/meters/<int:meter_id>")
+@router.put("/api/utilities/meters/<int:meter_id>", response_model=StatusDataResponse, responses={404: {"model": StatusErrorResponse}})
 def update_utility_meter(meter_id, body: UtilityMeterData, user_id: str = Depends(get_current_user)):
     current_user = user_id
     user_id = current_user.get('user_id')
@@ -443,7 +574,7 @@ def update_utility_meter(meter_id, body: UtilityMeterData, user_id: str = Depend
     ).first()
     
     if not meter:
-        return {"status": "error", "message": "Лічильник не знайдено"}, 404
+        return StatusErrorResponse(status="error", message="Лічильник не знайдено")
     
     # Перевірка доступу до групи
     if body.group_id and not check_group_access(user_id, body.group_id):
@@ -466,7 +597,7 @@ def update_utility_meter(meter_id, body: UtilityMeterData, user_id: str = Depend
     ).first()
     
     if not utility_type:
-        return {"status": "error", "message": "Тип комунальної послуги не знайдено"}, 404
+        return StatusErrorResponse(status="error", message="Тип комунальної послуги не знайдено")
     
     try:
         meter.name = body.name
@@ -479,27 +610,26 @@ def update_utility_meter(meter_id, body: UtilityMeterData, user_id: str = Depend
         
         db.session.commit()
         
-        return {
-            "status": "ok", 
-            "data": {
-                "id": meter.id,
-                "name": meter.name,
-                "description": meter.description,
-                "utility_type_id": meter.utility_type_id,
-                "user_id": meter.user_id,
-                "group_id": meter.group_id,
-                "is_active": meter.is_active,
-                "serial_number": meter.serial_number,
-                "created": meter.created.isoformat(),
-                "updated": meter.updated.isoformat() if meter.updated else None
-            }
-        }
+        return StatusDataResponse(
+            status="ok",
+            data=UtilityMeterOut(
+                id=meter.id,
+                name=meter.name,
+                description=meter.description,
+                utility_type_id=meter.utility_type_id,
+                user_id=meter.user_id,
+                group_id=meter.group_id,
+                is_active=meter.is_active,
+                serial_number=meter.serial_number,
+                created=meter.created.isoformat(),
+                updated=meter.updated.isoformat() if meter.updated else None
+            )
+        )
     except SQLAlchemyError as e:
         db.session.rollback()
         raise HTTPException(400, detail=str(e))
 
-
-@router.delete("/api/utilities/meters/<int:meter_id>")
+@router.delete("/api/utilities/meters/<int:meter_id>", response_model=StatusOkResponse, responses={404: {"model": StatusErrorResponse}, 400: {"model": StatusErrorResponse}})
 def delete_utility_meter(meter_id, user_id: str = Depends(get_current_user)):
     current_user = user_id
     user_id = current_user.get('user_id')
@@ -520,39 +650,34 @@ def delete_utility_meter(meter_id, user_id: str = Depends(get_current_user)):
     ).first()
     
     if not meter:
-        return {"status": "error", "message": "Лічильник не знайдено"}, 404
+        return StatusErrorResponse(status="error", message="Лічильник не знайдено")
     
     try:
         # Перевіряємо, чи є показники для цього лічильника
         readings = UtilityMeterReading.query.filter_by(meter_id=meter_id).count()
         
         if readings > 0:
-            return {"status": "error", "message": "Неможливо видалити лічильник, для якого існують показники"}, 400
+            return StatusErrorResponse(status="error", message="Неможливо видалити лічильник, для якого існують показники")
         
         db.session.delete(meter)
         db.session.commit()
         
-        return {"status": "ok"}
+        return StatusOkResponse(status="ok")
     except SQLAlchemyError as e:
         db.session.rollback()
-        return {"status": "error", "message": str(e)}, 400
-
+        return StatusErrorResponse(status="error", message=str(e))
 
 # API для тарифів
-@router.get("/api/utilities/tariffs")
+@router.get("/api/utilities/tariffs", response_model=StatusTariffListResponse)
 def get_utility_tariffs(user_id: str = Depends(get_current_user)):
     utility_type_id = request.args.get("utility_type_id")
     tariff_type = request.args.get("tariff_type")
     include_expired = request.args.get("include_expired", "false").lower() == "true"
-    
     query = get_user_resources(user_id, UtilityTariff)
-    
     if utility_type_id:
         query = query.filter(UtilityTariff.utility_type_id == utility_type_id)
-    
     if tariff_type:
         query = query.filter(UtilityTariff.tariff_type == tariff_type)
-    
     if not include_expired:
         current_date = datetime.datetime.now(datetime.timezone.utc)
         query = query.filter(
@@ -561,38 +686,30 @@ def get_utility_tariffs(user_id: str = Depends(get_current_user)):
                 UtilityTariff.valid_to > current_date
             )
         )
-    
     tariffs = query.order_by(UtilityTariff.valid_from.desc()).all()
-    
-    result = []
-    for tariff in tariffs:
-        result.append({
-            "id": tariff.id,
-            "name": tariff.name,
-            "description": tariff.description,
-            "utility_type_id": tariff.utility_type_id,
-            "rate": tariff.rate,
-            "currency": tariff.currency,
-            "valid_from": tariff.valid_from.isoformat() if tariff.valid_from else None,
-            "valid_to": tariff.valid_to.isoformat() if tariff.valid_to else None,
-            "user_id": tariff.user_id,
-            "group_id": tariff.group_id,
-            "tariff_type": tariff.tariff_type,
-            "created": tariff.created.isoformat() if tariff.created else None,
-            "updated": tariff.updated.isoformat() if tariff.updated else None
-        })
-    
-    return {"status": "ok", "data": result}
+    result = [
+        UtilityTariffOut(
+            id=tariff.id,
+            name=tariff.name,
+            description=tariff.description,
+            utility_type_id=tariff.utility_type_id,
+            rate=tariff.rate,
+            currency=tariff.currency,
+            valid_from=tariff.valid_from.isoformat() if tariff.valid_from else None,
+            valid_to=tariff.valid_to.isoformat() if tariff.valid_to else None,
+            user_id=tariff.user_id,
+            group_id=tariff.group_id,
+            tariff_type=tariff.tariff_type,
+            created=tariff.created.isoformat() if tariff.created else None,
+            updated=tariff.updated.isoformat() if tariff.updated else None
+        ) for tariff in tariffs
+    ]
+    return StatusTariffListResponse(status="ok", data=result)
 
-
-@router.post("/api/utilities/tariffs")
+@router.post("/api/utilities/tariffs", response_model=StatusTariffResponse, responses={400: {"model": StatusErrorResponse}, 404: {"model": StatusErrorResponse}})
 def create_utility_tariff(body: UtilityTariffData, user_id: str = Depends(get_current_user)):
-    
-    # Перевірка доступу до групи
     if body.group_id and not check_group_access(user_id, body.group_id):
         raise HTTPException(403, "Немає доступу до цієї групи")
-    
-    # Перевірка існування типу комунальної послуги
     utility_type = SprUtilityType.query.filter(
         and_(
             SprUtilityType.id == body.utility_type_id,
@@ -607,20 +724,13 @@ def create_utility_tariff(body: UtilityTariffData, user_id: str = Depends(get_cu
             )
         )
     ).first()
-    
     if not utility_type:
-        return {"status": "error", "message": "Тип комунальної послуги не знайдено"}, 404
-    
-    # Встановлюємо ID користувача, якщо він не вказаний
+        return StatusErrorResponse(status="error", message="Тип комунальної послуги не знайдено")
     if not body.group_id and not body.user_id:
         body.user_id = user_id
-    
-    # Встановлюємо дату початку дії тарифу, якщо вона не вказана
     if not body.valid_from:
         body.valid_from = datetime.datetime.now(datetime.timezone.utc)
-    
     try:
-        # Перевіряємо, чи є активні тарифи для цього ж типу комунальної послуги та типу тарифу
         if body.tariff_type:
             existing_tariffs = UtilityTariff.query.filter(
                 and_(
@@ -636,43 +746,37 @@ def create_utility_tariff(body: UtilityTariffData, user_id: str = Depends(get_cu
                     )
                 )
             ).all()
-            
-            # Деактивуємо старі тарифи, встановлюючи їм дату закінчення
             for et in existing_tariffs:
                 et.valid_to = body.valid_from
-        
         tariff = UtilityTariff(**body.model_dump())
         db.session.add(tariff)
         db.session.commit()
-        
-        return {
-            "status": "ok", 
-            "data": {
-                "id": tariff.id,
-                "name": tariff.name,
-                "description": tariff.description,
-                "utility_type_id": tariff.utility_type_id,
-                "rate": tariff.rate,
-                "currency": tariff.currency,
-                "valid_from": tariff.valid_from.isoformat() if tariff.valid_from else None,
-                "valid_to": tariff.valid_to.isoformat() if tariff.valid_to else None,
-                "user_id": tariff.user_id,
-                "group_id": tariff.group_id,
-                "tariff_type": tariff.tariff_type,
-                "created": tariff.created.isoformat(),
-                "updated": tariff.updated.isoformat() if tariff.updated else None
-            }
-        }
+        return StatusTariffResponse(
+            status="ok",
+            data=UtilityTariffOut(
+                id=tariff.id,
+                name=tariff.name,
+                description=tariff.description,
+                utility_type_id=tariff.utility_type_id,
+                rate=tariff.rate,
+                currency=tariff.currency,
+                valid_from=tariff.valid_from.isoformat() if tariff.valid_from else None,
+                valid_to=tariff.valid_to.isoformat() if tariff.valid_to else None,
+                user_id=tariff.user_id,
+                group_id=tariff.group_id,
+                tariff_type=tariff.tariff_type,
+                created=tariff.created.isoformat(),
+                updated=tariff.updated.isoformat() if tariff.updated else None
+            )
+        )
     except SQLAlchemyError as e:
         db.session.rollback()
-        return {"status": "error", "message": str(e)}, 400
+        return StatusErrorResponse(status="error", message=str(e))
 
-
-@router.get("/api/utilities/tariffs/<int:tariff_id>")
+@router.get("/api/utilities/tariffs/<int:tariff_id>", response_model=StatusTariffResponse, responses={404: {"model": StatusErrorResponse}})
 def get_utility_tariff(tariff_id, user_id: str = Depends(get_current_user)):
     current_user = user_id
     user_id = current_user.get('user_id')
-    
     tariff = UtilityTariff.query.filter(
         and_(
             UtilityTariff.id == tariff_id,
@@ -687,32 +791,29 @@ def get_utility_tariff(tariff_id, user_id: str = Depends(get_current_user)):
             )
         )
     ).first()
-    
     if not tariff:
-        return {"status": "error", "message": "Тариф не знайдено"}, 404
-    
-    return {
-        "status": "ok", 
-        "data": {
-            "id": tariff.id,
-            "name": tariff.name,
-            "description": tariff.description,
-            "utility_type_id": tariff.utility_type_id,
-            "rate": tariff.rate,
-            "currency": tariff.currency,
-            "valid_from": tariff.valid_from.isoformat() if tariff.valid_from else None,
-            "valid_to": tariff.valid_to.isoformat() if tariff.valid_to else None,
-            "user_id": tariff.user_id,
-            "group_id": tariff.group_id,
-            "tariff_type": tariff.tariff_type,
-            "created": tariff.created.isoformat(),
-            "updated": tariff.updated.isoformat() if tariff.updated else None
-        }
-    }
+        return StatusErrorResponse(status="error", message="Тариф не знайдено")
+    return StatusTariffResponse(
+        status="ok",
+        data=UtilityTariffOut(
+            id=tariff.id,
+            name=tariff.name,
+            description=tariff.description,
+            utility_type_id=tariff.utility_type_id,
+            rate=tariff.rate,
+            currency=tariff.currency,
+            valid_from=tariff.valid_from.isoformat() if tariff.valid_from else None,
+            valid_to=tariff.valid_to.isoformat() if tariff.valid_to else None,
+            user_id=tariff.user_id,
+            group_id=tariff.group_id,
+            tariff_type=tariff.tariff_type,
+            created=tariff.created.isoformat(),
+            updated=tariff.updated.isoformat() if tariff.updated else None
+        )
+    )
 
-@router.put("/api/utilities/tariffs/<int:tariff_id>")
+@router.put("/api/utilities/tariffs/<int:tariff_id>", response_model=StatusTariffResponse, responses={400: {"model": StatusErrorResponse}, 404: {"model": StatusErrorResponse}})
 async def update_utility_tariff(tariff_id, body: UtilityTariffData, user_id: str = Depends(get_current_user)):
-   
     tariff = UtilityTariff.query.filter(
         and_(
             UtilityTariff.id == tariff_id,
@@ -727,15 +828,10 @@ async def update_utility_tariff(tariff_id, body: UtilityTariffData, user_id: str
             )
         )
     ).first()
-    
     if not tariff:
-        return {"status": "error", "message": "Тариф не знайдено"}, 404
-    
-    # Перевірка доступу до групи
+        return StatusErrorResponse(status="error", message="Тариф не знайдено")
     if body.group_id and not check_group_access(user_id, body.group_id):
         raise HTTPException(403, "Немає доступу до цієї групи")
-    
-    # Перевірка існування типу комунальної послуги
     utility_type = SprUtilityType.query.filter(
         and_(
             SprUtilityType.id == body.utility_type_id,
@@ -750,10 +846,8 @@ async def update_utility_tariff(tariff_id, body: UtilityTariffData, user_id: str
             )
         )
     ).first()
-    
     if not utility_type:
-        return {"status": "error", "message": "Тип комунальної послуги не знайдено"}, 404
-    
+        return StatusErrorResponse(status="error", message="Тип комунальної послуги не знайдено")
     try:
         tariff.name = body.name
         tariff.description = body.description
@@ -765,33 +859,30 @@ async def update_utility_tariff(tariff_id, body: UtilityTariffData, user_id: str
         tariff.user_id = body.user_id
         tariff.group_id = body.group_id
         tariff.tariff_type = body.tariff_type
-        
         db.session.commit()
-        
-        return {
-            "status": "ok", 
-            "data": {
-                "id": tariff.id,
-                "name": tariff.name,
-                "description": tariff.description,
-                "utility_type_id": tariff.utility_type_id,
-                "rate": tariff.rate,
-                "currency": tariff.currency,
-                "valid_from": tariff.valid_from.isoformat() if tariff.valid_from else None,
-                "valid_to": tariff.valid_to.isoformat() if tariff.valid_to else None,
-                "user_id": tariff.user_id,
-                "group_id": tariff.group_id,
-                "tariff_type": tariff.tariff_type,
-                "created": tariff.created.isoformat(),
-                "updated": tariff.updated.isoformat() if tariff.updated else None
-            }
-        }
+        return StatusTariffResponse(
+            status="ok",
+            data=UtilityTariffOut(
+                id=tariff.id,
+                name=tariff.name,
+                description=tariff.description,
+                utility_type_id=tariff.utility_type_id,
+                rate=tariff.rate,
+                currency=tariff.currency,
+                valid_from=tariff.valid_from.isoformat() if tariff.valid_from else None,
+                valid_to=tariff.valid_to.isoformat() if tariff.valid_to else None,
+                user_id=tariff.user_id,
+                group_id=tariff.group_id,
+                tariff_type=tariff.tariff_type,
+                created=tariff.created.isoformat(),
+                updated=tariff.updated.isoformat() if tariff.updated else None
+            )
+        )
     except SQLAlchemyError as e:
         db.session.rollback()
-        return {"status": "error", "message": str(e)}, 400
+        return StatusErrorResponse(status="error", message=str(e))
 
-
-@router.delete("/api/utilities/tariffs/{tariff_id}")
+@router.delete("/api/utilities/tariffs/{tariff_id}", response_model=StatusOkResponse, responses={400: {"model": StatusErrorResponse}, 404: {"model": StatusErrorResponse}})
 async def delete_utility_tariff(tariff_id, user_id: str = Depends(get_current_user)):
     tariff = UtilityTariff.query.filter(
         and_(
@@ -807,88 +898,63 @@ async def delete_utility_tariff(tariff_id, user_id: str = Depends(get_current_us
             )
         )
     ).first()
-    
     if not tariff:
-        return {"status": "error", "message": "Тариф не знайдено"}, 404
-    
+        return StatusErrorResponse(status="error", message="Тариф не знайдено")
     try:
-        # Перевіряємо, чи є показники для цього тарифу
         readings = UtilityMeterReading.query.filter_by(tariff_id=tariff_id).count()
-        
         if readings > 0:
-            return {
-                "status": "error", 
-                "message": "Неможливо видалити тариф, для якого існують показники"
-            }, 400
-        
+            return StatusErrorResponse(status="error", message="Неможливо видалити тариф, для якого існують показники")
         db.session.delete(tariff)
         db.session.commit()
-
-        return {"status": "ok"}
+        return StatusOkResponse(status="ok")
     except SQLAlchemyError as e:
         db.session.rollback()
-        return {"status": "error", "message": str(e)}, 400
+        return StatusErrorResponse(status="error", message=str(e))
 
 # API для показників лічильників
-@router.get("/api/utilities/readings")
-async def get_utility_readings(user_id: str = Depends(get_current_user)):
+@router.get("/api/utilities/readings", response_model=StatusReadingListResponse)
+def get_utility_readings(user_id: str = Depends(get_current_user)):
     meter_id = request.args.get("meter_id")
     year = request.args.get("year")
     month = request.args.get("month")
     limit = request.args.get("limit", "12")
-    
     query = get_user_resources(user_id, UtilityMeterReading)
-    
     if meter_id:
         query = query.filter(UtilityMeterReading.meter_id == meter_id)
-    
     if year:
         query = query.filter(UtilityMeterReading.year == year)
-    
     if month:
         query = query.filter(UtilityMeterReading.month == month)
-    
     try:
         limit_value = int(limit)
     except ValueError:
         limit_value = 12
-    
     readings = query.order_by(UtilityMeterReading.year.desc(), UtilityMeterReading.month.desc()).limit(limit_value).all()
-    
-    result = []
-    for reading in readings:
-        result.append({
-            "id": reading.id,
-            "meter_id": reading.meter_id,
-            "reading_date": reading.reading_date.isoformat() if reading.reading_date else None,
-            "reading_value": reading.reading_value,
-            "previous_reading_id": reading.previous_reading_id,
-            "consumption": reading.consumption,
-            "user_id": reading.user_id,
-            "group_id": reading.group_id,
-            "tariff_id": reading.tariff_id,
-            "image_url": reading.image_url,
-            "month": reading.month,
-            "year": reading.year,
-            "cost": reading.cost,
-            "created": reading.created.isoformat() if reading.created else None,
-            "updated": reading.updated.isoformat() if reading.updated else None
-        })
-    
-    return {"status": "ok", "data": result}
+    result = [
+        UtilityMeterReadingOut(
+            id=reading.id,
+            meter_id=reading.meter_id,
+            reading_date=reading.reading_date.isoformat() if reading.reading_date else None,
+            reading_value=reading.reading_value,
+            previous_reading_id=reading.previous_reading_id,
+            consumption=reading.consumption,
+            user_id=reading.user_id,
+            group_id=reading.group_id,
+            tariff_id=reading.tariff_id,
+            image_url=reading.image_url,
+            month=reading.month,
+            year=reading.year,
+            cost=reading.cost,
+            created=reading.created.isoformat() if reading.created else None,
+            updated=reading.updated.isoformat() if reading.updated else None
+        ) for reading in readings
+    ]
+    return StatusReadingListResponse(status="ok", data=result)
 
-
-@router.post("/api/utilities/readings")
-async def create_utility_reading(body: UtilityMeterReadingData, user_id: str = Depends(get_current_user)):
-    """
-    create utility reading
-    """
-
-    # Перевірка доступу до групи
+@router.post("/api/utilities/readings", response_model=StatusReadingResponse, responses={400: {"model": StatusErrorResponse}, 404: {"model": StatusErrorResponse}})
+def create_utility_reading(body: UtilityMeterReadingData, user_id: str = Depends(get_current_user)):
     if body.group_id and not check_group_access(user_id, body.group_id):
         raise HTTPException(403, "Немає доступу до цієї групи")
-    
-    # Перевірка існування лічильника
     meter = UtilityMeter.query.filter(
         and_(
             UtilityMeter.id == body.meter_id,
@@ -903,11 +969,8 @@ async def create_utility_reading(body: UtilityMeterReadingData, user_id: str = D
             )
         )
     ).first()
-    
     if not meter:
-        return {"status": "error", "message": "Лічильник не знайдено"}, 404
-    
-    # Перевірка існування тарифу, якщо він вказаний
+        return StatusErrorResponse(status="error", message="Лічильник не знайдено")
     if body.tariff_id:
         tariff = UtilityTariff.query.filter(
             and_(
@@ -923,20 +986,13 @@ async def create_utility_reading(body: UtilityMeterReadingData, user_id: str = D
                 )
             )
         ).first()
-        
         if not tariff:
-            return {"status": "error", "message": "Тариф не знайдено"}, 404
-    
-    # Встановлюємо ID користувача, якщо він не вказаний
+            return StatusErrorResponse(status="error", message="Тариф не знайдено")
     if not body.group_id and not body.user_id:
         body.user_id = user_id
-    
-    # Встановлюємо дату показника, якщо вона не вказана
     if not body.reading_date:
         body.reading_date = datetime.datetime.now(datetime.timezone.utc)
-    
     try:
-        # Перевіряємо, чи вже існує показник для цього лічильника за цей місяць та рік
         existing_reading = UtilityMeterReading.query.filter(
             and_(
                 UtilityMeterReading.meter_id == body.meter_id,
@@ -944,62 +1000,50 @@ async def create_utility_reading(body: UtilityMeterReadingData, user_id: str = D
                 UtilityMeterReading.year == body.year
             )
         ).first()
-        
         if existing_reading:
-            return {
-                "status": "error", 
-                "message": f"Показник для цього лічильника за {body.month}/{body.year} вже існує"
-            }, 400
-        
-        # Знаходимо попередній показник для розрахунку споживання
+            return StatusErrorResponse(status="error", message=f"Показник для цього лічильника за {body.month}/{body.year} вже існує")
         previous_reading = UtilityMeterReading.query.filter(
             UtilityMeterReading.meter_id == body.meter_id
         ).order_by(
             UtilityMeterReading.year.desc(),
             UtilityMeterReading.month.desc()
         ).first()
-        
         if previous_reading:
             body.previous_reading_id = previous_reading.id
             body.consumption = body.reading_value - previous_reading.reading_value
-            
-            # Розраховуємо вартість, якщо вказаний тариф
             if body.tariff_id and (body.consumption is not None) and body.consumption > 0:
                 tariff = UtilityTariff.query.get(body.tariff_id)
                 if tariff:
                     body.cost = body.consumption * tariff.rate
-        
         reading = UtilityMeterReading(**body.dict())
         db.session.add(reading)
         db.session.commit()
-        
-        return {
-            "status": "ok", 
-            "data": {
-                "id": reading.id,
-                "meter_id": reading.meter_id,
-                "reading_date": reading.reading_date.isoformat() if reading.reading_date else None,
-                "reading_value": reading.reading_value,
-                "previous_reading_id": reading.previous_reading_id,
-                "consumption": reading.consumption,
-                "user_id": reading.user_id,
-                "group_id": reading.group_id,
-                "tariff_id": reading.tariff_id,
-                "image_url": reading.image_url,
-                "month": reading.month,
-                "year": reading.year,
-                "cost": reading.cost,
-                "created": reading.created.isoformat(),
-                "updated": reading.updated.isoformat() if reading.updated else None
-            }
-        }
+        return StatusReadingResponse(
+            status="ok",
+            data=UtilityMeterReadingOut(
+                id=reading.id,
+                meter_id=reading.meter_id,
+                reading_date=reading.reading_date.isoformat() if reading.reading_date else None,
+                reading_value=reading.reading_value,
+                previous_reading_id=reading.previous_reading_id,
+                consumption=reading.consumption,
+                user_id=reading.user_id,
+                group_id=reading.group_id,
+                tariff_id=reading.tariff_id,
+                image_url=reading.image_url,
+                month=reading.month,
+                year=reading.year,
+                cost=reading.cost,
+                created=reading.created.isoformat(),
+                updated=reading.updated.isoformat() if reading.updated else None
+            )
+        )
     except SQLAlchemyError as e:
         db.session.rollback()
-        return {"status": "error", "message": str(e)}, 400
+        return StatusErrorResponse(status="error", message=str(e))
 
-
-@router.get("/api/utilities/readings/{reading_id}")
-async def get_utility_reading(reading_id, user_id: str = Depends(get_current_user)):
+@router.get("/api/utilities/readings/{reading_id}", response_model=StatusReadingResponse, responses={404: {"model": StatusErrorResponse}})
+def get_utility_reading(reading_id, user_id: str = Depends(get_current_user)):
     reading = UtilityMeterReading.query.filter(
         and_(
             UtilityMeterReading.id == reading_id,
@@ -1014,34 +1058,31 @@ async def get_utility_reading(reading_id, user_id: str = Depends(get_current_use
             )
         )
     ).first()
-    
     if not reading:
-        return {"status": "error", "message": "Показник не знайдено"}, 404
-    
-    return {
-        "status": "ok", 
-        "data": {
-            "id": reading.id,
-            "meter_id": reading.meter_id,
-            "reading_date": reading.reading_date.isoformat() if reading.reading_date else None,
-            "reading_value": reading.reading_value,
-            "previous_reading_id": reading.previous_reading_id,
-            "consumption": reading.consumption,
-            "user_id": reading.user_id,
-            "group_id": reading.group_id,
-            "tariff_id": reading.tariff_id,
-            "image_url": reading.image_url,
-            "month": reading.month,
-            "year": reading.year,
-            "cost": reading.cost,
-            "created": reading.created.isoformat(),
-            "updated": reading.updated.isoformat() if reading.updated else None
-        }
-    }
+        return StatusErrorResponse(status="error", message="Показник не знайдено")
+    return StatusReadingResponse(
+        status="ok",
+        data=UtilityMeterReadingOut(
+            id=reading.id,
+            meter_id=reading.meter_id,
+            reading_date=reading.reading_date.isoformat() if reading.reading_date else None,
+            reading_value=reading.reading_value,
+            previous_reading_id=reading.previous_reading_id,
+            consumption=reading.consumption,
+            user_id=reading.user_id,
+            group_id=reading.group_id,
+            tariff_id=reading.tariff_id,
+            image_url=reading.image_url,
+            month=reading.month,
+            year=reading.year,
+            cost=reading.cost,
+            created=reading.created.isoformat(),
+            updated=reading.updated.isoformat() if reading.updated else None
+        )
+    )
 
-
-@router.patch("/api/utilities/readings/{reading_id}")
-async def update_utility_reading(reading_id, body: UtilityMeterReadingData, user_id: str = Depends(get_current_user)):
+@router.patch("/api/utilities/readings/{reading_id}", response_model=StatusReadingResponse, responses={400: {"model": StatusErrorResponse}, 404: {"model": StatusErrorResponse}})
+def update_utility_reading(reading_id, body: UtilityMeterReadingData, user_id: str = Depends(get_current_user)):
     reading = UtilityMeterReading.query.filter(
         and_(
             UtilityMeterReading.id == reading_id,
@@ -1056,15 +1097,10 @@ async def update_utility_reading(reading_id, body: UtilityMeterReadingData, user
             )
         )
     ).first()
-    
     if not reading:
-        return {"status": "error", "message": "Показник не знайдено"}, 404
-    
-    # Перевірка доступу до групи
+        return StatusErrorResponse(status="error", message="Показник не знайдено")
     if body.group_id and not check_group_access(user_id, body.group_id):
         raise HTTPException(403, "Немає доступу до цієї групи")
-    
-    # Перевірка існування лічильника
     meter = UtilityMeter.query.filter(
         and_(
             UtilityMeter.id == body.meter_id,
@@ -1079,11 +1115,8 @@ async def update_utility_reading(reading_id, body: UtilityMeterReadingData, user
             )
         )
     ).first()
-    
     if not meter:
-        return {"status": "error", "message": "Лічильник не знайдено"}, 404
-    
-    # Перевірка існування тарифу, якщо він вказаний
+        return StatusErrorResponse(status="error", message="Лічильник не знайдено")
     if body.tariff_id:
         tariff = UtilityTariff.query.filter(
             and_(
@@ -1099,12 +1132,9 @@ async def update_utility_reading(reading_id, body: UtilityMeterReadingData, user
                 )
             )
         ).first()
-        
         if not tariff:
-            return {"status": "error", "message": "Тариф не знайдено"}, 404
-    
+            return StatusErrorResponse(status="error", message="Тариф не знайдено")
     try:
-        # Перевіряємо, чи вже існує інший показник для цього лічильника за цей місяць та рік
         if reading.month != body.month or reading.year != body.year:
             existing_reading = UtilityMeterReading.query.filter(
                 and_(
@@ -1114,14 +1144,8 @@ async def update_utility_reading(reading_id, body: UtilityMeterReadingData, user
                     UtilityMeterReading.id != reading_id
                 )
             ).first()
-            
             if existing_reading:
-                return {
-                    "status": "error", 
-                    "message": f"Показник для цього лічильника за {body.month}/{body.year} вже існує"
-                }, 400
-        
-        # Оновлюємо показник
+                return StatusErrorResponse(status="error", message=f"Показник для цього лічильника за {body.month}/{body.year} вже існує")
         reading.meter_id = body.meter_id
         reading.reading_date = body.reading_date
         reading.reading_value = body.reading_value
@@ -1132,52 +1156,45 @@ async def update_utility_reading(reading_id, body: UtilityMeterReadingData, user
         reading.image_url = body.image_url
         reading.month = body.month
         reading.year = body.year
-        
-        # Перераховуємо споживання, якщо є попередній показник
         if reading.previous_reading_id:
             previous_reading = UtilityMeterReading.query.get(reading.previous_reading_id)
             if previous_reading:
                 reading.consumption = reading.reading_value - previous_reading.reading_value
         else:
             reading.consumption = body.consumption
-        
-        # Перераховуємо вартість, якщо вказаний тариф
         if reading.tariff_id and (reading.consumption is not None) and reading.consumption > 0:
             tariff = UtilityTariff.query.get(reading.tariff_id)
             if tariff:
                 reading.cost = reading.consumption * tariff.rate
         else:
             reading.cost = body.cost
-        
         db.session.commit()
-        
-        return {
-            "status": "ok", 
-            "data": {
-                "id": reading.id,
-                "meter_id": reading.meter_id,
-                "reading_date": reading.reading_date.isoformat() if reading.reading_date else None,
-                "reading_value": reading.reading_value,
-                "previous_reading_id": reading.previous_reading_id,
-                "consumption": reading.consumption,
-                "user_id": reading.user_id,
-                "group_id": reading.group_id,
-                "tariff_id": reading.tariff_id,
-                "image_url": reading.image_url,
-                "month": reading.month,
-                "year": reading.year,
-                "cost": reading.cost,
-                "created": reading.created.isoformat(),
-                "updated": reading.updated.isoformat() if reading.updated else None
-            }
-        }
+        return StatusReadingResponse(
+            status="ok",
+            data=UtilityMeterReadingOut(
+                id=reading.id,
+                meter_id=reading.meter_id,
+                reading_date=reading.reading_date.isoformat() if reading.reading_date else None,
+                reading_value=reading.reading_value,
+                previous_reading_id=reading.previous_reading_id,
+                consumption=reading.consumption,
+                user_id=reading.user_id,
+                group_id=reading.group_id,
+                tariff_id=reading.tariff_id,
+                image_url=reading.image_url,
+                month=reading.month,
+                year=reading.year,
+                cost=reading.cost,
+                created=reading.created.isoformat(),
+                updated=reading.updated.isoformat() if reading.updated else None
+            )
+        )
     except SQLAlchemyError as e:
         db.session.rollback()
-        return {"status": "error", "message": str(e)}, 400
+        return StatusErrorResponse(status="error", message=str(e))
 
-
-@router.delete("/api/utilities/readings/{reading_id}")
-async def delete_utility_reading(reading_id, user_id: str = Depends(get_current_user)):
+@router.delete("/api/utilities/readings/{reading_id}", response_model=StatusOkResponse, responses={400: {"model": StatusErrorResponse}, 404: {"model": StatusErrorResponse}})
+def delete_utility_reading(reading_id, user_id: str = Depends(get_current_user)):
     reading = UtilityMeterReading.query.filter(
         and_(
             UtilityMeterReading.id == reading_id,
@@ -1192,28 +1209,18 @@ async def delete_utility_reading(reading_id, user_id: str = Depends(get_current_
             )
         )
     ).first()
-    
     if not reading:
-        return {"status": "error", "message": "Показник не знайдено"}, 404
-
+        return StatusErrorResponse(status="error", message="Показник не знайдено")
     try:
-        # Перевіряємо, чи є показники, які посилаються на цей як на попередній
         dependent_readings = UtilityMeterReading.query.filter_by(previous_reading_id=reading_id).count()
-        
         if dependent_readings > 0:
-            return {
-                "status": "error", 
-                "message": "Неможливо видалити показник, на який посилаються інші показники"
-            }, 400
-        
+            return StatusErrorResponse(status="error", message="Неможливо видалити показник, на який посилаються інші показники")
         db.session.delete(reading)
         db.session.commit()
-        
-        return {"status": "ok"}, 200
+        return StatusOkResponse(status="ok")
     except SQLAlchemyError as e:
         db.session.rollback()
-        return {"status": "error", "message": str(e)}, 400
-
+        return StatusErrorResponse(status="error", message=str(e))
 
 # API для статистики
 @router.get("/api/utilities/statistics")
