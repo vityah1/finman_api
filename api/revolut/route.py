@@ -1,27 +1,16 @@
 # _*_ coding:UTF-8 _*_
 import logging
 
-from flask import Blueprint
-from flask_cors import cross_origin
-from flask_jwt_extended import jwt_required, get_jwt_identity
+from fastapi import APIRouter, Depends
+from app.jwt import get_current_user
 
 from api.services import bank_import
 
-revolut_bp = Blueprint(
-    "revolut_bp",
-    __name__,
-)
+router = APIRouter(prefix="/api/revolut", tags=["revolut"])
 
 logger = logging.getLogger()
 
 
-@revolut_bp.route("/api/revolut/import", methods=["POST"])
-@cross_origin()
-@jwt_required()
-def revolut_import():
-    """
-    import data from revolut
-    """
-    current_user = get_jwt_identity()
-    user_id = current_user.get('user_id')
+@router.post("/import")
+def revolut_import(user_id: str = Depends(get_current_user)):
     return bank_import(user_id, 'revolut')

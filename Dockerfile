@@ -10,4 +10,4 @@ COPY . .
 
 EXPOSE 8090
 
-CMD ["gunicorn", "app:app", "-b", "0.0.0.0:8090", "-w", "2"]
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8090", "--reload"]

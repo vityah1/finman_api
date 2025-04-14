@@ -1,8 +1,8 @@
 # _*_ coding:UTF-8 _*_
 
-from flask import Blueprint
-from flask_cors import cross_origin
-from flask_jwt_extended import jwt_required, get_jwt_identity
+
+
+
 
 from api.config.services import (
     get_user_config_,
@@ -21,7 +21,7 @@ config_bp = Blueprint(
 
 
 @config_bp.route("/api/config/config_types", methods=["GET"])
-@cross_origin()
+
 def get_config_types():
     """
     get configs
@@ -30,32 +30,32 @@ def get_config_types():
 
 
 @config_bp.route("/api/users/config", methods=["GET"])
-@cross_origin()
-@jwt_required()
+
+
 def get_user_config():
     """
     get user configs
     """
-    current_user = get_jwt_identity()
+    current_user = 
     user_id = current_user.get('user_id')
     return get_user_config_(user_id)
 
 
 @config_bp.route("/api/users/config", methods=["POST"])
-@cross_origin()
-@jwt_required()
+
+
 def add_config():
     """
     add user config
     """
-    current_user = get_jwt_identity()
+    current_user = 
     user_id = current_user.get('user_id')
     return add_config_(user_id)
 
 
 @config_bp.route("/api/config/<config_id>", methods=["DELETE"])
-@cross_origin()
-@jwt_required()
+
+
 def delete_config(config_id):
     """
     delete config
@@ -64,8 +64,8 @@ def delete_config(config_id):
 
 
 @config_bp.route("/api/config/<config_id>", methods=["PATCH"])
-@cross_origin()
-@jwt_required()
+
+
 def edit_config(config_id):
     """
     edit config
@@ -74,8 +74,8 @@ def edit_config(config_id):
 
 
 @config_bp.route("/api/config/<config_id>", methods=["GET"])
-@cross_origin()
-@jwt_required()
+
+
 def get_config(config_id):
     """
     get config

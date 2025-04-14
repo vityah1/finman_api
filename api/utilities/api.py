@@ -1,7 +1,5 @@
-from flask import Blueprint, request, jsonify, abort
-from flask_jwt_extended import jwt_required, get_jwt_identity
-from flask_pydantic import validate
-from flask_cors import cross_origin
+from fastapi import APIRouter, Depends, HTTPException
+from app.jwt import get_current_user
 from sqlalchemy import and_, or_, func
 from sqlalchemy.exc import SQLAlchemyError
 import datetime
@@ -16,11 +14,7 @@ from api.schemas import (
 from mydb import db
 from utils import do_sql_sel
 
-utilities_bp = Blueprint(
-    "utilities_bp",
-    __name__,
-    static_folder="static",
-)
+router = APIRouter(prefix="/api/utilities", tags=["utilities"])
 
 
 # Функція для перевірки доступу користувача до групи
@@ -64,53 +58,35 @@ def get_user_resources(user_id, model_class, include_group_resources=True):
 
 
 # API для типів комунальних послуг
-@utilities_bp.route("/api/utilities/types", methods=["GET"])
-@cross_origin()
-@jwt_required()
-def get_utility_types():
-    current_user = get_jwt_identity()
-    user_id = current_user.get('user_id')
-    
+
+from fastapi import Body
+
+@router.get("/types")
+def get_utility_types(user_id: str = Depends(get_current_user)):
     utility_types = get_user_resources(user_id, SprUtilityType).all()
-    
-    result = []
-    for ut in utility_types:
-        result.append({
-            "id": ut.id,
-            "name": ut.name,
-            "description": ut.description,
-            "user_id": ut.user_id,
-            "group_id": ut.group_id,
-            "created": ut.created.isoformat() if ut.created else None,
-            "updated": ut.updated.isoformat() if ut.updated else None
-        })
-    
-    return jsonify({"status": "ok", "data": result})
+    result = [{
+        "id": ut.id,
+        "name": ut.name,
+        "description": ut.description,
+        "user_id": ut.user_id,
+        "group_id": ut.group_id,
+        "created": ut.created.isoformat() if ut.created else None,
+        "updated": ut.updated.isoformat() if ut.updated else None
+    } for ut in utility_types]
+    return {"status": "ok", "data": result}
 
-
-@utilities_bp.route("/api/utilities/types", methods=["POST"])
-@cross_origin()
-@jwt_required()
-@validate()
-def create_utility_type(body: UtilityTypeData):
-    current_user = get_jwt_identity()
-    user_id = current_user.get('user_id')
-    
-    # Перевірка доступу до групи
+@router.post("/types")
+def create_utility_type(body: UtilityTypeData = Body(...), user_id: str = Depends(get_current_user)):
     if body.group_id and not check_group_access(user_id, body.group_id):
-        abort(403, "Немає доступу до цієї групи")
-    
-    # Встановлюємо ID користувача, якщо він не вказаний
+        raise HTTPException(403, "Немає доступу до цієї групи")
     if not body.group_id and not body.user_id:
         body.user_id = user_id
-    
     try:
         utility_type = SprUtilityType(**body.dict())
         db.session.add(utility_type)
         db.session.commit()
-        
-        return jsonify({
-            "status": "ok", 
+        return {
+            "status": "ok",
             "data": {
                 "id": utility_type.id,
                 "name": utility_type.name,
@@ -120,19 +96,13 @@ def create_utility_type(body: UtilityTypeData):
                 "created": utility_type.created.isoformat(),
                 "updated": utility_type.updated.isoformat() if utility_type.updated else None
             }
-        })
+        }
     except SQLAlchemyError as e:
         db.session.rollback()
-        return jsonify({"status": "error", "message": str(e)}), 400
+        raise HTTPException(400, detail=str(e))
 
-
-@utilities_bp.route("/api/utilities/types/<int:type_id>", methods=["GET"])
-@cross_origin()
-@jwt_required()
-def get_utility_type(type_id):
-    current_user = get_jwt_identity()
-    user_id = current_user.get('user_id')
-    
+@router.get("/types/{type_id}")
+def get_utility_type(type_id: int, user_id: str = Depends(get_current_user)):
     utility_type = SprUtilityType.query.filter(
         and_(
             SprUtilityType.id == type_id,
@@ -147,12 +117,10 @@ def get_utility_type(type_id):
             )
         )
     ).first()
-    
     if not utility_type:
-        return jsonify({"status": "error", "message": "Тип комунальної послуги не знайдено"}), 404
-    
-    return jsonify({
-        "status": "ok", 
+        raise HTTPException(404, detail="Тип комунальної послуги не знайдено")
+    return {
+        "status": "ok",
         "data": {
             "id": utility_type.id,
             "name": utility_type.name,
@@ -162,17 +130,89 @@ def get_utility_type(type_id):
             "created": utility_type.created.isoformat(),
             "updated": utility_type.updated.isoformat() if utility_type.updated else None
         }
-    })
+    }
+
+@router.put("/types/{type_id}")
+def update_utility_type(type_id: int, body: UtilityTypeData = Body(...), user_id: str = Depends(get_current_user)):
+    utility_type = SprUtilityType.query.filter(
+        and_(
+            SprUtilityType.id == type_id,
+            or_(
+                SprUtilityType.user_id == user_id,
+                SprUtilityType.id.in_(
+                    db.session.query(SprUtilityType.id)
+                    .join(Group, SprUtilityType.group_id == Group.id)
+                    .join(UserGroupAssociation, Group.id == UserGroupAssociation.group_id)
+                    .filter(UserGroupAssociation.user_id == user_id)
+                )
+            )
+        )
+    ).first()
+    if not utility_type:
+        raise HTTPException(404, detail="Тип комунальної послуги не знайдено")
+    if body.group_id and not check_group_access(user_id, body.group_id):
+        raise HTTPException(403, "Немає доступу до цієї групи")
+    try:
+        utility_type.name = body.name
+        utility_type.description = body.description
+        utility_type.user_id = body.user_id
+        utility_type.group_id = body.group_id
+        db.session.commit()
+        return {
+            "status": "ok",
+            "data": {
+                "id": utility_type.id,
+                "name": utility_type.name,
+                "description": utility_type.description,
+                "user_id": utility_type.user_id,
+                "group_id": utility_type.group_id,
+                "created": utility_type.created.isoformat(),
+                "updated": utility_type.updated.isoformat() if utility_type.updated else None
+            }
+        }
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        raise HTTPException(400, detail=str(e))
+
+@router.delete("/types/{type_id}")
+def delete_utility_type(type_id: int, user_id: str = Depends(get_current_user)):
+    utility_type = SprUtilityType.query.filter(
+        and_(
+            SprUtilityType.id == type_id,
+            or_(
+                SprUtilityType.user_id == user_id,
+                SprUtilityType.id.in_(
+                    db.session.query(SprUtilityType.id)
+                    .join(Group, SprUtilityType.group_id == Group.id)
+                    .join(UserGroupAssociation, Group.id == UserGroupAssociation.group_id)
+                    .filter(UserGroupAssociation.user_id == user_id)
+                )
+            )
+        )
+    ).first()
+    if not utility_type:
+        raise HTTPException(404, detail="Тип комунальної послуги не знайдено")
+    meters = UtilityMeter.query.filter_by(utility_type_id=type_id).count()
+    tariffs = UtilityTariff.query.filter_by(utility_type_id=type_id).count()
+    if meters > 0 or tariffs > 0:
+        raise HTTPException(400, detail="Неможливо видалити тип комунальної послуги, до якого прив'язані лічильники або тарифи")
+    try:
+        db.session.delete(utility_type)
+        db.session.commit()
+        return {"status": "ok"}
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        raise HTTPException(400, detail=str(e))
 
 
-@utilities_bp.route("/api/utilities/types/<int:type_id>", methods=["PUT"])
-@cross_origin()
-@jwt_required()
-@validate()
-def update_utility_type(type_id, body: UtilityTypeData):
-    current_user = get_jwt_identity()
-    user_id = current_user.get('user_id')
-    
+
+
+
+
+
+@router.put("/api/utilities/types/{type_id}")
+async def update_utility_type(type_id, body: UtilityTypeData, user_id: str = Depends(get_current_user)):
+   
     utility_type = SprUtilityType.query.filter(
         and_(
             SprUtilityType.id == type_id,
@@ -189,11 +229,11 @@ def update_utility_type(type_id, body: UtilityTypeData):
     ).first()
     
     if not utility_type:
-        return jsonify({"status": "error", "message": "Тип комунальної послуги не знайдено"}), 404
+        raise HTTPException(404, detail="Тип комунальної послуги не знайдено")
     
     # Перевірка доступу до групи
     if body.group_id and not check_group_access(user_id, body.group_id):
-        abort(403, "Немає доступу до цієї групи")
+        raise HTTPException(403, "Немає доступу до цієї групи")
     
     try:
         utility_type.name = body.name
@@ -203,7 +243,7 @@ def update_utility_type(type_id, body: UtilityTypeData):
         
         db.session.commit()
         
-        return jsonify({
+        return {
             "status": "ok", 
             "data": {
                 "id": utility_type.id,
@@ -214,19 +254,15 @@ def update_utility_type(type_id, body: UtilityTypeData):
                 "created": utility_type.created.isoformat(),
                 "updated": utility_type.updated.isoformat() if utility_type.updated else None
             }
-        })
+        }
     except SQLAlchemyError as e:
         db.session.rollback()
-        return jsonify({"status": "error", "message": str(e)}), 400
+        raise HTTPException(400, detail=str(e))
 
 
-@utilities_bp.route("/api/utilities/types/<int:type_id>", methods=["DELETE"])
-@cross_origin()
-@jwt_required()
-def delete_utility_type(type_id):
-    current_user = get_jwt_identity()
-    user_id = current_user.get('user_id')
-    
+@router.delete("/api/utilities/types/{type_id}")
+async def delete_utility_type(type_id, user_id: str = Depends(get_current_user)):
+   
     utility_type = SprUtilityType.query.filter(
         and_(
             SprUtilityType.id == type_id,
@@ -243,7 +279,7 @@ def delete_utility_type(type_id):
     ).first()
     
     if not utility_type:
-        return jsonify({"status": "error", "message": "Тип комунальної послуги не знайдено"}), 404
+        raise HTTPException(404, detail="Тип комунальної послуги не знайдено")
     
     try:
         # Перевіряємо, чи є прив'язані лічильники чи тарифи
@@ -251,28 +287,20 @@ def delete_utility_type(type_id):
         tariffs = UtilityTariff.query.filter_by(utility_type_id=type_id).count()
         
         if meters > 0 or tariffs > 0:
-            return jsonify({
-                "status": "error", 
-                "message": "Неможливо видалити тип комунальної послуги, до якого прив'язані лічильники або тарифи"
-            }), 400
+            raise HTTPException(400, detail="Неможливо видалити тип комунальної послуги, до якого прив'язані лічильники або тарифи")
         
         db.session.delete(utility_type)
         db.session.commit()
         
-        return jsonify({"status": "ok"})
+        return {"status": "ok"}
     except SQLAlchemyError as e:
         db.session.rollback()
-        return jsonify({"status": "error", "message": str(e)}), 400
+        raise HTTPException(400, detail=str(e))
 
 
 # API для лічильників
-@utilities_bp.route("/api/utilities/meters", methods=["GET"])
-@cross_origin()
-@jwt_required()
-def get_utility_meters():
-    current_user = get_jwt_identity()
-    user_id = current_user.get('user_id')
-    
+@router.get("/api/utilities/meters")
+def get_utility_meters(user_id: str = Depends(get_current_user)):
     utility_type_id = request.args.get("utility_type_id")
     
     query = get_user_resources(user_id, UtilityMeter)
@@ -297,20 +325,14 @@ def get_utility_meters():
             "updated": meter.updated.isoformat() if meter.updated else None
         })
     
-    return jsonify({"status": "ok", "data": result})
+    return {"status": "ok", "data": result}
 
 
-@utilities_bp.route("/api/utilities/meters", methods=["POST"])
-@cross_origin()
-@jwt_required()
-@validate()
-def create_utility_meter(body: UtilityMeterData):
-    current_user = get_jwt_identity()
-    user_id = current_user.get('user_id')
-    
+@router.post("/api/utilities/meters")
+async def create_utility_meter(body: UtilityMeterData = Body(...), user_id: str = Depends(get_current_user)):
     # Перевірка доступу до групи
     if body.group_id and not check_group_access(user_id, body.group_id):
-        abort(403, "Немає доступу до цієї групи")
+        raise HTTPException(403, "Немає доступу до цієї групи")
     
     # Перевірка існування типу комунальної послуги
     utility_type = SprUtilityType.query.filter(
@@ -329,7 +351,7 @@ def create_utility_meter(body: UtilityMeterData):
     ).first()
     
     if not utility_type:
-        return jsonify({"status": "error", "message": "Тип комунальної послуги не знайдено"}), 404
+        return {"status": "error", "message": "Тип комунальної послуги не знайдено"}, 404
     
     # Встановлюємо ID користувача, якщо він не вказаний
     if not body.group_id and not body.user_id:
@@ -340,7 +362,7 @@ def create_utility_meter(body: UtilityMeterData):
         db.session.add(meter)
         db.session.commit()
         
-        return jsonify({
+        return {
             "status": "ok", 
             "data": {
                 "id": meter.id,
@@ -354,17 +376,15 @@ def create_utility_meter(body: UtilityMeterData):
                 "created": meter.created.isoformat(),
                 "updated": meter.updated.isoformat() if meter.updated else None
             }
-        })
+        }
     except SQLAlchemyError as e:
         db.session.rollback()
-        return jsonify({"status": "error", "message": str(e)}), 400
+        raise HTTPException(400, detail=str(e))
 
 
-@utilities_bp.route("/api/utilities/meters/<int:meter_id>", methods=["GET"])
-@cross_origin()
-@jwt_required()
+@router.get("/api/utilities/meters/<int:meter_id>")
 def get_utility_meter(meter_id):
-    current_user = get_jwt_identity()
+    current_user = user_id
     user_id = current_user.get('user_id')
     
     meter = UtilityMeter.query.filter(
@@ -383,9 +403,9 @@ def get_utility_meter(meter_id):
     ).first()
     
     if not meter:
-        return jsonify({"status": "error", "message": "Лічильник не знайдено"}), 404
+        return {"status": "error", "message": "Лічильник не знайдено"}, 404
     
-    return jsonify({
+    return {
         "status": "ok", 
         "data": {
             "id": meter.id,
@@ -399,15 +419,12 @@ def get_utility_meter(meter_id):
             "created": meter.created.isoformat(),
             "updated": meter.updated.isoformat() if meter.updated else None
         }
-    })
+    }
 
 
-@utilities_bp.route("/api/utilities/meters/<int:meter_id>", methods=["PUT"])
-@cross_origin()
-@jwt_required()
-@validate()
-def update_utility_meter(meter_id, body: UtilityMeterData):
-    current_user = get_jwt_identity()
+@router.put("/api/utilities/meters/<int:meter_id>")
+def update_utility_meter(meter_id, body: UtilityMeterData, user_id: str = Depends(get_current_user)):
+    current_user = user_id
     user_id = current_user.get('user_id')
     
     meter = UtilityMeter.query.filter(
@@ -426,11 +443,11 @@ def update_utility_meter(meter_id, body: UtilityMeterData):
     ).first()
     
     if not meter:
-        return jsonify({"status": "error", "message": "Лічильник не знайдено"}), 404
+        return {"status": "error", "message": "Лічильник не знайдено"}, 404
     
     # Перевірка доступу до групи
     if body.group_id and not check_group_access(user_id, body.group_id):
-        abort(403, "Немає доступу до цієї групи")
+        raise HTTPException(403, "Немає доступу до цієї групи")
     
     # Перевірка існування типу комунальної послуги
     utility_type = SprUtilityType.query.filter(
@@ -449,7 +466,7 @@ def update_utility_meter(meter_id, body: UtilityMeterData):
     ).first()
     
     if not utility_type:
-        return jsonify({"status": "error", "message": "Тип комунальної послуги не знайдено"}), 404
+        return {"status": "error", "message": "Тип комунальної послуги не знайдено"}, 404
     
     try:
         meter.name = body.name
@@ -462,7 +479,7 @@ def update_utility_meter(meter_id, body: UtilityMeterData):
         
         db.session.commit()
         
-        return jsonify({
+        return {
             "status": "ok", 
             "data": {
                 "id": meter.id,
@@ -476,17 +493,15 @@ def update_utility_meter(meter_id, body: UtilityMeterData):
                 "created": meter.created.isoformat(),
                 "updated": meter.updated.isoformat() if meter.updated else None
             }
-        })
+        }
     except SQLAlchemyError as e:
         db.session.rollback()
-        return jsonify({"status": "error", "message": str(e)}), 400
+        raise HTTPException(400, detail=str(e))
 
 
-@utilities_bp.route("/api/utilities/meters/<int:meter_id>", methods=["DELETE"])
-@cross_origin()
-@jwt_required()
-def delete_utility_meter(meter_id):
-    current_user = get_jwt_identity()
+@router.delete("/api/utilities/meters/<int:meter_id>")
+def delete_utility_meter(meter_id, user_id: str = Depends(get_current_user)):
+    current_user = user_id
     user_id = current_user.get('user_id')
     
     meter = UtilityMeter.query.filter(
@@ -505,35 +520,27 @@ def delete_utility_meter(meter_id):
     ).first()
     
     if not meter:
-        return jsonify({"status": "error", "message": "Лічильник не знайдено"}), 404
+        return {"status": "error", "message": "Лічильник не знайдено"}, 404
     
     try:
         # Перевіряємо, чи є показники для цього лічильника
         readings = UtilityMeterReading.query.filter_by(meter_id=meter_id).count()
         
         if readings > 0:
-            return jsonify({
-                "status": "error", 
-                "message": "Неможливо видалити лічильник, для якого існують показники"
-            }), 400
+            return {"status": "error", "message": "Неможливо видалити лічильник, для якого існують показники"}, 400
         
         db.session.delete(meter)
         db.session.commit()
         
-        return jsonify({"status": "ok"})
+        return {"status": "ok"}
     except SQLAlchemyError as e:
         db.session.rollback()
-        return jsonify({"status": "error", "message": str(e)}), 400
+        return {"status": "error", "message": str(e)}, 400
 
 
 # API для тарифів
-@utilities_bp.route("/api/utilities/tariffs", methods=["GET"])
-@cross_origin()
-@jwt_required()
-def get_utility_tariffs():
-    current_user = get_jwt_identity()
-    user_id = current_user.get('user_id')
-    
+@router.get("/api/utilities/tariffs")
+def get_utility_tariffs(user_id: str = Depends(get_current_user)):
     utility_type_id = request.args.get("utility_type_id")
     tariff_type = request.args.get("tariff_type")
     include_expired = request.args.get("include_expired", "false").lower() == "true"
@@ -575,20 +582,15 @@ def get_utility_tariffs():
             "updated": tariff.updated.isoformat() if tariff.updated else None
         })
     
-    return jsonify({"status": "ok", "data": result})
+    return {"status": "ok", "data": result}
 
 
-@utilities_bp.route("/api/utilities/tariffs", methods=["POST"])
-@cross_origin()
-@jwt_required()
-@validate()
-def create_utility_tariff(body: UtilityTariffData):
-    current_user = get_jwt_identity()
-    user_id = current_user.get('user_id')
+@router.post("/api/utilities/tariffs")
+def create_utility_tariff(body: UtilityTariffData, user_id: str = Depends(get_current_user)):
     
     # Перевірка доступу до групи
     if body.group_id and not check_group_access(user_id, body.group_id):
-        abort(403, "Немає доступу до цієї групи")
+        raise HTTPException(403, "Немає доступу до цієї групи")
     
     # Перевірка існування типу комунальної послуги
     utility_type = SprUtilityType.query.filter(
@@ -607,7 +609,7 @@ def create_utility_tariff(body: UtilityTariffData):
     ).first()
     
     if not utility_type:
-        return jsonify({"status": "error", "message": "Тип комунальної послуги не знайдено"}), 404
+        return {"status": "error", "message": "Тип комунальної послуги не знайдено"}, 404
     
     # Встановлюємо ID користувача, якщо він не вказаний
     if not body.group_id and not body.user_id:
@@ -639,11 +641,11 @@ def create_utility_tariff(body: UtilityTariffData):
             for et in existing_tariffs:
                 et.valid_to = body.valid_from
         
-        tariff = UtilityTariff(**body.dict())
+        tariff = UtilityTariff(**body.model_dump())
         db.session.add(tariff)
         db.session.commit()
         
-        return jsonify({
+        return {
             "status": "ok", 
             "data": {
                 "id": tariff.id,
@@ -660,17 +662,15 @@ def create_utility_tariff(body: UtilityTariffData):
                 "created": tariff.created.isoformat(),
                 "updated": tariff.updated.isoformat() if tariff.updated else None
             }
-        })
+        }
     except SQLAlchemyError as e:
         db.session.rollback()
-        return jsonify({"status": "error", "message": str(e)}), 400
+        return {"status": "error", "message": str(e)}, 400
 
 
-@utilities_bp.route("/api/utilities/tariffs/<int:tariff_id>", methods=["GET"])
-@cross_origin()
-@jwt_required()
-def get_utility_tariff(tariff_id):
-    current_user = get_jwt_identity()
+@router.get("/api/utilities/tariffs/<int:tariff_id>")
+def get_utility_tariff(tariff_id, user_id: str = Depends(get_current_user)):
+    current_user = user_id
     user_id = current_user.get('user_id')
     
     tariff = UtilityTariff.query.filter(
@@ -689,9 +689,9 @@ def get_utility_tariff(tariff_id):
     ).first()
     
     if not tariff:
-        return jsonify({"status": "error", "message": "Тариф не знайдено"}), 404
+        return {"status": "error", "message": "Тариф не знайдено"}, 404
     
-    return jsonify({
+    return {
         "status": "ok", 
         "data": {
             "id": tariff.id,
@@ -708,17 +708,11 @@ def get_utility_tariff(tariff_id):
             "created": tariff.created.isoformat(),
             "updated": tariff.updated.isoformat() if tariff.updated else None
         }
-    })
+    }
 
-
-@utilities_bp.route("/api/utilities/tariffs/<int:tariff_id>", methods=["PUT"])
-@cross_origin()
-@jwt_required()
-@validate()
-def update_utility_tariff(tariff_id, body: UtilityTariffData):
-    current_user = get_jwt_identity()
-    user_id = current_user.get('user_id')
-    
+@router.put("/api/utilities/tariffs/<int:tariff_id>")
+async def update_utility_tariff(tariff_id, body: UtilityTariffData, user_id: str = Depends(get_current_user)):
+   
     tariff = UtilityTariff.query.filter(
         and_(
             UtilityTariff.id == tariff_id,
@@ -735,11 +729,11 @@ def update_utility_tariff(tariff_id, body: UtilityTariffData):
     ).first()
     
     if not tariff:
-        return jsonify({"status": "error", "message": "Тариф не знайдено"}), 404
+        return {"status": "error", "message": "Тариф не знайдено"}, 404
     
     # Перевірка доступу до групи
     if body.group_id and not check_group_access(user_id, body.group_id):
-        abort(403, "Немає доступу до цієї групи")
+        raise HTTPException(403, "Немає доступу до цієї групи")
     
     # Перевірка існування типу комунальної послуги
     utility_type = SprUtilityType.query.filter(
@@ -758,7 +752,7 @@ def update_utility_tariff(tariff_id, body: UtilityTariffData):
     ).first()
     
     if not utility_type:
-        return jsonify({"status": "error", "message": "Тип комунальної послуги не знайдено"}), 404
+        return {"status": "error", "message": "Тип комунальної послуги не знайдено"}, 404
     
     try:
         tariff.name = body.name
@@ -774,7 +768,7 @@ def update_utility_tariff(tariff_id, body: UtilityTariffData):
         
         db.session.commit()
         
-        return jsonify({
+        return {
             "status": "ok", 
             "data": {
                 "id": tariff.id,
@@ -791,19 +785,14 @@ def update_utility_tariff(tariff_id, body: UtilityTariffData):
                 "created": tariff.created.isoformat(),
                 "updated": tariff.updated.isoformat() if tariff.updated else None
             }
-        })
+        }
     except SQLAlchemyError as e:
         db.session.rollback()
-        return jsonify({"status": "error", "message": str(e)}), 400
+        return {"status": "error", "message": str(e)}, 400
 
 
-@utilities_bp.route("/api/utilities/tariffs/<int:tariff_id>", methods=["DELETE"])
-@cross_origin()
-@jwt_required()
-def delete_utility_tariff(tariff_id):
-    current_user = get_jwt_identity()
-    user_id = current_user.get('user_id')
-    
+@router.delete("/api/utilities/tariffs/{tariff_id}")
+async def delete_utility_tariff(tariff_id, user_id: str = Depends(get_current_user)):
     tariff = UtilityTariff.query.filter(
         and_(
             UtilityTariff.id == tariff_id,
@@ -820,35 +809,29 @@ def delete_utility_tariff(tariff_id):
     ).first()
     
     if not tariff:
-        return jsonify({"status": "error", "message": "Тариф не знайдено"}), 404
+        return {"status": "error", "message": "Тариф не знайдено"}, 404
     
     try:
         # Перевіряємо, чи є показники для цього тарифу
         readings = UtilityMeterReading.query.filter_by(tariff_id=tariff_id).count()
         
         if readings > 0:
-            return jsonify({
+            return {
                 "status": "error", 
                 "message": "Неможливо видалити тариф, для якого існують показники"
-            }), 400
+            }, 400
         
         db.session.delete(tariff)
         db.session.commit()
-        
-        return jsonify({"status": "ok"})
+
+        return {"status": "ok"}
     except SQLAlchemyError as e:
         db.session.rollback()
-        return jsonify({"status": "error", "message": str(e)}), 400
-
+        return {"status": "error", "message": str(e)}, 400
 
 # API для показників лічильників
-@utilities_bp.route("/api/utilities/readings", methods=["GET"])
-@cross_origin()
-@jwt_required()
-def get_utility_readings():
-    current_user = get_jwt_identity()
-    user_id = current_user.get('user_id')
-    
+@router.get("/api/utilities/readings")
+async def get_utility_readings(user_id: str = Depends(get_current_user)):
     meter_id = request.args.get("meter_id")
     year = request.args.get("year")
     month = request.args.get("month")
@@ -892,20 +875,18 @@ def get_utility_readings():
             "updated": reading.updated.isoformat() if reading.updated else None
         })
     
-    return jsonify({"status": "ok", "data": result})
+    return {"status": "ok", "data": result}
 
 
-@utilities_bp.route("/api/utilities/readings", methods=["POST"])
-@cross_origin()
-@jwt_required()
-@validate()
-def create_utility_reading(body: UtilityMeterReadingData):
-    current_user = get_jwt_identity()
-    user_id = current_user.get('user_id')
-    
+@router.post("/api/utilities/readings")
+async def create_utility_reading(body: UtilityMeterReadingData, user_id: str = Depends(get_current_user)):
+    """
+    create utility reading
+    """
+
     # Перевірка доступу до групи
     if body.group_id and not check_group_access(user_id, body.group_id):
-        abort(403, "Немає доступу до цієї групи")
+        raise HTTPException(403, "Немає доступу до цієї групи")
     
     # Перевірка існування лічильника
     meter = UtilityMeter.query.filter(
@@ -924,7 +905,7 @@ def create_utility_reading(body: UtilityMeterReadingData):
     ).first()
     
     if not meter:
-        return jsonify({"status": "error", "message": "Лічильник не знайдено"}), 404
+        return {"status": "error", "message": "Лічильник не знайдено"}, 404
     
     # Перевірка існування тарифу, якщо він вказаний
     if body.tariff_id:
@@ -944,7 +925,7 @@ def create_utility_reading(body: UtilityMeterReadingData):
         ).first()
         
         if not tariff:
-            return jsonify({"status": "error", "message": "Тариф не знайдено"}), 404
+            return {"status": "error", "message": "Тариф не знайдено"}, 404
     
     # Встановлюємо ID користувача, якщо він не вказаний
     if not body.group_id and not body.user_id:
@@ -965,10 +946,10 @@ def create_utility_reading(body: UtilityMeterReadingData):
         ).first()
         
         if existing_reading:
-            return jsonify({
+            return {
                 "status": "error", 
                 "message": f"Показник для цього лічильника за {body.month}/{body.year} вже існує"
-            }), 400
+            }, 400
         
         # Знаходимо попередній показник для розрахунку споживання
         previous_reading = UtilityMeterReading.query.filter(
@@ -992,7 +973,7 @@ def create_utility_reading(body: UtilityMeterReadingData):
         db.session.add(reading)
         db.session.commit()
         
-        return jsonify({
+        return {
             "status": "ok", 
             "data": {
                 "id": reading.id,
@@ -1011,19 +992,14 @@ def create_utility_reading(body: UtilityMeterReadingData):
                 "created": reading.created.isoformat(),
                 "updated": reading.updated.isoformat() if reading.updated else None
             }
-        })
+        }
     except SQLAlchemyError as e:
         db.session.rollback()
-        return jsonify({"status": "error", "message": str(e)}), 400
+        return {"status": "error", "message": str(e)}, 400
 
 
-@utilities_bp.route("/api/utilities/readings/<int:reading_id>", methods=["GET"])
-@cross_origin()
-@jwt_required()
-def get_utility_reading(reading_id):
-    current_user = get_jwt_identity()
-    user_id = current_user.get('user_id')
-    
+@router.get("/api/utilities/readings/{reading_id}")
+async def get_utility_reading(reading_id, user_id: str = Depends(get_current_user)):
     reading = UtilityMeterReading.query.filter(
         and_(
             UtilityMeterReading.id == reading_id,
@@ -1040,9 +1016,9 @@ def get_utility_reading(reading_id):
     ).first()
     
     if not reading:
-        return jsonify({"status": "error", "message": "Показник не знайдено"}), 404
+        return {"status": "error", "message": "Показник не знайдено"}, 404
     
-    return jsonify({
+    return {
         "status": "ok", 
         "data": {
             "id": reading.id,
@@ -1061,17 +1037,11 @@ def get_utility_reading(reading_id):
             "created": reading.created.isoformat(),
             "updated": reading.updated.isoformat() if reading.updated else None
         }
-    })
+    }
 
 
-@utilities_bp.route("/api/utilities/readings/<int:reading_id>", methods=["PUT"])
-@cross_origin()
-@jwt_required()
-@validate()
-def update_utility_reading(reading_id, body: UtilityMeterReadingData):
-    current_user = get_jwt_identity()
-    user_id = current_user.get('user_id')
-    
+@router.patch("/api/utilities/readings/{reading_id}")
+async def update_utility_reading(reading_id, body: UtilityMeterReadingData, user_id: str = Depends(get_current_user)):
     reading = UtilityMeterReading.query.filter(
         and_(
             UtilityMeterReading.id == reading_id,
@@ -1088,11 +1058,11 @@ def update_utility_reading(reading_id, body: UtilityMeterReadingData):
     ).first()
     
     if not reading:
-        return jsonify({"status": "error", "message": "Показник не знайдено"}), 404
+        return {"status": "error", "message": "Показник не знайдено"}, 404
     
     # Перевірка доступу до групи
     if body.group_id and not check_group_access(user_id, body.group_id):
-        abort(403, "Немає доступу до цієї групи")
+        raise HTTPException(403, "Немає доступу до цієї групи")
     
     # Перевірка існування лічильника
     meter = UtilityMeter.query.filter(
@@ -1111,7 +1081,7 @@ def update_utility_reading(reading_id, body: UtilityMeterReadingData):
     ).first()
     
     if not meter:
-        return jsonify({"status": "error", "message": "Лічильник не знайдено"}), 404
+        return {"status": "error", "message": "Лічильник не знайдено"}, 404
     
     # Перевірка існування тарифу, якщо він вказаний
     if body.tariff_id:
@@ -1131,7 +1101,7 @@ def update_utility_reading(reading_id, body: UtilityMeterReadingData):
         ).first()
         
         if not tariff:
-            return jsonify({"status": "error", "message": "Тариф не знайдено"}), 404
+            return {"status": "error", "message": "Тариф не знайдено"}, 404
     
     try:
         # Перевіряємо, чи вже існує інший показник для цього лічильника за цей місяць та рік
@@ -1146,10 +1116,10 @@ def update_utility_reading(reading_id, body: UtilityMeterReadingData):
             ).first()
             
             if existing_reading:
-                return jsonify({
+                return {
                     "status": "error", 
                     "message": f"Показник для цього лічильника за {body.month}/{body.year} вже існує"
-                }), 400
+                }, 400
         
         # Оновлюємо показник
         reading.meter_id = body.meter_id
@@ -1181,7 +1151,7 @@ def update_utility_reading(reading_id, body: UtilityMeterReadingData):
         
         db.session.commit()
         
-        return jsonify({
+        return {
             "status": "ok", 
             "data": {
                 "id": reading.id,
@@ -1200,19 +1170,14 @@ def update_utility_reading(reading_id, body: UtilityMeterReadingData):
                 "created": reading.created.isoformat(),
                 "updated": reading.updated.isoformat() if reading.updated else None
             }
-        })
+        }
     except SQLAlchemyError as e:
         db.session.rollback()
-        return jsonify({"status": "error", "message": str(e)}), 400
+        return {"status": "error", "message": str(e)}, 400
 
 
-@utilities_bp.route("/api/utilities/readings/<int:reading_id>", methods=["DELETE"])
-@cross_origin()
-@jwt_required()
-def delete_utility_reading(reading_id):
-    current_user = get_jwt_identity()
-    user_id = current_user.get('user_id')
-    
+@router.delete("/api/utilities/readings/{reading_id}")
+async def delete_utility_reading(reading_id, user_id: str = Depends(get_current_user)):
     reading = UtilityMeterReading.query.filter(
         and_(
             UtilityMeterReading.id == reading_id,
@@ -1229,33 +1194,31 @@ def delete_utility_reading(reading_id):
     ).first()
     
     if not reading:
-        return jsonify({"status": "error", "message": "Показник не знайдено"}), 404
-    
+        return {"status": "error", "message": "Показник не знайдено"}, 404
+
     try:
         # Перевіряємо, чи є показники, які посилаються на цей як на попередній
         dependent_readings = UtilityMeterReading.query.filter_by(previous_reading_id=reading_id).count()
         
         if dependent_readings > 0:
-            return jsonify({
+            return {
                 "status": "error", 
                 "message": "Неможливо видалити показник, на який посилаються інші показники"
-            }), 400
+            }, 400
         
         db.session.delete(reading)
         db.session.commit()
         
-        return jsonify({"status": "ok"})
+        return {"status": "ok"}, 200
     except SQLAlchemyError as e:
         db.session.rollback()
-        return jsonify({"status": "error", "message": str(e)}), 400
+        return {"status": "error", "message": str(e)}, 400
 
 
 # API для статистики
-@utilities_bp.route("/api/utilities/statistics", methods=["GET"])
-@cross_origin()
-@jwt_required()
-def get_utility_statistics():
-    current_user = get_jwt_identity()
+@router.get("/api/utilities/statistics")
+async def get_utility_statistics(user_id: str = Depends(get_current_user)):
+    current_user = user_id
     user_id = current_user.get('user_id')
     
     meter_id = request.args.get("meter_id")
@@ -1263,7 +1226,7 @@ def get_utility_statistics():
     year = request.args.get("year")
     
     if not meter_id and not utility_type_id:
-        return jsonify({"status": "error", "message": "Потрібно вказати meter_id або utility_type_id"}), 400
+        return {"status": "error", "message": "Потрібно вказати meter_id або utility_type_id"}, 400
     
     if meter_id:
         # Статистика для конкретного лічильника
@@ -1283,7 +1246,7 @@ def get_utility_statistics():
         ).first()
         
         if not meter:
-            return jsonify({"status": "error", "message": "Лічильник не знайдено"}), 404
+            return {"status": "error", "message": "Лічильник не знайдено"}, 404
         
         query = UtilityMeterReading.query.filter(UtilityMeterReading.meter_id == meter_id)
         
@@ -1305,7 +1268,7 @@ def get_utility_statistics():
         ).first()
         
         if not utility_type:
-            return jsonify({"status": "error", "message": "Тип комунальної послуги не знайдено"}), 404
+            return {"status": "error", "message": "Тип комунальної послуги не знайдено"}, 404
         
         # Отримуємо всі лічильники даного типу, які належать користувачу або його групам
         meters = UtilityMeter.query.filter(
@@ -1326,7 +1289,7 @@ def get_utility_statistics():
         meter_ids = [meter.id for meter in meters]
         
         if not meter_ids:
-            return jsonify({"status": "ok", "data": []}), 200
+            return {"status": "ok", "data": []}, 200
         
         query = UtilityMeterReading.query.filter(UtilityMeterReading.meter_id.in_(meter_ids))
     
@@ -1378,4 +1341,4 @@ def get_utility_statistics():
                 "total_cost": float(reading.total_cost) if reading.total_cost else 0
             })
     
-    return jsonify({"status": "ok", "data": result}) 
+    return {"status": "ok", "data": result}

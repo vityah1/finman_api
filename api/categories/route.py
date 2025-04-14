@@ -1,8 +1,7 @@
 # _*_ coding:UTF-8 _*_
 
-from flask import Blueprint
-from flask_cors import cross_origin
-from flask_jwt_extended import jwt_required, get_jwt_identity
+from fastapi import APIRouter, Depends
+from app.jwt import get_current_user
 
 from api.categories.services import (
     get_categories_,
@@ -13,63 +12,29 @@ from api.categories.services import (
 )
 
 
-categories_bp = Blueprint(
-    "categories_bp",
-    __name__,
-)
+router = APIRouter(prefix="/api/categories", tags=["categories"])
 
 
-@categories_bp.route("/api/categories", methods=["GET"])
-@cross_origin()
-@jwt_required()
-def get_categories():
-    """
-    get categories
-    """
-    current_user = get_jwt_identity()
-    user_id = current_user.get('user_id')
+@router.get("")
+def get_categories(user_id: str = Depends(get_current_user)):
     return get_categories_(user_id)
 
 
-@categories_bp.route("/api/categories", methods=["POST"])
-@cross_origin()
-@jwt_required()
-def add_category():
-    """
-    add category
-    """
-    current_user = get_jwt_identity()
-    user_id = current_user.get('user_id')
+@router.post("")
+def add_category(user_id: str = Depends(get_current_user)):
     return add_category_(user_id)
 
 
-@categories_bp.route("/api/categories/<int:category_id>", methods=["DELETE"])
-@cross_origin()
-@jwt_required()
-def delete_category(category_id):
-    """
-    delete category
-    """
+@router.delete("/{category_id}")
+def delete_category(category_id: int, user_id: str = Depends(get_current_user)):
     return delete_category_(category_id)
 
 
-@categories_bp.route("/api/categories/<int:category_id>", methods=["PATCH"])
-@cross_origin()
-@jwt_required()
-def edit_category(category_id):
-    """
-    edit category
-    """
-    current_user = get_jwt_identity()
-    user_id = current_user.get('user_id')
+@router.patch("/{category_id}")
+def edit_category(category_id: int, user_id: str = Depends(get_current_user)):
     return edit_category_(user_id, category_id)
 
 
-@categories_bp.route("/api/categories/<int:category_id>", methods=["GET"])
-@cross_origin()
-@jwt_required()
-def get_category(category_id):
-    """
-    get categories
-    """
+@router.get("/{category_id}")
+def get_category(category_id: int, user_id: str = Depends(get_current_user)):
     return get_category_(category_id)
