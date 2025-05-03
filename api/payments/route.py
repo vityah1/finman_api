@@ -10,6 +10,7 @@ from api.payments.services import (
     upd_payment_,
     get_payment_detail,
     get_payments_detail,
+    change_payments_category_,
 )
 
 payments_bp = Blueprint(
@@ -76,3 +77,16 @@ def upd_payment(payment_id):
     update payment
     """
     return upd_payment_(payment_id)
+
+
+@payments_bp.route("/api/payments/change-category", methods=["POST"])
+@cross_origin()
+@jwt_required()
+def change_payments_category():
+    """
+    Змінює категорію для списку платежів
+    Вхідні дані: payment_ids - список ID платежів, category_id - нова категорія
+    """
+    current_user = get_jwt_identity()
+    user_id = current_user.get('user_id')
+    return change_payments_category_(user_id)

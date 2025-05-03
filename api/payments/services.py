@@ -185,3 +185,62 @@ def upd_payment_(payment_id):
 
     # return payment.to_dict()
     return get_payment_detail(payment_id)
+
+
+def change_payments_category_(user_id: int):
+    """
+    Змінює категорію для списку платежів
+    Вхідні дані: payment_ids - список ID платежів, category_id - нова категорія
+    
+    Дозволяє адміністратору групи змінювати категорію платежів учасників групи
+    """
+    from models.models import Group, UserGroupAssociation
+    
+    data = request.get_json()
+    payment_ids = data.get('payment_ids', [])
+    category_id = data.get('category_id')
+    
+    if not payment_ids or not category_id:
+        abort(400, "Потрібно вказати payment_ids та category_id")
+    
+    try:
+        # Перевіряємо, чи є користувач адміністратором якоїсь групи
+        admin_groups = db.session().query(Group).filter_by(owner_id=user_id).all()
+        
+        # Отримуємо список ID користувачів, які входять до груп адміністратора
+        group_member_ids = set()
+        for group in admin_groups:
+            associations = db.session().query(UserGroupAssociation).filter_by(group_id=group.id).all()
+            for assoc in associations:
+                group_member_ids.add(assoc.user_id)
+        
+        # Додаємо ID самого адміністратора до цього списку
+        group_member_ids.add(user_id)
+        
+        # Перевіряємо кожен платіж
+        updated_count = 0
+        for payment_id in payment_ids:
+            payment = db.session().query(Payment).get(payment_id)
+            
+            if not payment:
+                continue
+                
+            # Перевіряємо, чи має користувач доступ до цього платежу
+            # Доступ має власник платежу або адмін групи, у якій власник платежу є учасником
+            if payment.user_id not in group_member_ids:
+                continue
+                
+            payment.category_id = category_id
+            updated_count += 1
+        
+        db.session().commit()
+        return jsonify({
+            "status": "ok", 
+            "message": f"Оновлено категорію для {updated_count} платежів",
+            "updated_count": updated_count
+        })
+    except Exception as err:
+        db.session().rollback()
+        logger.error(f"Помилка зміни категорії платежів: {err}")
+        abort(500, "Помилка зміни категорії платежів")
+

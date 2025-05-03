@@ -30,19 +30,21 @@ def get_categories_(user_id) -> list[dict]:
             group_id=user_group.id
         ).all()
 
-    # Об'єднуємо особисті категорії користувача та категорії групи
-    all_categories = user_categories + group_categories
-
-    # Якщо немає жодних категорій, повертаємо стандартний набір
-    if not all_categories:
-        default_categories = [
-            # {"id": 1, "name": "Продукти", "parent_id": 0, "is_visible": True},
-            # {"id": 2, "name": "Транспорт", "parent_id": 0, "is_visible": True},
-            # {"id": 3, "name": "Розваги", "parent_id": 0, "is_visible": True},
-            # {"id": 4, "name": "Комунальні послуги", "parent_id": 0, "is_visible": True},
-            # {"id": 5, "name": "Інше", "parent_id": 0, "is_visible": True},
-        ]
-        return default_categories
+    # Об'єднуємо особисті категорії користувача та категорії групи, уникаючи дублікатів
+    # Використовуємо словник, де ключем є id категорії для забезпечення унікальності
+    unique_categories = {}
+    
+    # Додаємо спочатку особисті категорії
+    for category in user_categories:
+        unique_categories[category.id] = category
+    
+    # Додаємо категорії групи, уникаючи дублікатів
+    for category in group_categories:
+        if category.id not in unique_categories:
+            unique_categories[category.id] = category
+    
+    # Отримуємо список унікальних категорій
+    all_categories = list(unique_categories.values())
 
     return [item.to_dict() for item in all_categories]
 

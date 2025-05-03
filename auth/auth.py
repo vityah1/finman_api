@@ -38,6 +38,9 @@ def user_login():
         },
         expires_delta=timedelta(days=45)
     )
+    # Декодуємо токен якщо він в байтах
+    if isinstance(access_token, bytes):
+        access_token = access_token.decode('utf-8')
     result = user.to_dict()
     result['accessToken'] = access_token
     return result
@@ -63,6 +66,9 @@ def create_user():
         },
         expires_delta=timedelta(days=45)
     )
+    # Декодуємо токен якщо він в байтах
+    if isinstance(access_token, bytes):
+        access_token = access_token.decode('utf-8')
     result = user.to_dict()
     result["accessToken"] = access_token
     return result
@@ -125,6 +131,9 @@ where id = :user_id """
     access_token = create_access_token(
         identity=data.get('username'), expires_delta=timedelta(days=30)
     )
+    # Декодуємо токен якщо він в байтах
+    if isinstance(access_token, bytes):
+        access_token = access_token.decode('utf-8')
 
     return {
         "user_id": data.get('user_id'),

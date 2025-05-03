@@ -15,3 +15,5 @@ finman.log.*
 r.txt
 *.xlsx
 /.idea
+.venv
+*.txt
