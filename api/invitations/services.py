@@ -117,8 +117,7 @@ def accept_invitation_(user_id, invitation_code):
         db.session().commit()
     except Exception as err:
         db.session().rollback()
-        logger.error(f'Помилка при прийнятті запрошення: {err}')
-        abort(500, 'Помилка при прийнятті запрошення')
+        raise err
 
     return jsonify({"result": "ok", "message": "Ви успішно приєднались до групи"})
 
@@ -162,8 +161,7 @@ def delete_invitation_(user_id, invitation_id):
         db.session().commit()
     except Exception as err:
         db.session().rollback()
-        logger.error(f'Помилка при видаленні запрошення: {err}')
-        abort(500, 'Помилка при видаленні запрошення')
+        raise err
 
     return jsonify({"result": "ok"})
 
@@ -240,7 +238,6 @@ def ignore_invitation_(user_id, invitation_id):
         db.session().commit()
     except Exception as err:
         db.session().rollback()
-        logger.error(f'Помилка при ігноруванні запрошення: {err}')
-        abort(500, 'Помилка при ігноруванні запрошення')
+        raise err
 
     return jsonify({"result": "ok"})

@@ -106,5 +106,79 @@ def page_not_found(error):
     return jsonify({"message": f"{error}, path: {request.path}"}), 404
 
 
+# Додаємо глобальний обробник помилок для IntegrityError
+from sqlalchemy.exc import IntegrityError
+import re
+
+@app.errorhandler(IntegrityError)
+def handle_integrity_error(error):
+    """
+    Обробляє помилки цілісності бази даних (IntegrityError)
+    Відправляє зрозуміле повідомлення про помилку та відповідний HTTP статус
+    """
+    app.logger.error(f'Помилка цілісності бази даних: {error}')
+    
+    error_message = str(error)
+    response = {"message": "Помилка в базі даних"}
+    status_code = 500
+    
+    # Обробка помилок дублікатів
+    if '1062' in error_message and 'Duplicate entry' in error_message:
+        duplicated_info = re.search(r"Duplicate entry '(.*?)' for key '(.*?)'", error_message)
+        if duplicated_info:
+            duplicated_value = duplicated_info.group(1)
+            key_name = duplicated_info.group(2)
+            response = {
+                "message": f"Запис з таким значенням вже існує",
+                "details": {
+                    "duplicated_value": duplicated_value,
+                    "key": key_name
+                }
+            }
+            status_code = 409  # Conflict
+    
+    # Обробка помилок foreign key
+    elif '1452' in error_message and 'foreign key constraint fails' in error_message.lower():
+        fk_info = re.search(r"FOREIGN KEY \(`(.*?)`\) REFERENCES `(.*?)`", error_message)
+        if fk_info:
+            field_name = fk_info.group(1)
+            reference_table = fk_info.group(2)
+            response = {
+                "message": f"Некоректне значення зовнішнього ключа",
+                "details": {
+                    "field": field_name,
+                    "reference_table": reference_table
+                }
+            }
+            status_code = 400  # Bad Request
+    
+    return jsonify(response), status_code
+
+
+@app.errorhandler(Exception)
+def handle_generic_exception(error):
+    """
+    Загальний обробник помилок, який краще обробляє неочікувані помилки
+    Цей обробник буде використаний тільки якщо помилка не була оброблена іншими обробниками
+    """
+    # Якщо це вже відформатована помилка Flask (abort()), не переобробляємо її
+    if hasattr(error, 'code') and hasattr(error, 'description'):
+        # Це вже оброблена помилка Flask (abort)
+        return jsonify({"message": str(error.description)}), error.code
+    
+    # Логуємо необроблені помилки
+    app.logger.error(f'Загальна помилка: {str(error)}')
+    
+    # В продакшн режимі не відображаємо деталі помилки клієнту
+    if app.config.get('DEBUG', False):
+        return jsonify({
+            "message": "Неочікувана помилка",
+            "error": str(error),
+            "type": error.__class__.__name__
+        }), 500
+    else:
+        return jsonify({"message": "Неочікувана помилка. Перевірте логи сервера."}), 500
+
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8090, debug=False)

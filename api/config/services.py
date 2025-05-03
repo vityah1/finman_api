@@ -94,8 +94,7 @@ def edit_config_(config_id: int) -> Config:
         db.session().commit()
     except Exception as err:
         db.session().rollback()
-        logger.error(f'config edit failed {err}')
-        abort(500, 'config edit failed')
+        raise err
 
     return config.to_dict()
 
@@ -114,8 +113,7 @@ def delete_config_(config_id: int) -> dict[str, str]:
         db.session().commit()
     except Exception as err:
         db.session().rollback()
-        logger.error(f'config delete failed {err}')        
-        abort(500, 'config delete failed')
+        raise err
 
     return {"result": "ok"}
 

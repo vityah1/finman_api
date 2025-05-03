@@ -59,8 +59,7 @@ def edit_mono_user_(user_id, mono_user_id: int) -> dict:
         db.session().commit()
     except Exception as err:
         db.session().rollback()
-        logger.error(f'user edit failed {err}')        
-        abort(500, 'user edit failed')
+        raise err
 
     return mono_user.to_dict()
 
@@ -79,8 +78,7 @@ def delete_mono_user_(mono_user_id: int) -> dict:
         db.session().commit()
     except Exception as err:
         db.session().rollback()
-        logger.error(f'user delete failed {err}')        
-        abort(500, 'user delete failed')
+        raise err
 
     return {"result": "ok"}
 

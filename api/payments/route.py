@@ -11,6 +11,7 @@ from api.payments.services import (
     get_payment_detail,
     get_payments_detail,
     change_payments_category_,
+    bulk_delete_payments_,
 )
 
 payments_bp = Blueprint(
@@ -90,3 +91,16 @@ def change_payments_category():
     current_user = get_jwt_identity()
     user_id = current_user.get('user_id')
     return change_payments_category_(user_id)
+
+
+@payments_bp.route("/api/payments/bulk-delete", methods=["POST"])
+@cross_origin()
+@jwt_required()
+def bulk_delete_payments():
+    """
+    Масове видалення платежів
+    Вхідні дані: payment_ids - список ID платежів для видалення
+    """
+    current_user = get_jwt_identity()
+    user_id = current_user.get('user_id')
+    return bulk_delete_payments_(user_id)

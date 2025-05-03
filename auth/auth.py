@@ -56,8 +56,7 @@ def create_user():
         db.session().commit()
     except Exception as err:
         db.session().rollback()
-        logger.error(f'create user failed {err}')        
-        abort(500, "create user failed")
+        raise err
 
     access_token = create_access_token(
         identity={
@@ -96,8 +95,7 @@ def delete_user(user_id):
         db.session().commit()
     except Exception as err:
         db.session().rollback()
-        logger.error(f'user delete failed {err}')
-        abort(500, "user delete failed")
+        raise err
 
     result["result"] = "ok"
     return result

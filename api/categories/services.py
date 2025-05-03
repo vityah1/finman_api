@@ -75,8 +75,7 @@ def add_category_(user_id: int) -> dict:
         db.session().commit()
     except Exception as err:
         db.session().rollback()
-        logger.error(f'Category add failed: {err}')
-        abort(500, 'Category add failed')
+        raise err
 
     return category.to_dict()
 

@@ -36,8 +36,7 @@ def add_payment_(user_id: int):
         db.session().commit()
     except Exception as err:
         db.session().rollback()
-        logger.error(f"payment add failed {err}")
-        abort(500, "payment add failed")
+        raise err
 
     return payment.to_dict()
 
@@ -159,8 +158,7 @@ def del_payment_(payment_id: int):
         db.session().commit()
     except Exception as err:
         db.session().rollback()
-        logger.error(f"set payment as deleted failed {err}")
-        abort(500, "set payment as deleted failed")
+        raise err
 
     return jsonify({"status": "ok"})
 
@@ -180,8 +178,7 @@ def upd_payment_(payment_id):
         db.session().commit()
     except Exception as err:
         db.session().rollback()
-        logger.error(f"payment edit failed {err}")
-        abort(500, "payment edit failed")
+        raise err
 
     # return payment.to_dict()
     return get_payment_detail(payment_id)
@@ -241,6 +238,62 @@ def change_payments_category_(user_id: int):
         })
     except Exception as err:
         db.session().rollback()
-        logger.error(f"Помилка зміни категорії платежів: {err}")
-        abort(500, "Помилка зміни категорії платежів")
+        raise err
+
+
+def bulk_delete_payments_(user_id: int):
+    """
+    Масове видалення платежів
+    Вхідні дані: payment_ids - список ID платежів для видалення
+    
+    Дозволяє адміністратору групи видаляти платежі учасників групи
+    """
+    from models.models import Group, UserGroupAssociation
+    
+    data = request.get_json()
+    payment_ids = data.get('payment_ids', [])
+    
+    if not payment_ids:
+        abort(400, "Потрібно вказати payment_ids")
+    
+    try:
+        # Перевіряємо, чи є користувач адміністратором якоїсь групи
+        admin_groups = db.session().query(Group).filter_by(owner_id=user_id).all()
+        
+        # Отримуємо список ID користувачів, які входять до груп адміністратора
+        group_member_ids = set()
+        for group in admin_groups:
+            associations = db.session().query(UserGroupAssociation).filter_by(group_id=group.id).all()
+            for assoc in associations:
+                group_member_ids.add(assoc.user_id)
+        
+        # Додаємо ID самого адміністратора до цього списку
+        group_member_ids.add(user_id)
+        
+        # Перевіряємо кожен платіж
+        deleted_count = 0
+        for payment_id in payment_ids:
+            payment = db.session().query(Payment).get(payment_id)
+            
+            if not payment:
+                continue
+                
+            # Перевіряємо, чи має користувач доступ до цього платежу
+            # Доступ має власник платежу або адмін групи, у якій власник платежу є учасником
+            if payment.user_id not in group_member_ids:
+                continue
+
+            # Замість фізичного видалення помічаємо платіж як видалений
+            payment.is_deleted = True
+            deleted_count += 1
+        
+        db.session().commit()
+        return jsonify({
+            "status": "ok", 
+            "message": f"Видалено {deleted_count} платежів",
+            "deleted_count": deleted_count
+        })
+    except Exception as err:
+        db.session().rollback()
+        raise err
 

@@ -353,7 +353,7 @@ def add_new_payment(data) -> Payment:
     except Exception as err:
         db.session().rollback()
         db.session().flush()
-        mono_logger.error(f'add new payment FAILED:\n{err}')
+        raise err
     return result
 
 
@@ -373,7 +373,7 @@ def sync_payment(data: dict) -> dict:
     except Exception as err:
         db.session().rollback()
         db.session().flush()
-        mono_logger.error(f'sync mono webhook FAILED:\n{err}')
+        raise err
     return result
 
 

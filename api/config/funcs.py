@@ -52,6 +52,6 @@ def add_new_config_row(data: dict) -> dict:
         db.session().commit()
     except Exception as err:
         db.session().rollback()
-        logger.error(f'config add failed {err}')
-        abort(500, 'config add failed')
+        raise err
+
     return config.to_dict()

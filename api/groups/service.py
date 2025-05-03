@@ -65,8 +65,7 @@ def create_group_(user_id: int) -> dict:
         db.session().commit()
     except Exception as err:
         db.session().rollback()
-        logger.error(f'group creation failed {err}')
-        abort(500, 'group creation failed')
+        raise err
 
     # Додаємо власника як учасника групи
     user_group = UserGroupAssociation()
@@ -78,8 +77,7 @@ def create_group_(user_id: int) -> dict:
         db.session().commit()
     except Exception as err:
         db.session().rollback()
-        logger.error(f'user group association creation failed {err}')
-        abort(500, 'user group association creation failed')
+        raise err
 
     return group.to_dict()
 
@@ -110,8 +108,7 @@ def update_group_(user_id: int, group_id: int) -> dict:
         db.session().commit()
     except Exception as err:
         db.session().rollback()
-        logger.error(f'group update failed {err}')
-        abort(500, 'group update failed')
+        raise err
 
     return group.to_dict()
 
@@ -142,8 +139,7 @@ def delete_group_(user_id: int, group_id: int) -> dict:
         db.session().commit()
     except Exception as err:
         db.session().rollback()
-        logger.error(f'group deletion failed {err}')
-        abort(500, 'group deletion failed')
+        raise err
 
     return {"result": "ok"}
 
@@ -248,8 +244,7 @@ def add_user_to_group_(user_id: int, group_id: int) -> dict:
         db.session().commit()
     except Exception as err:
         db.session().rollback()
-        logger.error(f'user group association creation failed {err}')
-        abort(500, 'user group association creation failed')
+        raise err
 
     return {"result": "ok"}
 
@@ -290,8 +285,7 @@ def remove_user_from_group_(
         db.session().commit()
     except Exception as err:
         db.session().rollback()
-        logger.error(f'user group association deletion failed {err}')
-        abort(500, 'user group association deletion failed')
+        raise err
 
     return {"result": "ok"}
 
@@ -383,8 +377,7 @@ def create_group_invitation_(user_id, group_id):
         db.session().commit()
     except Exception as err:
         db.session().rollback()
-        logger.error(f'Group invitation creation failed: {err}')
-        abort(500, 'Group invitation creation failed')
+        raise err
 
     return invitation.to_dict()
 
@@ -422,7 +415,6 @@ def update_user_relation_(user_id_current, group_id, user_id_to_update):
         db.session().commit()
     except Exception as err:
         db.session().rollback()
-        logger.error(f'user group association update failed {err}')
-        abort(500, 'user group association update failed')
+        raise err
 
     return {"result": "ok"}
