@@ -30,7 +30,7 @@ class LoginModel(BaseModel):
     password: str
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "login": "admin",
                 "password": "password"
@@ -45,7 +45,7 @@ class UserCreate(BaseModel):
     email: str = ""
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "login": "new_user",
                 "password": "password",
