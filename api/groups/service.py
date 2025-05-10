@@ -1,8 +1,11 @@
 import datetime
 import logging
 import uuid
+from fastapi import HTTPException
 
-from flask import request, abort
+from api.schemas.common import GroupResponse
+
+
 from sqlalchemy import and_
 
 from models import User
@@ -87,7 +90,7 @@ def create_group_(user_id: int, data: dict) -> dict:
         db.session().rollback()
         raise err
 
-    return group.to_dict()
+    return GroupResponse.model_validate(group).model_dump()
 
 
 def update_group_(user_id: int, group_id: int, data: dict) -> dict:
@@ -113,7 +116,7 @@ def update_group_(user_id: int, group_id: int, data: dict) -> dict:
         db.session().rollback()
         raise err
 
-    return group.to_dict()
+    return GroupResponse.model_validate(group).model_dump()
 
 
 def delete_group_(user_id: int, group_id: int) -> dict:
@@ -139,7 +142,7 @@ def delete_group_(user_id: int, group_id: int) -> dict:
         db.session().rollback()
         raise err
 
-    return group.to_dict()
+    return GroupResponse.model_validate(group).model_dump()
 
 
 def delete_group_(user_id: int, group_id: int) -> dict:
@@ -193,7 +196,7 @@ def get_group_(user_id: int, group_id: int) -> dict:
         if not user or not user.is_admin:
             raise HTTPException(403, 'Not authorized to view this group')
 
-    return group.to_dict()
+    return GroupResponse.model_validate(group).model_dump()
 
 
 def get_group_users_(user_id: int, group_id: int) -> list[dict]:

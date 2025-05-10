@@ -1,7 +1,8 @@
 import logging
-from flask import abort
+
 from sqlalchemy import func
 from sqlalchemy import inspect
+from api.schemas.common import ConfigResponse
 
 from .schemas import ConfigTypes
 from models.models import SprConfigTypes, Config
@@ -54,4 +55,4 @@ def add_new_config_row(data: dict) -> dict:
         db.session().rollback()
         raise err
 
-    return config.to_dict()
+    return ConfigResponse.model_validate(config).model_dump()

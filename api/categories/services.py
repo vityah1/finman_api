@@ -1,6 +1,6 @@
 import logging
+from api.schemas.common import CategoryResponse
 
-from flask import request, abort
 
 from models.models import Group, UserGroupAssociation
 from mydb import db
@@ -46,7 +46,7 @@ def get_categories_(user_id) -> list[dict]:
     # Отримуємо список унікальних категорій
     all_categories = list(unique_categories.values())
 
-    return [item.to_dict() for item in all_categories]
+    return [CategoryResponse.model_validate(item).model_dump() for item in all_categories]
 
 
 def add_category_(user_id: int, data: dict) -> dict:
@@ -75,7 +75,7 @@ def add_category_(user_id: int, data: dict) -> dict:
         db.session().rollback()
         raise err
 
-    return category.to_dict()
+    return CategoryResponse.model_validate(category).model_dump()
 
 
 def edit_category_(user_id, category_id: int, data: dict) -> dict:
@@ -91,7 +91,7 @@ def edit_category_(user_id, category_id: int, data: dict) -> dict:
     category.update(**data)
 
     db.session().commit()
-    return category.to_dict()
+    return CategoryResponse.model_validate(category).model_dump()
 
 
 def delete_category_(category_id: int) -> dict:
@@ -118,4 +118,4 @@ def get_category_(category_id: int) -> dict:
     if not category:
         raise HTTPException(404, 'Not found categories')
 
-    return category.to_dict()
+    return CategoryResponse.model_validate(category).model_dump()

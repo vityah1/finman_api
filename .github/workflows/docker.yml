@@ -59,10 +59,10 @@ jobs:
               
               # Додаємо дебаг для перевірки стану бази даних перед міграцією
               echo "=== Стан міграцій перед виконанням ==="
-              docker exec finman_api flask db current
+              docker exec finman_api alembic current
               
-              # Запускаємо міграції БЕЗ опції --verbose, яка викликає помилку
-              docker exec finman_api flask db upgrade > migration_output.log 2>&1
+              # Запускаємо міграції напряму через Alembic
+              docker exec finman_api alembic upgrade head > migration_output.log 2>&1
               
               # Перевіряємо результат міграції
               MIGRATE_RESULT=$?
@@ -80,7 +80,7 @@ jobs:
               
               # Перевіряємо стан міграцій після виконання
               echo "=== Стан міграцій після виконання ==="
-              docker exec finman_api flask db current
+              docker exec finman_api alembic current
               
               # Якщо було створено нові файли міграцій, додамо їх до Git
               if [ -d "migrations/versions" ]; then

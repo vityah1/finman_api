@@ -1,8 +1,9 @@
 import logging
 import datetime
 from sqlalchemy import and_
+from api.schemas.common import GroupResponse, GroupInvitationResponse, UserResponse
 
-from flask import abort, jsonify
+from fastapi import HTTPException
 from models.models import Group, GroupInvitation, User, UserGroupAssociation
 from mydb import db
 
@@ -44,9 +45,9 @@ def check_invitation_(user_id, invitation_code):
     group = db.session().query(Group).get(invitation.group_id)
     creator = db.session().query(User).get(invitation.created_by)
 
-    result = invitation.to_dict()
-    result['group'] = group.to_dict()
-    result['creator'] = creator.to_dict()
+    result = GroupInvitationResponse.model_validate(invitation).model_dump()
+    result['group'] = GroupResponse.model_validate(group).model_dump()
+    result['creator'] = UserResponse.model_validate(creator).model_dump()
 
     return result
 
@@ -137,7 +138,7 @@ def get_invitation_(user_id, invitation_id):
     if group.owner_id != user_id:
         raise HTTPException(403, 'У вас немає доступу до цього запрошення')
 
-    return invitation.to_dict()
+    return GroupInvitationResponse.model_validate(invitation).model_dump()
 
 
 def delete_invitation_(user_id, invitation_id):
@@ -207,13 +208,13 @@ def check_user_invitations_(user_id):
                 continue
 
         # Додаємо інформацію про групу та творця запрошення
-        invitation_dict = invitation.to_dict()
+        invitation_dict = GroupInvitationResponse.model_validate(invitation).model_dump()
         group = db.session().query(Group).get(invitation.group_id)
         if group:
-            invitation_dict['group'] = group.to_dict()
+            invitation_dict['group'] = GroupResponse.model_validate(group).model_dump()
             creator = db.session().query(User).get(invitation.created_by)
             if creator:
-                invitation_dict['creator'] = creator.to_dict()
+                invitation_dict['creator'] = UserResponse.model_validate(creator).model_dump()
             valid_invitations.append(invitation_dict)
 
     return valid_invitations

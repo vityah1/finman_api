@@ -1,9 +1,6 @@
 import datetime
 
-from flask import json
 from sqlalchemy import Column, DateTime, Integer
-from sqlalchemy.sql.expression import not_
-from sqlalchemy.orm.attributes import QueryableAttribute
 
 from mydb import db
 

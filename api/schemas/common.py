@@ -91,3 +91,22 @@ class PaymentData(BaseModel):
     currency_amount: Optional[float] = None
     currency: Optional[str] = None
     is_deleted: Optional[bool] = False
+
+
+class SprSourceResponse(ModelResponse):
+    """Схема для відповіді з даними джерела платежу"""
+    id: Optional[int] = None
+    source: Optional[str] = None
+
+
+class SprTypePaymentResponse(ModelResponse):
+    """Схема для відповіді з даними типу платежу"""
+    id: Optional[int] = None
+    type_payment: Optional[str] = None
+
+
+class SprCurrencyResponse(ModelResponse):
+    """Схема для відповіді з даними валюти"""
+    id: Optional[int] = None
+    currency: Optional[str] = None
+    currencyCode: Optional[int] = None

@@ -1,9 +1,10 @@
 import logging
 from logging.config import fileConfig
 
-from flask import current_app
-
 from alembic import context
+from sqlalchemy import engine_from_config, pool
+
+from mydb import db
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -25,29 +26,22 @@ def include_object(object, name: str, type_, reflected, compare_to):
         return False
     return True
 
-def get_engine():
-    try:
-        # this works with Flask-SQLAlchemy<3 and Alchemical
-        return current_app.extensions['migrate'].db.get_engine()
-    except (TypeError, AttributeError):
-        # this works with Flask-SQLAlchemy>=3
-        return current_app.extensions['migrate'].db.engine
-
-
 def get_engine_url():
     try:
-        return get_engine().url.render_as_string(hide_password=False).replace(
-            '%', '%%')
-    except AttributeError:
-        return str(get_engine().url).replace('%', '%%')
+        # Отримуємо зв'язок з БД з mydb
+        from mydb import db
+        return str(db.engine.url).replace('%', '%%')
+    except Exception as e:
+        # Фолбек на випадок помилки
+        raise e
 
 
 # add your model's MetaData object here
 # for 'autogenerate' support
-# from myapp import mymodel
-# target_metadata = mymodel.Base.metadata
+from models import *  # Імпортуємо всі моделі
+
 config.set_main_option('sqlalchemy.url', get_engine_url())
-target_db = current_app.extensions['migrate'].db
+target_metadata = db.Model.metadata
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
@@ -56,9 +50,7 @@ target_db = current_app.extensions['migrate'].db
 
 
 def get_metadata():
-    if hasattr(target_db, 'metadatas'):
-        return target_db.metadatas[None]
-    return target_db.metadata
+    return target_metadata
 
 
 def run_migrations_offline():
@@ -100,19 +92,20 @@ def run_migrations_online():
                 directives[:] = []
                 logger.info('No changes in schema detected.')
 
-    conf_args = current_app.extensions['migrate'].configure_args
-    if conf_args.get("process_revision_directives") is None:
-        conf_args["process_revision_directives"] = process_revision_directives
-
-    connectable = get_engine()
+    configuration = config.get_section(config.config_ini_section)
+    configuration['sqlalchemy.url'] = get_engine_url()
+    connectable = engine_from_config(
+        configuration,
+        prefix='sqlalchemy.',
+        poolclass=pool.NullPool,
+    )
 
     with connectable.connect() as connection:
         context.configure(
             connection=connection,
             target_metadata=get_metadata(),
-            # target_metadata=target_metadata,
+            process_revision_directives=process_revision_directives,
             include_object=include_object,
-            **conf_args
         )
 
         with context.begin_transaction():

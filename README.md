@@ -3,7 +3,7 @@
 ## Огляд
 
 FinMan — це повноцінне рішення для управління особистими та сімейними фінансами, що складається з:
-- RESTful API бекенду на Flask з JWT автентифікацією
+- RESTful API бекенду на FastAPI з JWT автентифікацією
 - Сучасного фронтенду на Vue.js 3.1
 - Підтримки Docker для простого розгортання
 
@@ -13,6 +13,15 @@ FinMan — це повноцінне рішення для управління 
 - MySQL або MariaDB
 - NodeJS 14+ (для розробки фронтенду)
 - Docker та Docker Compose (опціонально)
+
+## Основні функції API
+
+### Імпорт банківських виписок
+
+Для імпорту виписок з різних банків
+
+### Внесення транзакцій
+
 
 ## Варіанти встановлення
 
@@ -62,14 +71,12 @@ FinMan — це повноцінне рішення для управління 
 
 4. **Ініціалізуйте та налаштуйте базу даних:**
    ```bash
-   flask db init
-   flask db migrate -m "Initial migration"
-   flask db upgrade
+   python -c "from mydb import db; db.create_all()"
    ```
 
 5. **Запустіть сервер в режимі розробки:**
    ```bash
-   python runserver.py
+   uvicorn main:app --reload --host 0.0.0.0 --port 8090
    ```
 
 ### Варіант 3: Встановлення як системний сервіс (Linux)
@@ -91,7 +98,7 @@ FinMan — це повноцінне рішення для управління 
    User=finman
    Group=finman
    WorkingDirectory=/path/to/finman_api
-   ExecStart=/bin/bash -c "source /path/to/finman_api/venv/bin/activate && gunicorn -w 2 -b 127.0.0.1:8090 app:app"
+   ExecStart=/bin/bash -c "source /path/to/finman_api/venv/bin/activate && gunicorn -w 2 -b 127.0.0.1:8090 main:app --timeout 120"
    Restart=always
 
    [Install]
@@ -105,35 +112,19 @@ FinMan — це повноцінне рішення для управління 
    sudo systemctl enable finman
    ```
 
-### Варіант 4: Налаштування на shared хостингу з Apache
-
-1. **Виконайте кроки 1-4 з Варіанту 2**
-
-2. **Відредагуйте .htaccess файл:**
-   ```
-   RewriteEngine On
-   RewriteCond %{REQUEST_FILENAME} !-f
-   RewriteRule ^(.*)$ /cgi-bin/main.py/$1 [L]
-   ```
-
-3. **Переконайтеся, що main.py має правильний шлях до вашого віртуального середовища Python:**
-   ```python
-   #!/path/to/your/venv/bin/python3
-   from wsgiref.handlers import CGIHandler
-   from app import app
-   CGIHandler().run(app)
-   ```
-
 ## Керування міграціями бази даних
 
-Для роботи з існуючою базою даних:
+Для роботи з існуючою базою даних використовуйте Alembic:
 
 ```bash
+# Ініціалізація Alembic (якщо ще не ініціалізовано)
+alembic init migrations
+
 # Створення початкової міграції на основі існуючої бази даних
-flask db revision --autogenerate -m "Initial migration"
+alembic revision --autogenerate -m "Initial migration"
 
 # Оновлення бази даних до останньої версії
-flask db upgrade
+alembic upgrade head
 ```
 
 ### Налаштування вибіркової міграції таблиць
@@ -165,7 +156,6 @@ flask db upgrade
 
 ## Структура проекту
 
-- `/app` - Конфігурація та ініціалізація Flask
 - `/api` - Ендпоінти API
 - `/models` - Моделі даних SQLAlchemy
 - `/auth` - Логіка аутентифікації та авторизації
@@ -188,7 +178,7 @@ flask db upgrade
 ## Вирішення проблем
 
 - **Помилка підключення до бази даних**: Перевірте параметри у DATABASE_URI та доступність сервера бази даних
-- **Проблеми з міграціями**: Запустіть `flask db current` для перевірки поточного стану міграцій
+- **Проблеми з міграціями**: Запустіть `alembic current` для перевірки поточного стану міграцій
 - **Помилки CORS**: Переконайтеся, що ваш фронтенд має доступ до API через налаштування CORS
 
 ## Розробка фронтенду

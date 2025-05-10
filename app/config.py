@@ -51,14 +51,6 @@ logger_config = {
             "backupCount": 5,
             "formatter": "default",
         },
-        # "time-rotate": {
-        #     "class": "logging.handlers.TimedRotatingFileHandler",
-        #     "filename": "flask.log",
-        #     "when": "D",
-        #     "interval": 10,
-        #     "backupCount": 5,
-        #     "formatter": "default",
-        # },
     },
     "root": {"level": "DEBUG", "handlers": ["console", "size-rotate"]},
     "loggers": {

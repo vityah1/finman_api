@@ -163,6 +163,3 @@ async def remove_user_from_group(
     Видалити користувача з групи
     """
     return remove_user_from_group_(current_user.id, group_id, user_id_to_remove)
-
-
-# Усі Flask маршрути було успішно конвертовано у FastAPI-аналоги вище

@@ -1,7 +1,8 @@
 import logging
 
-from flask import abort
-from models.models import Category, SprCurrency, SprSource, SprTypePayment
+from fastapi import HTTPException
+from models.models import Category, SprSource, SprTypePayment
+from api.schemas.common import SprCurrencyResponse, SprSourceResponse, SprTypePaymentResponse, CategoryResponse
 
 from mydb import db
 
@@ -30,4 +31,13 @@ def get_spr_dictionary(dictionary) -> list[dict]:
     if not query:
         raise HTTPException(404, 'Not found dictionary')
 
-    return [item.to_dict() for item in query]
+    if dictionary == 'currency':
+        return [SprCurrencyResponse.model_validate(item).model_dump() for item in query]
+    elif dictionary == 'source':
+        return [SprSourceResponse.model_validate(item).model_dump() for item in query]
+    elif dictionary == 'type_payment':
+        return [SprTypePaymentResponse.model_validate(item).model_dump() for item in query]
+    elif dictionary == 'category':
+        return [CategoryResponse.model_validate(item).model_dump() for item in query]
+    else:
+        return []

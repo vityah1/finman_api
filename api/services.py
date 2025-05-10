@@ -17,7 +17,7 @@ from mydb import db
 logger = logging.getLogger()
 
 
-async def bank_import(user_id: int, bank: str, file: UploadFile, action: str = "import"):
+async def bank_import(user: User, bank: str, file: UploadFile, action: str = "import"):
     """
     Імпорт даних з банківських виписок
     
@@ -38,7 +38,7 @@ async def bank_import(user_id: int, bank: str, file: UploadFile, action: str = "
         file_content = await file.read()
         
         # Перетворюємо дані
-        data_ = await convert_file_to_data(user_id, file_content, file.filename, bank)
+        data_ = await convert_file_to_data(user, file_content, file.filename, bank)
         
         if not data_:
             logger.error("Невалідні дані у файлі")
@@ -65,21 +65,17 @@ async def bank_import(user_id: int, bank: str, file: UploadFile, action: str = "
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Помилка при імпорті файлу: {str(err)}")
 
 
-async def convert_file_to_data(user_id: int, file_content: bytes, filename: str, bank: str) -> List[Dict[str, Any]]:
+async def convert_file_to_data(user: User, file_content: bytes, filename: str, bank: str) -> List[Dict[str, Any]]:
     """
     Перетворює завантажений файл на дані платежів
     
     Параметри:
-        user_id: ID користувача
+        user: Об'єкт користувача
         file_content: Вміст файлу в бінарному форматі
         filename: Ім'я файлу
         bank: Назва банку
     """
     data = []
-    user = db.session.query(User).get(user_id)
-    
-    if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Користувача не знайдено")
     
     # Створюємо об'єкт для читання файлу
     file_obj = io.BytesIO(file_content)
@@ -121,6 +117,6 @@ async def convert_file_to_data(user_id: int, file_content: bytes, filename: str,
                 pmt = None
 
         if pmt:
-            data.append(pmt.dict())
+            data.append(pmt.model_dump())
 
     return data

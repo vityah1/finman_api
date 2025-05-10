@@ -14,7 +14,6 @@ from utils import do_sql_cmd
 from mydb import get_db
 from models import User
 from app.auth.jwt import create_access_token
-from dependencies import get_current_user
 
 logger = logging.getLogger(__name__)
 
@@ -91,8 +90,6 @@ async def user_login(login_data: LoginModel, db: Session = Depends(get_db)):
     
     # Створюємо JWT токен доступу з використанням нової функції
     access_token = create_access_token(user_data)
-    
-    # Використовуємо Pydantic для серіалізації замість to_dict
     
     # Формуємо відповідь
     result = UserResponse.model_validate(user).model_dump()

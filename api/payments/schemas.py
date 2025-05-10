@@ -1,6 +1,6 @@
-from pydantic import BaseModel, Field
-from typing import Optional, List, Dict
-from datetime import date
+from pydantic import BaseModel, Field, field_validator, model_validator
+from typing import Optional, List, Dict, Any, Union
+from datetime import date, datetime
 
 # Схема для даних про заправку
 class RefuelData(BaseModel):
@@ -17,29 +17,28 @@ class PaymentBase(BaseModel):
     mydesc: Optional[str] = Field(None, description="Додатковий опис (автоматично генерується для заправки)")
     category_id: Optional[int] = Field(None, description="ID категорії")
     currency: str = Field("UAH", description="Валюта платежу")
-    rdate: Optional[date] = Field(None, description="Дата платежу")
+    rdate: Optional[datetime] = Field(None, description="Дата платежу")
+    source: Optional[str] = Field(None, description="Джерело платежу (mono, p24, revolut, wise, webapp)")
+    refuel_data: Optional[RefuelData] = Field(None, description="Дані про заправку (якщо це заправка)")
 
     model_config = {
         "from_attributes": True
     }
+    
+    
 
 class PaymentCreate(PaymentBase):
     bank_payment_id: Optional[str] = Field(None, description="Унікальний ID платежу (генерується автоматично)")
-    refuel_data: Optional[RefuelData] = Field(None, description="Дані про заправку (якщо це заправка)")
     user_id: Optional[int] = Field(None, description="ID користувача (встановлюється автоматично)")
 
-class PaymentUpdate(BaseModel):
-    amount: Optional[float] = Field(None, description="Сума платежу")
-    currency_amount: Optional[float] = Field(None, description="Сума платежу в оригінальній валюті")
-    description: Optional[str] = Field(None, description="Опис платежу")
-    mydesc: Optional[str] = Field(None, description="Додатковий опис")
-    category_id: Optional[int] = Field(None, description="ID категорії")
-    currency: Optional[str] = Field(None, description="Валюта платежу")
+class PaymentUpdate(PaymentBase):
+    # Перевизначаємо поле rdate з іншим типом
     rdate: Optional[date] = Field(None, description="Дата платежу")
-    refuel_data: Optional[RefuelData] = Field(None, description="Дані про заправку (якщо це заправка)")
+    # Всі інші поля успадковуються з PaymentBase
     
     model_config = {
-        "from_attributes": True
+        "from_attributes": True,
+        "extra": "ignore"  # Ігнорувати додаткові поля, які не повинні оновлюватися
     }
 
 class PaymentCategoryUpdate(BaseModel):
@@ -58,6 +57,7 @@ class PaymentResponse(PaymentBase):
     user_login: Optional[str] = None
     refuel_data: Optional[RefuelData] = None
     mono_user_name: Optional[str] = None
+    source: Optional[str] = None
 
 # Модель для відповіді з результатом операції
 class OperationResult(BaseModel):
