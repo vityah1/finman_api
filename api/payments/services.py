@@ -2,81 +2,99 @@ import datetime
 import logging
 import re
 
-from flask import abort, jsonify, request
+from fastapi import HTTPException, status
+from api.payments.schemas import PaymentBase, PaymentCreate, PaymentUpdate, PaymentResponse, OperationResult, BulkOperationResult
 
 from api.funcs import get_last_rate, get_main_sql
 from api.payments.funcs import (
     conv_refuel_data_to_desc, convert_desc_to_refuel_data, create_bank_payment_id, get_dates,
-    get_user_phones_from_config,
+    get_user_phones_from_config
 )
-from models import Payment
+from api.groups.services import check_user_in_group
+from models.models import Payment
 from mydb import db
 from utils import do_sql_sel
 
 logger = logging.getLogger()
 
 
-def add_payment_(user_id: int):
+def add_payment_(user_id: int, payment_data: PaymentCreate):
     """
     insert a new payment
     """
-    data = request.get_json()
-    data['user_id'] = user_id
-    if "refuel_data" in data and "km" in data["refuel_data"] and data["refuel_data"]["km"]:
-        result = conv_refuel_data_to_desc(data["refuel_data"])
+    # Встановлюємо ID користувача
+    payment_data.user_id = user_id
+    
+    # Обробляємо дані заправки, якщо вони є
+    if payment_data.refuel_data and payment_data.refuel_data.km:
+        # Конвертуємо дані про заправку в опис
+        refuel_dict = payment_data.refuel_data.model_dump(exclude_unset=True)
+        result = conv_refuel_data_to_desc(refuel_dict)
         if result:
-            data['mydesc'] = result
-    data['bank_payment_id'] = create_bank_payment_id(data)
-    if data['currency'] != 'UAH':
-        data['amount'] = float(data['currency_amount']) * get_last_rate(data['currency'], data['rdate'])
+            payment_data.mydesc = result
+    
+    # Створюємо унікальний ID платежу
+    payment_data.bank_payment_id = create_bank_payment_id(payment_data.model_dump())
+    
+    # Розраховуємо суму в UAH, якщо валюта інша
+    if payment_data.currency != 'UAH' and payment_data.currency_amount:
+        rate = get_last_rate(payment_data.currency, payment_data.rdate)
+        payment_data.amount = float(payment_data.currency_amount) * rate
+    else:
+        payment_data.amount = payment_data.currency_amount
+    
+    # Створюємо об'єкт Payment з Pydantic моделі
     payment = Payment()
-    payment.from_dict(**data)
+    payment_dict = payment_data.model_dump(exclude_unset=True)
+    for key, value in payment_dict.items():
+        # Виключаємо refuel_data, оскільки це не колонка в таблиці Payment
+        if key != 'refuel_data' and hasattr(payment, key):
+            setattr(payment, key, value)
+    
     try:
         db.session().add(payment)
         db.session().commit()
+        logger.info(f"Платіж успішно доданий: {payment.id}")
     except Exception as err:
         db.session().rollback()
+        logger.error(f"Помилка при додаванні платежу: {str(err)}")
         raise err
 
-    return payment.to_dict()
+    # Використовуємо PaymentResponse для уніфікованого формату відповіді
+    return PaymentResponse.model_validate(payment).model_dump()
 
 
-def get_payments_detail(user_id: int) -> list[dict]:
+def get_payments_detail(user_id: int, params: dict) -> list[dict]:
     """
     list or search all payments.
     if not set conditions year and month then get current year and month
     if set q then do search
     """
 
-    sort = request.args.get("sort")
-    category_id = request.args.get("category_id")
-    year = request.args.get("year")
-    month = request.args.get("month")
-    currency = request.args.get('currency', 'UAH') or 'UAH'
-    group_id = request.args.get("group_id")
-    group_user_id = request.args.get("group_user_id")
+    sort = params.get("sort")
+    category_id = params.get("category_id")
+    year = params.get("year")
+    month = params.get("month")
+    currency = params.get('currency', 'UAH') or 'UAH'
+    group_id = params.get("group_id")
+    group_user_id = params.get("group_user_id")
 
     if not sort:
         sort = "order by `amount` desc"
-    elif sort == "1":
-        sort = "order by `rdate` desc"
-    elif sort == "2":
-        sort = "order by `category_id`"
-    elif sort == "3":
-        sort = "order by `amount` desc"
-    else:
-        sort = "order by `amount` desc"
 
     current_date, end_date, start_date = get_dates(month, year)
-    um = []
+
+    um = ""
+    if q := params.get("q"):
+        um = f" and LOWER(`mydesc`) LIKE '%{q.lower()}%'"
 
     data = {
         "start_date": start_date,
         "end_date": end_date,
         "user_id": user_id,
-        "mono_user_id": request.args.get("mono_user_id"),
+        "mono_user_id": params.get("mono_user_id"),
         "currency": currency,
-        "q": request.args.get("q"),
+        "q": params.get("q"),
     }
 
     # Додаємо фільтрацію за групою
@@ -130,20 +148,22 @@ def get_payment_detail(payment_id: int):
     """
     get info about payment
     """
-
     payment = db.session().query(Payment).get(payment_id)
 
     if not payment:
-        abort(404, "payment not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Платіж не знайдено")
 
-    result = payment.to_dict()
+    # Створюємо відповідь через Pydantic модель
+    result = PaymentResponse.model_validate(payment).model_dump()
+    
+    # Додаємо назву категорії
     result["category_name"] = payment.category.name
 
-    refuel_data = {}
-    if payment.category.name == "Заправка":
+    # Додаємо дані про заправку, якщо це заправка
+    if payment.category.is_fuel:
         refuel_data = convert_desc_to_refuel_data(payment.mydesc)
-    if refuel_data:
-        result["refuel_data"] = refuel_data
+        if refuel_data:
+            result["refuel_data"] = refuel_data
 
     return result
 
@@ -153,147 +173,149 @@ def del_payment_(payment_id: int):
     mark delete payment
     """
     payment = db.session().query(Payment).get(payment_id)
+    if not payment:
+        logger.error(f"Платіж з ID {payment_id} не знайдено")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Платіж не знайдено")
+        
     payment.is_deleted = True
     try:
         db.session().commit()
+        logger.info(f"Платіж з ID {payment_id} помічений як видалений")
     except Exception as err:
         db.session().rollback()
+        logger.error(f"Помилка при видаленні платежу: {str(err)}")
         raise err
 
-    return jsonify({"status": "ok"})
+    return OperationResult(status="ok").model_dump()
 
 
-def upd_payment_(payment_id):
+def upd_payment_(payment_id: int, payment_data: PaymentUpdate):
     """
     update payment
     """
-    data = request.get_json()
-    if "refuel_data" in data and "km" in data["refuel_data"] and data["refuel_data"]["km"]:
-        data["mydesc"] = conv_refuel_data_to_desc(data["refuel_data"])
-    data["id"] = payment_id
+    # Отримуємо платіж з бази даних
     payment = db.session().query(Payment).get(payment_id)
-    data["rdate"] = datetime.datetime.strptime(data["rdate"], "%Y-%m-%d")
+    if not payment:
+        logger.error(f"Платіж з ID {payment_id} не знайдено")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Платіж не знайдено")
+    
+    # Оновлюємо дані про заправку, якщо вони надані
+    if payment_data.refuel_data and payment_data.refuel_data.km:
+        refuel_dict = payment_data.refuel_data.model_dump(exclude_unset=True)
+        payment_data.mydesc = conv_refuel_data_to_desc(refuel_dict)
+    
+    # Конвертуємо Pydantic модель у словник та виключаємо None значення
+    update_data = payment_data.model_dump(exclude_unset=True)
+    
+    # Встановлюємо ID платежу
+    update_data["id"] = payment_id
+    
     try:
-        payment.update(**data)
+        # Оновлюємо платіж
+        for key, value in update_data.items():
+            if key != 'refuel_data' and hasattr(payment, key):
+                setattr(payment, key, value)
         db.session().commit()
+        logger.info(f"Платіж з ID {payment_id} успішно оновлено")
     except Exception as err:
         db.session().rollback()
+        logger.error(f"Помилка при оновленні платежу: {str(err)}")
         raise err
 
-    # return payment.to_dict()
     return get_payment_detail(payment_id)
 
 
-def change_payments_category_(user_id: int):
+def change_payments_category_(user_id: int, payment_ids: list[int], category_id: int):
     """
     Змінює категорію для списку платежів
     Вхідні дані: payment_ids - список ID платежів, category_id - нова категорія
     
     Дозволяє адміністратору групи змінювати категорію платежів учасників групи
     """
-    from models.models import Group, UserGroupAssociation
     
-    data = request.get_json()
-    payment_ids = data.get('payment_ids', [])
-    category_id = data.get('category_id')
+    # Отримуємо всі платежі
+    payments = db.session().query(Payment).filter(Payment.id.in_(payment_ids)).all()
     
-    if not payment_ids or not category_id:
-        abort(400, "Потрібно вказати payment_ids та category_id")
+    # Платежі, до яких користувач має доступ
+    allowed_payments = []
+    
+    # Перевіряємо доступ до кожного платежу
+    for payment in payments:
+        if payment.user_id == user_id:
+            # Користувач є власником платежу
+            allowed_payments.append(payment)
+        else:
+            # Перевіряємо, чи є користувач адміністратором групи, до якої належить платіж
+            is_admin = check_user_in_group(payment.user_id, user_id)
+            if is_admin:
+                allowed_payments.append(payment)
+    
+    if not allowed_payments:
+        # Якщо немає платежів, до яких користувач має доступ
+        logger.warning(f"Не знайдено платежів для користувача {user_id} з ID {payment_ids} або немає прав доступу")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Немає доступу до платежів"
+        )
+    
+    # Змінюємо категорію для доступних платежів
+    for payment in allowed_payments:
+        payment.category_id = category_id
     
     try:
-        # Перевіряємо, чи є користувач адміністратором якоїсь групи
-        admin_groups = db.session().query(Group).filter_by(owner_id=user_id).all()
-        
-        # Отримуємо список ID користувачів, які входять до груп адміністратора
-        group_member_ids = set()
-        for group in admin_groups:
-            associations = db.session().query(UserGroupAssociation).filter_by(group_id=group.id).all()
-            for assoc in associations:
-                group_member_ids.add(assoc.user_id)
-        
-        # Додаємо ID самого адміністратора до цього списку
-        group_member_ids.add(user_id)
-        
-        # Перевіряємо кожен платіж
-        updated_count = 0
-        for payment_id in payment_ids:
-            payment = db.session().query(Payment).get(payment_id)
-            
-            if not payment:
-                continue
-                
-            # Перевіряємо, чи має користувач доступ до цього платежу
-            # Доступ має власник платежу або адмін групи, у якій власник платежу є учасником
-            if payment.user_id not in group_member_ids:
-                continue
-                
-            payment.category_id = category_id
-            updated_count += 1
-        
         db.session().commit()
-        return jsonify({
-            "status": "ok", 
-            "message": f"Оновлено категорію для {updated_count} платежів",
-            "updated_count": updated_count
-        })
+        logger.info(f"Змінено категорію для {len(allowed_payments)} платежів на {category_id}")
     except Exception as err:
         db.session().rollback()
+        logger.error(f"Помилка при зміні категорії платежів: {str(err)}")
         raise err
+    
+    return BulkOperationResult.success(len(allowed_payments), "Оновлено")
 
 
-def bulk_delete_payments_(user_id: int):
+def bulk_delete_payments_(user_id: int, payment_ids: list[int]):
     """
     Масове видалення платежів
     Вхідні дані: payment_ids - список ID платежів для видалення
     
     Дозволяє адміністратору групи видаляти платежі учасників групи
     """
-    from models.models import Group, UserGroupAssociation
     
-    data = request.get_json()
-    payment_ids = data.get('payment_ids', [])
+    # Отримуємо всі платежі
+    payments = db.session().query(Payment).filter(Payment.id.in_(payment_ids)).all()
     
-    if not payment_ids:
-        abort(400, "Потрібно вказати payment_ids")
+    # Платежі, до яких користувач має доступ
+    allowed_payments = []
+    
+    # Перевіряємо доступ до кожного платежу
+    for payment in payments:
+        if payment.user_id == user_id:
+            # Користувач є власником платежу
+            allowed_payments.append(payment)
+        else:
+            # Перевіряємо, чи є користувач адміністратором групи, до якої належить платіж
+            is_admin = check_user_in_group(payment.user_id, user_id)
+            if is_admin:
+                allowed_payments.append(payment)
+    
+    if not allowed_payments:
+        # Якщо немає платежів, до яких користувач має доступ
+        logger.warning(f"Не знайдено платежів для користувача {user_id} з ID {payment_ids} або немає прав доступу")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Немає доступу до платежів"
+        )
+    
+    # Позначаємо платежі як видалені
+    for payment in allowed_payments:
+        payment.is_deleted = True
     
     try:
-        # Перевіряємо, чи є користувач адміністратором якоїсь групи
-        admin_groups = db.session().query(Group).filter_by(owner_id=user_id).all()
-        
-        # Отримуємо список ID користувачів, які входять до груп адміністратора
-        group_member_ids = set()
-        for group in admin_groups:
-            associations = db.session().query(UserGroupAssociation).filter_by(group_id=group.id).all()
-            for assoc in associations:
-                group_member_ids.add(assoc.user_id)
-        
-        # Додаємо ID самого адміністратора до цього списку
-        group_member_ids.add(user_id)
-        
-        # Перевіряємо кожен платіж
-        deleted_count = 0
-        for payment_id in payment_ids:
-            payment = db.session().query(Payment).get(payment_id)
-            
-            if not payment:
-                continue
-                
-            # Перевіряємо, чи має користувач доступ до цього платежу
-            # Доступ має власник платежу або адмін групи, у якій власник платежу є учасником
-            if payment.user_id not in group_member_ids:
-                continue
-
-            # Замість фізичного видалення помічаємо платіж як видалений
-            payment.is_deleted = True
-            deleted_count += 1
-        
         db.session().commit()
-        return jsonify({
-            "status": "ok", 
-            "message": f"Видалено {deleted_count} платежів",
-            "deleted_count": deleted_count
-        })
+        logger.info(f"Видалено {len(allowed_payments)} платежів")
     except Exception as err:
         db.session().rollback()
+        logger.error(f"Помилка при видаленні платежів: {str(err)}")
         raise err
-
+    
+    return BulkOperationResult.success(len(allowed_payments), "Видалено")

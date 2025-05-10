@@ -41,7 +41,7 @@ async def payments_for_period(
     data = {
         "start_date": start_date,
         "end_date": end_date,
-        "user_id": current_user.get('user_id'),
+        "user_id": current_user.id,
         "mono_user_id": mono_user_id,
         "currency": currency or 'UAH',
     }
@@ -95,24 +95,15 @@ async def payments_by_years(
     Повертає платежі згруповані за роками
     """
 
-    dialect_name = db.engine.dialect.name
-
-    if dialect_name == 'sqlite':
-        substring_func = "strftime('%Y', `rdate`)"
-        amount_func = "CAST(sum(`amount`) AS INTEGER)"
-    elif dialect_name == 'mysql':
-        substring_func = 'extract(YEAR from `rdate`)'
-        amount_func = 'convert(sum(`amount`), UNSIGNED)'
-    else:
-        raise HTTPException(status_code=400, detail=f"Substring function not implemented for dialect: {dialect_name}")
-
-    data = {"user_id": current_user.get('user_id')}
+    substring_func = 'extract(YEAR from `rdate`)'
+    amount_func = 'convert(sum(`amount`), UNSIGNED)'
+    data = {"user_id": current_user.id}
     if grouped:
         main_sql = ("select rdate from `payments` "
                     "where amount > 0 and is_deleted = 0 and user_id = :user_id")
         add_fields = ""
     else:
-        data["user_id"] = current_user.get('user_id')
+        data["user_id"] = current_user.id
         data["mono_user_id"] = mono_user_id
         data["currency"] = currency or 'UAH'
         add_fields = f", {amount_func} as amount, count(*) as cnt"
@@ -145,7 +136,7 @@ async def payment_by_months(
     """
     
     data = {
-        "user_id": current_user.get('user_id'),
+        "user_id": current_user.id,
         "year": str(year),
         "mono_user_id": mono_user_id,
         "currency": currency or 'UAH',

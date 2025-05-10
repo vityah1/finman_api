@@ -15,8 +15,31 @@ from models import *
 logging.config.dictConfig(logger_config)
 logger = logging.getLogger(__name__)
 
-# Створюємо екземпляр FastAPI
-app = FastAPI(title="FinMan API", version="1.0.0")
+# Створюємо екземпляр FastAPI з підтримкою OAuth2
+from fastapi.openapi.models import OAuthFlows as OAuthFlowsModel
+from fastapi.security import OAuth2PasswordBearer, OAuth2
+from fastapi.openapi.models import OAuthFlows
+
+# Налаштування схеми OAuth2 для Swagger UI
+oauth2_scheme = OAuth2(
+    flows=OAuthFlowsModel(
+        password={
+            "tokenUrl": "/api/auth/signin",
+            "scopes": {}
+        }
+    ),
+    description="JWT автентифікація"
+)
+
+app = FastAPI(
+    title="FinMan API", 
+    version="1.0.0",
+    swagger_ui_oauth2_redirect_url="/oauth2-redirect",
+    swagger_ui_init_oauth={
+        "usePkceWithAuthorizationCodeGrant": True,
+        "useBasicAuthenticationWithAccessCodeGrant": True
+    }
+)
 
 # Додаємо CORS middleware
 app.add_middleware(
@@ -75,14 +98,28 @@ async def startup_db_client():
     if not check_exsists_table(SprCurrency):
         SprCurrency.__table__.create(db.engine)
 
-# Відображення запитів у логах    
+# Покращене логування та перехоплення помилок
 @app.middleware("http")
 async def log_requests(request, call_next):
-    response = await call_next(request)
-    logger.info(
-        f"path: {request.url.path} | method: {request.method} | status: {response.status_code}"
-    )
-    return response
+    logger.info(f"Request: {request.method} {request.url.path} | Headers: {request.headers}")
+    
+    try:
+        response = await call_next(request)
+        logger.info(f"Response: {request.method} {request.url.path} | Status: {response.status_code}")
+        return response
+    except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        logger.error(f"Exception during request processing: {str(e)}\n{error_details}")
+        
+        # Повертаємо помилку 500 з деталями
+        from app.config import DEBUG
+        if DEBUG:
+            error_msg = {"detail": str(e), "traceback": error_details.split("\n")}
+        else:
+            error_msg = {"detail": "Непередбачена помилка", "error_type": e.__class__.__name__}
+            
+        return JSONResponse(status_code=500, content=error_msg)
 
 # Запуск додатку (якщо викликається напряму)
 if __name__ == "__main__":

@@ -1,10 +1,9 @@
 # _*_ coding:UTF-8 _*_
 
-from fastapi import APIRouter, Depends, HTTPException, status, Body, Query
-from typing import List, Optional, Dict, Any
-from datetime import date
-from pydantic import BaseModel, Field
+from fastapi import APIRouter, Depends, Body, Query
+from typing import Optional
 
+from api.payments.schemas import PaymentCreate, PaymentUpdate, PaymentCategoryUpdate, PaymentBulkDelete
 from api.payments.services import (
     add_payment_,
     del_payment_,
@@ -12,41 +11,14 @@ from api.payments.services import (
     get_payment_detail,
     get_payments_detail,
     change_payments_category_,
-    bulk_delete_payments_,
+    bulk_delete_payments_
 )
 from dependencies import get_current_user
 from models.models import User
 
-# Створюємо Pydantic моделі для запитів та відповідей
-class PaymentBase(BaseModel):
-    amount: float = Field(..., description="Сума платежу")
-    description: Optional[str] = Field(None, description="Опис платежу")
-    category_id: Optional[int] = Field(None, description="ID категорії")
-    currency: str = Field("UAH", description="Валюта платежу")
-    rdate: Optional[date] = Field(None, description="Дата платежу")
-
-class PaymentCreate(PaymentBase):
-    pass
-
-class PaymentUpdate(BaseModel):
-    amount: Optional[float] = Field(None, description="Сума платежу")
-    description: Optional[str] = Field(None, description="Опис платежу")
-    category_id: Optional[int] = Field(None, description="ID категорії")
-    currency: Optional[str] = Field(None, description="Валюта платежу")
-    rdate: Optional[date] = Field(None, description="Дата платежу")
-
-class PaymentCategoryUpdate(BaseModel):
-    payment_ids: List[int] = Field(..., description="Список ID платежів")
-    category_id: int = Field(..., description="ID нової категорії")
-
-class PaymentBulkDelete(BaseModel):
-    payment_ids: List[int] = Field(..., description="Список ID платежів для видалення")
-
-# Створюємо маршрути замість Blueprint
 router = APIRouter(tags=["payments"])
 
-
-@router.post("/api/payments", status_code=status.HTTP_201_CREATED)
+@router.post("/api/payments")
 async def add_payment(
     payment: PaymentCreate = Body(...),
     current_user: User = Depends(get_current_user)
@@ -54,7 +26,7 @@ async def add_payment(
     """
     Додавання нового платежу
     """
-    return add_payment_(current_user.id, payment_data=payment.dict())
+    return add_payment_(current_user.id, payment_data=payment)
 
 
 @router.get("/api/payments")
@@ -111,7 +83,7 @@ async def upd_payment(
     """
     Оновлення інформації про платіж
     """
-    return upd_payment_(payment_id, payment_data=payment.dict(exclude_unset=True))
+    return upd_payment_(payment_id, payment_data=payment)
 
 
 @router.post("/api/payments/change-category")
@@ -122,7 +94,11 @@ async def change_payments_category(
     """
     Змінює категорію для списку платежів
     """
-    return change_payments_category_(current_user.id, data=update_data.dict())
+    return change_payments_category_(
+        user_id=current_user.id,
+        payment_ids=update_data.payment_ids,
+        category_id=update_data.category_id
+    )
 
 
 @router.post("/api/payments/bulk-delete")
@@ -133,4 +109,7 @@ async def bulk_delete_payments(
     """
     Масове видалення платежів за списком ID
     """
-    return bulk_delete_payments_(current_user.id, data=delete_data.dict())
+    return bulk_delete_payments_(
+        user_id=current_user.id,
+        payment_ids=delete_data.payment_ids
+    )
