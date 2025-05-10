@@ -1,4 +1,4 @@
-from api.wise.route import wise_bp
+from api.wise.route import router
 
-__all__ = ["wise_bp"]
+__all__ = ["router"]
 

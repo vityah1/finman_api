@@ -1,4 +1,4 @@
-from api.mono.route import mono_bp
+from api.mono.route import router
 
-__all__ = ["mono_bp"]
+__all__ = ["router"]
 

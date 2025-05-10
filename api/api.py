@@ -1,30 +1,36 @@
-from flask import Blueprint, request, jsonify, current_app, abort
-from flask_jwt_extended import jwt_required, get_jwt_identity
-from flask_cors import cross_origin
+from typing import Optional, Dict, List, Any, Union
+from fastapi import APIRouter, Request, Depends, HTTPException, Query
+from fastapi.responses import JSONResponse
+import logging
+import json
 
 from api.funcs import get_main_sql
 from api.payments.funcs import get_dates
-from mydb import db
+from mydb import db, get_db
+from sqlalchemy.orm import Session
 from utils import do_sql_sel
+from dependencies import get_current_user
+from models.models import User
 
-api_bp = Blueprint(
-    "api_bp",
-    __name__,
-    static_folder="static",
-)
+# Створюємо router замість Blueprint
+router = APIRouter(tags=["api"])
 
 
-@api_bp.route("/api/payments/period", methods=["GET"])
-@cross_origin()
-@jwt_required()
-def payments_for_period():
+@router.get("/api/payments/period")
+async def payments_for_period(
+    request: Request, 
+    year: str = Query("", description="Рік для фільтрації"),
+    month: str = Query("", description="Місяць для фільтрації"),
+    mono_user_id: Optional[str] = Query(None, description="ID користувача Monobank"),
+    currency: str = Query("UAH", description="Валюта"),
+    group_user_id: Optional[str] = Query(None, description="ID користувача групи"),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
     """
-    return payments grouped by categories in some period (year, month)
+    Повертає платежі згруповані за категоріями за певний період (рік, місяць)
     """
-    current_user = get_jwt_identity()
-    year = request.args.get("year", "")
-    month = request.args.get("month", "")
-
+    
     if year:
         year = year.zfill(2)
     if month:
@@ -36,27 +42,27 @@ def payments_for_period():
         "start_date": start_date,
         "end_date": end_date,
         "user_id": current_user.get('user_id'),
-        "mono_user_id": request.args.get("mono_user_id"),
-        "currency": request.args.get('currency', 'UAH') or 'UAH',
+        "mono_user_id": mono_user_id,
+        "currency": currency or 'UAH',
     }
 
     # Додаємо фільтрацію за користувачем з групи
-    if request.args.get("group_user_id"):
+    if group_user_id:
         try:
-            data["group_user_id"] = int(request.args.get("group_user_id"))
+            data["group_user_id"] = int(group_user_id)
         except (ValueError, TypeError):
-            data["group_user_id"] = request.args.get("group_user_id")
+            data["group_user_id"] = group_user_id
 
     main_sql = get_main_sql(data)
 
-    dialect_name = db.engine.dialect.name
+    dialect_name = db.get_bind().dialect.name
 
     if dialect_name == 'sqlite':
         amount_func = "CAST(sum(`amount`) AS INTEGER)"
     elif dialect_name == 'mysql':
         amount_func = 'convert(sum(`amount`), UNSIGNED)'
     else:
-        abort(400, f"Substring function not implemented for dialect: {dialect_name}")
+        raise HTTPException(status_code=400, detail=f"Substring function not implemented for dialect: {dialect_name}")
 
     sql = f"""
     select 
@@ -77,13 +83,18 @@ def payments_for_period():
     return do_sql_sel(sql, data)
 
 
-@api_bp.route("/api/payments/years", methods=["GET"])
-@cross_origin()
-@jwt_required()
-def payments_by_years():
+@router.get("/api/payments/years")
+async def payments_by_years(
+    grouped: Optional[bool] = Query(False, description="Чи групувати за роками"),
+    mono_user_id: Optional[str] = Query(None, description="ID користувача Monobank"),
+    currency: str = Query("UAH", description="Валюта"),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
     """
-    return total payments grouped by years
+    Повертає платежі згруповані за роками
     """
+
     dialect_name = db.engine.dialect.name
 
     if dialect_name == 'sqlite':
@@ -93,18 +104,17 @@ def payments_by_years():
         substring_func = 'extract(YEAR from `rdate`)'
         amount_func = 'convert(sum(`amount`), UNSIGNED)'
     else:
-        abort(400, f"Substring function not implemented for dialect: {dialect_name}")
+        raise HTTPException(status_code=400, detail=f"Substring function not implemented for dialect: {dialect_name}")
 
-    current_user = get_jwt_identity()
     data = {"user_id": current_user.get('user_id')}
-    if request.args.get("grouped"):
+    if grouped:
         main_sql = ("select rdate from `payments` "
                     "where amount > 0 and is_deleted = 0 and user_id = :user_id")
         add_fields = ""
     else:
         data["user_id"] = current_user.get('user_id')
-        data["mono_user_id"] = request.args.get("mono_user_id")
-        data["currency"] = request.args.get('currency', 'UAH') or 'UAH'
+        data["mono_user_id"] = mono_user_id
+        data["currency"] = currency or 'UAH'
         add_fields = f", {amount_func} as amount, count(*) as cnt"
 
         main_sql = get_main_sql(data)
@@ -122,19 +132,23 @@ group by {substring_func} order by 1 desc
     return do_sql_sel(sql, data)
 
 
-@api_bp.route("/api/payments/years/<int:year>", methods=["GET"])
-@cross_origin()
-@jwt_required()
-def payment_by_months(year):
+@router.get("/api/payments/{year}/months")
+async def payment_by_months(
+    year: int,
+    mono_user_id: Optional[str] = Query(None, description="ID користувача Monobank"),
+    currency: str = Query("UAH", description="Валюта"),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
     """
-    return total payments grouped by months in year
+    Повертає платежі згруповані за місяцями в році
     """
-    current_user = get_jwt_identity()
+    
     data = {
         "user_id": current_user.get('user_id'),
         "year": str(year),
-        "mono_user_id": request.args.get("mono_user_id"),
-        "currency": request.args.get('currency', 'UAH') or 'UAH',
+        "mono_user_id": mono_user_id,
+        "currency": currency or 'UAH',
     }
     main_sql = get_main_sql(data)
 
@@ -148,7 +162,7 @@ def payment_by_months(year):
         year_func = 'extract(YEAR from p.`rdate`)'
         amount_func = 'convert(sum(p.`amount`), UNSIGNED)'
     else:
-        abort(400, f"Substring function not implemented for dialect: {dialect_name}")
+        raise HTTPException(status_code=400, detail=f"Substring function not implemented for dialect: {dialect_name}")
 
     sql = f"""select 
 {month_func} month, {amount_func} as amount,
@@ -165,17 +179,20 @@ group by {month_func} order by 1 desc
     return do_sql_sel(sql, data)
 
 
-@api_bp.route("/api/about", methods=["GET"])
-@cross_origin()
-def about():
+@router.get("/api/about")
+async def about():
     """
-    return content of /txt/about.html
+    Повертає вміст файлу /txt/about.html
     """
+    logger = logging.getLogger(__name__)
     try:
         with open("txt/about.html", encoding="utf8") as f:
             data = f.read()
     except Exception as err:
-        current_app.logger.error(f"{err}")
-        return jsonify({"status": "error", "data": "error open about file"})
+        logger.error(f"{err}")
+        return JSONResponse(
+            status_code=500,
+            content={"status": "error", "data": "error open about file"}
+        )
 
-    return jsonify({"status": "ok", "data": data})
+    return {"status": "ok", "data": data}

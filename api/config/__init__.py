@@ -1,3 +1,3 @@
-from api.config.route import config_bp
+from api.config.route import router
 
-__all__ = ["config_bp"]
+__all__ = ["router"]

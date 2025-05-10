@@ -1,28 +1,36 @@
 # _*_ coding:UTF-8 _*_
 import logging
+from typing import Optional, Dict, Any, List
 
-from flask import Blueprint
-from flask_cors import cross_origin
-from flask_jwt_extended import jwt_required, get_jwt_identity
+from fastapi import APIRouter, Depends, HTTPException, status, Body, Path, Query
+from pydantic import BaseModel, Field
 
 from api.services import bank_import
+from dependencies import get_current_user
+from models.models import User
 
+# Pydantic моделі для запитів та відповідей
+class P24ImportRequest(BaseModel):
+    from_date: Optional[str] = Field(None, description="Початкова дата для імпорту (формат: YYYY-MM-DD)")
+    to_date: Optional[str] = Field(None, description="Кінцева дата для імпорту (формат: YYYY-MM-DD)")
+    account_id: Optional[str] = Field(None, description="ID рахунку Privat24")
 
-p24_bp = Blueprint(
-    "p24_bp",
-    __name__,
-)
+# Створюємо маршрути замість Blueprint
+router = APIRouter(tags=["p24"])
 
 logger = logging.getLogger()
 
 
-@p24_bp.route("/api/p24/import", methods=["POST"])
-@cross_origin()
-@jwt_required()
-def p24_import():
+@router.post("/api/p24/import", status_code=status.HTTP_200_OK)
+async def p24_import(
+    import_data: Optional[P24ImportRequest] = Body(None),
+    current_user: User = Depends(get_current_user)
+):
     """
-    import data from wise
+    Import data from Privat24
     """
-    current_user = get_jwt_identity()
-    user_id = current_user.get('user_id')
-    return bank_import(user_id, 'p24')
+    params = None
+    if import_data:
+        params = import_data.dict(exclude_unset=True)
+    
+    return bank_import(current_user.id, 'p24', params)

@@ -1,3 +1,3 @@
-from api.payments.route import payments_bp
+from api.payments.route import router   
 
-__all__ = ["payments_bp"]
+__all__ = ["router"]

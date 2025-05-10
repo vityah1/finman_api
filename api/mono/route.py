@@ -1,9 +1,9 @@
 # _*_ coding:UTF-8 _*_
 import logging
+from typing import Optional, Dict, Any, List
 
-from flask import Blueprint
-from flask_cors import cross_origin
-from flask_jwt_extended import jwt_required, get_jwt_identity
+from fastapi import APIRouter, Depends, HTTPException, status, Body, Path, Query
+from pydantic import BaseModel, Field
 
 from api.mono.services import (
     get_mono_user_info_,
@@ -12,65 +12,80 @@ from api.mono.services import (
     mono_webhook_handler_,
     process_mono_data_payments,
 )
+from dependencies import get_current_user
+from models.models import User
 
+# Pydantic моделі для запитів та відповідей
+class MonoWebhookRequest(BaseModel):
+    webhook_url: str = Field(..., description="URL для встановлення вебхуку")
 
-mono_bp = Blueprint(
-    "mono_bp",
-    __name__,
-)
+class MonoPaymentProcessRequest(BaseModel):
+    mono_user_id: int = Field(..., description="ID користувача Mono")
+    from_date: Optional[str] = Field(None, description="Початкова дата (формат: YYYY-MM-DD)")
+    to_date: Optional[str] = Field(None, description="Кінцева дата (формат: YYYY-MM-DD)")
+
+# Створюємо маршрути замість Blueprint
+router = APIRouter(tags=["mono"])
 
 mono_logger = logging.getLogger('mono')
 
 
-@mono_bp.route("/api/users/<int:user_id>/mono/info/", methods=["GET"])
-@cross_origin()
-@jwt_required()
-def get_user_mono_users_info(user_id: int):
+@router.get("/api/users/{user_id}/mono/info/")
+async def get_user_mono_users_info(
+    user_id: int,
+    current_user: User = Depends(get_current_user)
+):
     """
-    get current webhook from mono
+    Отримати інформацію про користувачів Monobank
     """
     return get_mono_users_info_(user_id)
 
 
-@mono_bp.route("/api/mono/users/<int:mono_user_id>/info/", methods=["GET"])
-@cross_origin()
-@jwt_required()
-def get_mono_user_info(mono_user_id: int):
+@router.get("/api/mono/users/{mono_user_id}/info/")
+async def get_mono_user_info(
+    mono_user_id: int,
+    current_user: User = Depends(get_current_user)
+):
     """
-    get current webhook from mono
+    Отримати інформацію про конкретного користувача Monobank
     """
     return get_mono_user_info_(mono_user_id)
 
 
-@mono_bp.route("/api/mono/users/<int:mono_user_id>/webhook", methods=["PUT"])
-@cross_origin()
-@jwt_required()
-def set_webhook(mono_user_id: int):
+@router.put("/api/mono/users/{mono_user_id}/webhook")
+async def set_webhook(
+    mono_user_id: int,
+    webhook_data: MonoWebhookRequest = Body(...),
+    current_user: User = Depends(get_current_user)
+):
     """
-    set a new webhook on mono
+    Встановити новий вебхук для Monobank
     """
-    return set_webhook_(mono_user_id)
+    return set_webhook_(mono_user_id, webhook_data.webhook_url)
 
 
-@mono_bp.route("/api/mono/users/<int:mono_user_id>/webhook", methods=["GET"])
-@cross_origin()
-def mono_webhook_test_handler(mono_user_id: int):
+@router.get("/api/mono/users/{mono_user_id}/webhook")
+async def mono_webhook_test_handler(mono_user_id: int):
+    """
+    Тестовий обробник для вебхуків Monobank
+    """
     return {'status': 'ok', "mono_user_id": mono_user_id}
 
 
-@mono_bp.route("/api/mono/users/<int:mono_user_id>/webhook", methods=["POST"])
-@cross_origin()
-def mono_webhook_handler(mono_user_id: int):
+@router.post("/api/mono/users/{mono_user_id}/webhook")
+async def mono_webhook_handler(mono_user_id: int, webhook_data: Dict[str, Any] = Body(...)):
     """
-    insert a new webhook from mono
+    Обробник вебхуків від Monobank
     """
-    return mono_webhook_handler_(mono_user_id)
+    return mono_webhook_handler_(mono_user_id, webhook_data)
 
 
-@mono_bp.route("/api/mono/payments", methods=["POST"])
-@cross_origin()
-@jwt_required()
-def get_mono_data_pmts():
-    current_user = get_jwt_identity()
-    user_id = current_user.get('user_id')
-    return process_mono_data_payments(user_id)
+@router.post("/api/mono/payments")
+async def get_mono_data_pmts(
+    payment_data: MonoPaymentProcessRequest = Body(...),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Обробка платежів від Monobank
+    """
+    return process_mono_data_payments(current_user.id, payment_data.dict())

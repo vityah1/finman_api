@@ -1,85 +1,94 @@
 # _*_ coding:UTF-8 _*_
 
-from flask import Blueprint, request, abort, jsonify
-from flask_cors import cross_origin
-from flask_jwt_extended import jwt_required, get_jwt_identity
+from fastapi import APIRouter, Depends, HTTPException, status, Body, Path, Query
+from typing import Optional, Dict, Any, List
+from pydantic import BaseModel, Field
 
 from api.invitations.services import (
     check_invitation_, accept_invitation_, check_user_invitations_, delete_invitation_,
     get_invitation_, ignore_invitation_,
 )
+from dependencies import get_current_user
+from models.models import User
 
-invitations_bp = Blueprint(
-    "invitations_bp",
-    __name__,
-)
+# Pydantic моделі для запитів та відповідей
+class InvitationAccept(BaseModel):
+    accept_data: Optional[Dict[str, Any]] = Field(None, description="Додаткові дані для прийняття запрошення")
 
+class InvitationIgnore(BaseModel):
+    ignore_reason: Optional[str] = Field(None, description="Причина ігнорування запрошення")
 
-@invitations_bp.route("/api/invitations/<string:invitation_code>", methods=["GET"])
-@cross_origin()
-@jwt_required()
-def check_invitation(invitation_code):
+# Створюємо маршрути замість Blueprint
+router = APIRouter(tags=["invitations"])
+
+@router.get("/api/invitations/{invitation_code}")
+async def check_invitation(
+    invitation_code: str, 
+    current_user: User = Depends(get_current_user)
+):
     """
     Перевірка запрошення
     """
-    current_user = get_jwt_identity()
-    user_id = current_user.get('user_id')
-    return check_invitation_(user_id, invitation_code)
+    return check_invitation_(current_user.id, invitation_code)
 
 
-@invitations_bp.route("/api/invitations/<string:invitation_code>/accept", methods=["POST"])
-@cross_origin()
-@jwt_required()
-def accept_invitation(invitation_code):
+@router.post("/api/invitations/{invitation_code}/accept")
+async def accept_invitation(
+    invitation_code: str,
+    accept_data: Optional[InvitationAccept] = Body(None),
+    current_user: User = Depends(get_current_user)
+):
     """
     Прийняття запрошення
     """
-    current_user = get_jwt_identity()
-    user_id = current_user.get('user_id')
-    return accept_invitation_(user_id, invitation_code)
+    data = None
+    if accept_data:
+        data = accept_data.dict()
+    return accept_invitation_(current_user.id, invitation_code, data)
 
 
-@invitations_bp.route("/api/invitations/<int:invitation_id>", methods=["GET"])
-@cross_origin()
-@jwt_required()
-def get_invitation(invitation_id):
+@router.get("/api/invitations/{invitation_id}")
+async def get_invitation(
+    invitation_id: int,
+    current_user: User = Depends(get_current_user)
+):
     """
     Отримання запрошення
     """
-    current_user = get_jwt_identity()
-    user_id = current_user.get('user_id')
-    return get_invitation_(user_id, invitation_id)
+    return get_invitation_(current_user.id, invitation_id)
 
 
-@invitations_bp.route("/api/invitations/<int:invitation_id>", methods=["DELETE"])
-@cross_origin()
-@jwt_required()
-def delete_invitation(invitation_id):
+@router.delete("/api/invitations/{invitation_id}")
+async def delete_invitation(
+    invitation_id: int,
+    current_user: User = Depends(get_current_user)
+):
     """
     Видалення запрошення
     """
-    current_user = get_jwt_identity()
-    user_id = current_user.get('user_id')
-    return delete_invitation_(user_id, invitation_id)
+    return delete_invitation_(current_user.id, invitation_id)
 
-@invitations_bp.route("/api/users/invitations", methods=["GET"])
-@cross_origin()
-@jwt_required()
-def check_user_invitations():
+
+@router.get("/api/users/invitations")
+async def check_user_invitations(
+    current_user: User = Depends(get_current_user)
+):
     """
     Перевірка наявності запрошень для поточного користувача
     """
-    current_user = get_jwt_identity()
-    user_id = current_user.get('user_id')
-    return check_user_invitations_(user_id)
+    return check_user_invitations_(current_user.id)
 
-@invitations_bp.route("/api/invitations/<int:invitation_id>/ignore", methods=["POST"])
-@cross_origin()
-@jwt_required()
-def ignore_invitation(invitation_id):
+
+@router.post("/api/invitations/{invitation_id}/ignore")
+async def ignore_invitation(
+    invitation_id: int,
+    ignore_data: Optional[InvitationIgnore] = Body(None),
+    current_user: User = Depends(get_current_user)
+):
     """
     Ігнорування запрошення
     """
-    current_user = get_jwt_identity()
-    user_id = current_user.get('user_id')
-    return ignore_invitation_(user_id, invitation_id)
+    data = None
+    if ignore_data:
+        data = ignore_data.dict()
+    return ignore_invitation_(current_user.id, invitation_id, data)

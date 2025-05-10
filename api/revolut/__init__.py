@@ -1,4 +1,4 @@
-from api.revolut.route import revolut_bp
+from api.revolut.route import   router
 
-__all__ = ["revolut_bp"]
+__all__ = ["router"]
 

@@ -1,3 +1,3 @@
-from api.invitations.route import invitations_bp
+from api.invitations.route import router
 
-__all__ = ["invitations_bp"]
+__all__ = ["router"]

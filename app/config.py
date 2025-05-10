@@ -1,12 +1,15 @@
 from os import environ
 import dotenv
+from typing import Dict, Any
 
 dotenv.load_dotenv()
 
+# Основні налаштування додатку
 SECRET_KEY = environ["SECRET_KEY"]
 JWT_SECRET_KEY = SECRET_KEY
 SQLALCHEMY_DATABASE_URI = environ["DATABASE_URI"]
 MONO_API_URL = "https://api.monobank.ua"
+DEBUG = environ.get("DEBUG", "False").lower() in ("true", "1", "t")
 
 logger_config = {
     "version": 1,

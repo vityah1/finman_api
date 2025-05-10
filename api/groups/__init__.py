@@ -1,4 +1,4 @@
-from api.groups.route import groups_bp
+from api.groups.route import router
 
-__all__ = ["groups_bp"]
+__all__ = ["router"]
 

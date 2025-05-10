@@ -1,3 +1,3 @@
-from api.sprs.route import sprs_bp
+from api.sprs.route import  router
 
-__all__ = ["sprs_bp"]
+__all__ = ["router"]

@@ -1,3 +1,3 @@
-from api.categories.route import categories_bp
+from api.categories.route import router
 
-__all__ = ["categories_bp"]
+__all__ = ["router"]

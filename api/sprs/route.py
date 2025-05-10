@@ -1,28 +1,24 @@
 # _*_ coding:UTF-8 _*_
+from typing import Optional, Dict, Any, List
 
-from flask import Blueprint
-from flask_cors import cross_origin
-from flask_jwt_extended import jwt_required, get_jwt_identity
+from fastapi import APIRouter, Depends, HTTPException, status, Body, Path, Query
+from pydantic import BaseModel, Field
 
 from api.sprs.services import (
     get_spr_dictionary,
 )
+from dependencies import get_current_user
+from models.models import User
+
+# Створюємо маршрути замість Blueprint
+router = APIRouter(tags=["sprs"])
 
 
-sprs_bp = Blueprint(
-    "sprs_bp",
-    __name__,
-)
-
-
-@sprs_bp.route("/api/sprs/<dictionary>", methods=["GET"])
-@cross_origin()
-# @jwt_required()
-def get_dict(dictionary):
+@router.get("/api/sprs/{dictionary}")
+async def get_dict(
+    dictionary: str = Path(..., description="Назва довідника")
+):
     """
-    get dictionaries
+    Отримання даних довідника
     """
-
-    # current_user = get_jwt_identity()
-    # user_id = current_user.get('user_id')
     return get_spr_dictionary(dictionary)

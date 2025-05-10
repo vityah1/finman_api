@@ -1,8 +1,7 @@
 # _*_ coding:UTF-8 _*_
 
-from flask import Blueprint
-from flask_cors import cross_origin
-from flask_jwt_extended import jwt_required, get_jwt_identity
+from fastapi import APIRouter, Depends, HTTPException, Request, status, Body
+from typing import Dict, Any, List, Optional
 
 from api.config.services import (
     get_user_config_,
@@ -12,72 +11,66 @@ from api.config.services import (
     delete_config_,
     get_config_types_,
 )
+from mydb import get_db
+from dependencies import get_current_user
+from models.models import User
+
+# Створюємо Router замість Blueprint
+router = APIRouter(tags=["config"])
 
 
-config_bp = Blueprint(
-    "config_bp",
-    __name__,
-)
-
-
-@config_bp.route("/api/config/config_types", methods=["GET"])
-@cross_origin()
-def get_config_types():
+@router.get("/api/config/config_types")
+async def get_config_types():
     """
-    get configs
+    Отримання списку типів конфігурації
     """
     return get_config_types_()
 
 
-@config_bp.route("/api/users/config", methods=["GET"])
-@cross_origin()
-@jwt_required()
-def get_user_config():
+@router.get("/api/users/config")
+async def get_user_config(current_user: User = Depends(get_current_user)):
     """
-    get user configs
+    Отримання конфігурації користувача
     """
-    current_user = get_jwt_identity()
-    user_id = current_user.get('user_id')
-    return get_user_config_(user_id)
+    return get_user_config_(current_user.id)
 
 
-@config_bp.route("/api/users/config", methods=["POST"])
-@cross_origin()
-@jwt_required()
-def add_config():
+@router.post("/api/users/config")
+async def add_config(current_user: User = Depends(get_current_user)):
     """
-    add user config
+    Додавання користувацької конфігурації
     """
-    current_user = get_jwt_identity()
-    user_id = current_user.get('user_id')
-    return add_config_(user_id)
+    return add_config_(current_user.id)
 
 
-@config_bp.route("/api/config/<config_id>", methods=["DELETE"])
-@cross_origin()
-@jwt_required()
-def delete_config(config_id):
+@router.delete("/api/config/{config_id}")
+async def delete_config(
+    config_id: int, 
+    current_user: User = Depends(get_current_user)
+):
     """
-    delete config
+    Видалення конфігурації
     """
     return delete_config_(config_id)
 
 
-@config_bp.route("/api/config/<config_id>", methods=["PATCH"])
-@cross_origin()
-@jwt_required()
-def edit_config(config_id):
+@router.patch("/api/config/{config_id}")
+async def edit_config(
+    config_id: int, 
+    current_user: User = Depends(get_current_user)
+):
     """
-    edit config
+    Редагування конфігурації
     """
     return edit_config_(config_id)
 
 
-@config_bp.route("/api/config/<config_id>", methods=["GET"])
-@cross_origin()
-@jwt_required()
-def get_config(config_id):
+@router.get("/api/config/{config_id}")
+async def get_config(
+    config_id: int, 
+    current_user: User = Depends(get_current_user)
+):
     """
-    get config
+    Отримання конфігурації за ID
     """
     return get_config_(config_id)

@@ -1,4 +1,4 @@
-from api.p24.route import p24_bp
+from api.p24.route import router
 
-__all__ = ["p24_bp"]
+__all__ = ["router"]
 

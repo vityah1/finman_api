@@ -1,152 +1,168 @@
 # _*_ coding:UTF-8 _*_
 
-from flask import Blueprint
-from flask_cors import cross_origin
-from flask_jwt_extended import jwt_required, get_jwt_identity
+from fastapi import APIRouter, Depends, HTTPException, status, Body, Query, Path
+from typing import List, Optional, Dict, Any
+from pydantic import BaseModel, Field
 
 from api.groups.service import (
     add_user_to_group_, create_group_, delete_group_, get_group_, get_group_users_,
     get_groups_,
     remove_user_from_group_, update_group_, update_user_relation_,
-)
-
-# Додаємо новий імпорт
-from api.groups.service import (
     get_group_invitations_, create_group_invitation_
 )
+from dependencies import get_current_user
+from models.models import User
 
-groups_bp = Blueprint(
-    "groups_bp",
-    __name__,
-)
+# Створюємо Pydantic моделі для запитів та відповідей
+class GroupBase(BaseModel):
+    name: str = Field(..., description="Назва групи")
+    description: Optional[str] = Field(None, description="Опис групи")
 
-@groups_bp.route("/api/groups/<int:group_id>/users/<int:user_id>", methods=["PATCH"])
-@cross_origin()
-@jwt_required()
-def update_user_relation(group_id, user_id):
+class GroupCreate(GroupBase):
+    pass
+
+class GroupUpdate(BaseModel):
+    name: Optional[str] = Field(None, description="Назва групи")
+    description: Optional[str] = Field(None, description="Опис групи")
+
+class GroupUserAdd(BaseModel):
+    user_id: int = Field(..., description="ID користувача для додавання")
+    role: Optional[str] = Field("member", description="Роль користувача в групі")
+
+class GroupUserUpdate(BaseModel):
+    role: str = Field(..., description="Нова роль користувача в групі")
+
+class GroupInvitation(BaseModel):
+    email: str = Field(..., description="Email користувача для запрошення")
+    role: Optional[str] = Field("member", description="Роль, яка буде призначена користувачу")
+
+# Створюємо маршрути замість Blueprint
+router = APIRouter(tags=["groups"])
+
+@router.patch("/api/groups/{group_id}/users/{user_id}")
+async def update_user_relation(
+    group_id: int, 
+    user_id: int, 
+    user_relation: GroupUserUpdate = Body(...),
+    current_user: User = Depends(get_current_user)
+):
     """
     Оновити інформацію про користувача в групі
     """
-    current_user = get_jwt_identity()
-    user_id_current = current_user.get('user_id')
-    return update_user_relation_(user_id_current, group_id, user_id)
+    return update_user_relation_(current_user.id, group_id, user_id, role_data=user_relation.dict())
 
 
-@groups_bp.route("/api/groups/<int:group_id>/invitations", methods=["GET"])
-@cross_origin()
-@jwt_required()
-def get_group_invitations(group_id):
+@router.get("/api/groups/{group_id}/invitations")
+async def get_group_invitations(
+    group_id: int,
+    current_user: User = Depends(get_current_user)
+):
     """
     Отримати запрошення групи
     """
-    current_user = get_jwt_identity()
-    user_id = current_user.get('user_id')
-    return get_group_invitations_(user_id, group_id)
+    return get_group_invitations_(current_user.id, group_id)
 
 
-@groups_bp.route("/api/groups/<int:group_id>/invitations", methods=["POST"])
-@cross_origin()
-@jwt_required()
-def create_group_invitation(group_id):
+@router.post("/api/groups/{group_id}/invitations", status_code=status.HTTP_201_CREATED)
+async def create_group_invitation(
+    group_id: int,
+    invitation: GroupInvitation = Body(...),
+    current_user: User = Depends(get_current_user)
+):
     """
     Створити запрошення до групи
     """
-    current_user = get_jwt_identity()
-    user_id = current_user.get('user_id')
-    return create_group_invitation_(user_id, group_id)
+    return create_group_invitation_(current_user.id, group_id, invitation_data=invitation.dict())
 
 
-@groups_bp.route("/api/groups", methods=["GET"])
-@cross_origin()
-@jwt_required()
-def get_groups():
+@router.get("/api/groups")
+async def get_groups(
+    current_user: User = Depends(get_current_user)
+):
     """
-    get groups
+    Отримати всі групи користувача
     """
-    current_user = get_jwt_identity()
-    user_id = current_user.get('user_id')
-    return get_groups_(user_id)
+    return get_groups_(current_user.id)
 
 
-@groups_bp.route("/api/groups", methods=["POST"])
-@cross_origin()
-@jwt_required()
-def create_group():
+@router.post("/api/groups", status_code=status.HTTP_201_CREATED)
+async def create_group(
+    group: GroupCreate = Body(...),
+    current_user: User = Depends(get_current_user)
+):
     """
-    create a group
+    Створити нову групу
     """
-    current_user = get_jwt_identity()
-    user_id = current_user.get('user_id')
-    return create_group_(user_id)
+    return create_group_(current_user.id, group_data=group.dict())
 
 
-@groups_bp.route("/api/groups/<int:group_id>", methods=["DELETE"])
-@cross_origin()
-@jwt_required()
-def delete_group(group_id):
+@router.delete("/api/groups/{group_id}")
+async def delete_group(
+    group_id: int,
+    current_user: User = Depends(get_current_user)
+):
     """
-    delete group
+    Видалити групу
     """
-    current_user = get_jwt_identity()
-    user_id = current_user.get('user_id')
-    return delete_group_(user_id, group_id)
+    return delete_group_(current_user.id, group_id)
 
 
-@groups_bp.route("/api/groups/<int:group_id>", methods=["PATCH"])
-@cross_origin()
-@jwt_required()
-def update_group(group_id):
+@router.patch("/api/groups/{group_id}")
+async def update_group(
+    group_id: int,
+    group: GroupUpdate = Body(...),
+    current_user: User = Depends(get_current_user)
+):
     """
-    update group
+    Оновити інформацію про групу
     """
-    current_user = get_jwt_identity()
-    user_id = current_user.get('user_id')
-    return update_group_(user_id, group_id)
+    return update_group_(current_user.id, group_id, group_data=group.dict(exclude_unset=True))
 
 
-@groups_bp.route("/api/groups/<int:group_id>", methods=["GET"])
-@cross_origin()
-@jwt_required()
-def get_group(group_id):
+@router.get("/api/groups/{group_id}")
+async def get_group(
+    group_id: int,
+    current_user: User = Depends(get_current_user)
+):
     """
-    get group
+    Отримати інформацію про групу
     """
-    current_user = get_jwt_identity()
-    user_id = current_user.get('user_id')
-    return get_group_(user_id, group_id)
+    return get_group_(current_user.id, group_id)
 
 
-@groups_bp.route("/api/groups/<int:group_id>/users", methods=["GET"])
-@cross_origin()
-@jwt_required()
-def get_group_users(group_id):
+@router.get("/api/groups/{group_id}/users")
+async def get_group_users(
+    group_id: int,
+    current_user: User = Depends(get_current_user)
+):
     """
-    get users in group
+    Отримати список користувачів в групі
     """
-    current_user = get_jwt_identity()
-    user_id = current_user.get('user_id')
-    return get_group_users_(user_id, group_id)
+    return get_group_users_(current_user.id, group_id)
 
 
-@groups_bp.route("/api/groups/<int:group_id>/users", methods=["POST"])
-@cross_origin()
-@jwt_required()
-def add_user_to_group(group_id):
+@router.post("/api/groups/{group_id}/users")
+async def add_user_to_group(
+    group_id: int,
+    user_data: GroupUserAdd = Body(...),
+    current_user: User = Depends(get_current_user)
+):
     """
-    add user to group
+    Додати користувача до групи
     """
-    current_user = get_jwt_identity()
-    user_id = current_user.get('user_id')
-    return add_user_to_group_(user_id, group_id)
+    return add_user_to_group_(current_user.id, group_id, user_data=user_data.dict())
 
 
-@groups_bp.route("/api/groups/<int:group_id>/users/<int:user_id_to_remove>", methods=["DELETE"])
-@cross_origin()
-@jwt_required()
-def remove_user_from_group(group_id, user_id_to_remove):
+@router.delete("/api/groups/{group_id}/users/{user_id_to_remove}")
+async def remove_user_from_group(
+    group_id: int,
+    user_id_to_remove: int,
+    current_user: User = Depends(get_current_user)
+):
     """
-    remove user from group
+    Видалити користувача з групи
     """
-    current_user = get_jwt_identity()
-    user_id = current_user.get('user_id')
-    return remove_user_from_group_(user_id, group_id, user_id_to_remove)
+    return remove_user_from_group_(current_user.id, group_id, user_id_to_remove)
+
+
+# Усі Flask маршрути було успішно конвертовано у FastAPI-аналоги вище

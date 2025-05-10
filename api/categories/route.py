@@ -1,8 +1,8 @@
 # _*_ coding:UTF-8 _*_
 
-from flask import Blueprint
-from flask_cors import cross_origin
-from flask_jwt_extended import jwt_required, get_jwt_identity
+from fastapi import APIRouter, Depends, HTTPException, status, Body
+from typing import List, Optional, Dict, Any
+from pydantic import BaseModel
 
 from api.categories.services import (
     get_categories_,
@@ -11,65 +11,73 @@ from api.categories.services import (
     delete_category_,
     get_category_,
 )
+from dependencies import get_current_user
+from models.models import User
+
+# Створюємо Pydantic моделі для запитів та відповідей
+class CategoryBase(BaseModel):
+    name: str
+    parent_id: Optional[int] = 0
+
+class CategoryCreate(CategoryBase):
+    pass
+
+class CategoryUpdate(CategoryBase):
+    name: Optional[str] = None
+    parent_id: Optional[int] = None
+
+# Створюємо маршрути замість Blueprint
+router = APIRouter(tags=["categories"])
 
 
-categories_bp = Blueprint(
-    "categories_bp",
-    __name__,
-)
-
-
-@categories_bp.route("/api/categories", methods=["GET"])
-@cross_origin()
-@jwt_required()
-def get_categories():
+@router.get("/api/categories")
+async def get_categories(current_user: User = Depends(get_current_user)):
     """
-    get categories
+    Отримання списку категорій користувача
     """
-    current_user = get_jwt_identity()
-    user_id = current_user.get('user_id')
-    return get_categories_(user_id)
+    return get_categories_(current_user.id)
 
 
-@categories_bp.route("/api/categories", methods=["POST"])
-@cross_origin()
-@jwt_required()
-def add_category():
+@router.post("/api/categories", status_code=status.HTTP_201_CREATED)
+async def add_category(
+    category: CategoryCreate = Body(...), 
+    current_user: User = Depends(get_current_user)
+):
     """
-    add category
+    Додавання нової категорії
     """
-    current_user = get_jwt_identity()
-    user_id = current_user.get('user_id')
-    return add_category_(user_id)
+    return add_category_(current_user.id, category_data=category.dict())
 
 
-@categories_bp.route("/api/categories/<int:category_id>", methods=["DELETE"])
-@cross_origin()
-@jwt_required()
-def delete_category(category_id):
+@router.delete("/api/categories/{category_id}")
+async def delete_category(
+    category_id: int, 
+    current_user: User = Depends(get_current_user)
+):
     """
-    delete category
+    Видалення категорії за ID
     """
     return delete_category_(category_id)
 
 
-@categories_bp.route("/api/categories/<int:category_id>", methods=["PATCH"])
-@cross_origin()
-@jwt_required()
-def edit_category(category_id):
+@router.patch("/api/categories/{category_id}")
+async def edit_category(
+    category_id: int, 
+    category: CategoryUpdate = Body(...),
+    current_user: User = Depends(get_current_user)
+):
     """
-    edit category
+    Редагування категорії за ID
     """
-    current_user = get_jwt_identity()
-    user_id = current_user.get('user_id')
-    return edit_category_(user_id, category_id)
+    return edit_category_(current_user.id, category_id, category_data=category.dict(exclude_unset=True))
 
 
-@categories_bp.route("/api/categories/<int:category_id>", methods=["GET"])
-@cross_origin()
-@jwt_required()
-def get_category(category_id):
+@router.get("/api/categories/{category_id}")
+async def get_category(
+    category_id: int, 
+    current_user: User = Depends(get_current_user)
+):
     """
-    get categories
+    Отримання категорії за ID
     """
     return get_category_(category_id)
