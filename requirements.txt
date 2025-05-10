@@ -1,0 +1,26 @@
+# Flask>=3.1.0
+# Flask-Cors==5.0.0
+# Flask-JWT-Extended==4.7.1
+# flask_migrate>=4.0.7
+# Flask-SQLAlchemy>=3.1.1
+# PyJWT==2.9.0
+requests>=2.32.3
+SQLAlchemy>=2.0.36
+PyMySQL>=1.1.1
+python-dotenv>=1.0.1
+gunicorn>=23.0.0
+aenum>=3.1.12
+numpy>=1.26.4
+openpyxl>=3.1.2
+pandas>=2.2.1
+pydantic>=2.10.4
+
+# for fastapi
+
+python-jose==3.4.0
+passlib==1.7.4
+# pydantic>=2.0.0
+fastapi>=0.100.0
+uvicorn>=0.22.0
+# gunicorn>=23.0.0
+alembic>=2.1.0

@@ -17,5 +17,6 @@ r.txt
 /.idea
 .venv
 *.txt
+!requirements.txt
 .codeium/
 .vscode/
