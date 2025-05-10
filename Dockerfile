@@ -12,5 +12,5 @@ COPY . .
 # Відкриваємо порт
 EXPOSE 8090
 
-# Запускаємо FastAPI додаток через Gunicorn
-CMD ["gunicorn", "main:app", "-b", "0.0.0.0:8090", "-w", "2", "--timeout", "120"]
+# Запускаємо FastAPI додаток напряму через Uvicorn
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8090"]
