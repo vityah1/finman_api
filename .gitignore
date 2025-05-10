@@ -17,3 +17,4 @@ r.txt
 /.idea
 .venv
 *.txt
+.codeium/
