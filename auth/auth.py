@@ -8,6 +8,7 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy import and_
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
+from api.schemas import UserResponse
 
 from utils import do_sql_cmd
 from mydb import get_db
@@ -91,8 +92,10 @@ async def user_login(login_data: LoginModel, db: Session = Depends(get_db)):
     # Створюємо JWT токен доступу з використанням нової функції
     access_token = create_access_token(user_data)
     
+    # Використовуємо Pydantic для серіалізації замість to_dict
+    
     # Формуємо відповідь
-    result = user.to_dict()
+    result = UserResponse.model_validate(user).model_dump()
     result['accessToken'] = access_token
     
     return result
@@ -131,7 +134,7 @@ async def create_user(user_data: UserCreate, db: Session = Depends(get_db)):
     if isinstance(access_token, bytes):
         access_token = access_token.decode('utf-8')
         
-    result = user.to_dict()
+    result = UserResponse.model_validate(user).model_dump()
     result["accessToken"] = access_token
     return result
 
@@ -148,7 +151,7 @@ async def get_user(user_id: int, db: Session = Depends(get_db)):
             detail='Користувача не знайдено'
         )
 
-    return user.to_dict()
+    return UserResponse.model_validate(user).model_dump()
 
 
 @router.delete("/api/users/{user_id}", status_code=status.HTTP_200_OK)
@@ -189,7 +192,7 @@ async def get_users(db: Session = Depends(get_db)):
             detail='Користувачів не знайдено'
         )
 
-    return [item.to_dict() for item in users]
+    return [UserResponse.model_validate(user).model_dump() for user in users]
 
 
 @router.patch("/api/users/{user_id}", status_code=status.HTTP_200_OK)

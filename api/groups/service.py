@@ -8,6 +8,7 @@ from sqlalchemy import and_
 from models import User
 from models.models import Group, GroupInvitation, UserGroupAssociation
 from mydb import db
+from api.schemas import UserResponse, GroupResponse, GroupInvitationResponse
 
 logger = logging.getLogger()
 
@@ -19,7 +20,7 @@ def get_groups_(user_id) -> list[dict]:
     # Перевіряємо, чи користувач є адміністратором
     user = db.session().query(User).get(user_id)
     if not user:
-        abort(404, 'User not found')
+        raise HTTPException(404, 'User not found')
 
     if user.is_admin:
         # Якщо користувач є адміністратором, то повертаємо всі групи
@@ -33,12 +34,25 @@ def get_groups_(user_id) -> list[dict]:
         ).all()
 
     if not groups:
-        abort(404, 'Not found groups')
+        raise HTTPException(404, 'Not found groups')
 
-    return [item.to_dict() for item in groups]
+    # Спочатку перетворюємо SQLAlchemy об'єкти в словники
+    result = []
+    for group in groups:
+        # Створюємо словник з атрибутів об'єкта
+        group_dict = {
+            "id": group.id,
+            "name": group.name,
+            "description": group.description,
+            "owner_id": group.owner_id,
+            "created": group.created
+        }
+        result.append(GroupResponse.model_validate(group_dict).model_dump())
+    
+    return result
 
 
-def create_group_(user_id: int) -> dict:
+def create_group_(user_id: int, data: dict) -> dict:
     """
     create group
     """
@@ -48,17 +62,11 @@ def create_group_(user_id: int) -> dict:
     ).one_or_none()
 
     if existing_membership:
-        abort(400, 'Ви вже є учасником групи. Ви не можете створити нову групу.')
-
-    try:
-        data = request.get_json()
-    except Exception as err:
-        abort(500, f'group creation failed {err}')
+        raise HTTPException(400, 'Ви вже є учасником групи. Ви не можете створити нову групу.')
 
     data['owner_id'] = user_id
 
-    group = Group()
-    group.from_dict(**data)
+    group = Group(**data)
 
     try:
         db.session().add(group)
@@ -82,25 +90,20 @@ def create_group_(user_id: int) -> dict:
     return group.to_dict()
 
 
-def update_group_(user_id: int, group_id: int) -> dict:
+def update_group_(user_id: int, group_id: int, data: dict) -> dict:
     """
     update group
     """
-    try:
-        data = request.get_json()
-    except Exception as err:
-        abort(500, f'group update failed {err}')
-
     group = db.session().query(Group).get(group_id)
     if not group:
-        abort(404, 'Group not found')
+        raise HTTPException(404, 'Group not found')
 
     # Перевіряємо, чи користувач є власником групи
     if group.owner_id != user_id:
         # Перевіряємо, чи користувач є адміністратором
         user = db.session().query(User).get(user_id)
         if not user or not user.is_admin:
-            abort(403, 'Not authorized to update this group')
+            raise HTTPException(403, 'Not authorized to update this group')
 
     group.update(**data)
 
@@ -119,14 +122,40 @@ def delete_group_(user_id: int, group_id: int) -> dict:
     """
     group = db.session().query(Group).get(group_id)
     if not group:
-        abort(404, 'Group not found')
+        raise HTTPException(404, 'Group not found')
 
     # Перевіряємо, чи користувач є власником групи
     if group.owner_id != user_id:
         # Перевіряємо, чи користувач є адміністратором
         user = db.session().query(User).get(user_id)
         if not user or not user.is_admin:
-            abort(403, 'Not authorized to delete this group')
+            raise HTTPException(403, 'Not authorized to update this group')
+
+    group.update(**data)
+
+    try:
+        db.session().commit()
+    except Exception as err:
+        db.session().rollback()
+        raise err
+
+    return group.to_dict()
+
+
+def delete_group_(user_id: int, group_id: int) -> dict:
+    """
+    delete group
+    """
+    group = db.session().query(Group).get(group_id)
+    if not group:
+        raise HTTPException(404, 'Group not found')
+
+    # Перевіряємо, чи користувач є власником групи
+    if group.owner_id != user_id:
+        # Перевіряємо, чи користувач є адміністратором
+        user = db.session().query(User).get(user_id)
+        if not user or not user.is_admin:
+            raise HTTPException(403, 'Not authorized to delete this group')
 
     try:
         # Видаляємо всі асоціації користувачів з групою
@@ -150,7 +179,7 @@ def get_group_(user_id: int, group_id: int) -> dict:
     """
     group = db.session().query(Group).get(group_id)
     if not group:
-        abort(404, 'Group not found')
+        raise HTTPException(404, 'Group not found')
 
     # Перевіряємо, чи користувач є власником групи або учасником групи або адміністратором
     is_member = db.session().query(UserGroupAssociation).filter(
@@ -162,7 +191,7 @@ def get_group_(user_id: int, group_id: int) -> dict:
         # Перевіряємо, чи користувач є адміністратором
         user = db.session().query(User).get(user_id)
         if not user or not user.is_admin:
-            abort(403, 'Not authorized to view this group')
+            raise HTTPException(403, 'Not authorized to view this group')
 
     return group.to_dict()
 
@@ -173,7 +202,7 @@ def get_group_users_(user_id: int, group_id: int) -> list[dict]:
     """
     group = db.session().query(Group).get(group_id)
     if not group:
-        abort(404, 'Group not found')
+        raise HTTPException(404, 'Group not found')
 
     # Оновлений запит для отримання користувачів разом з асоціативними даними
     query_result = db.session().query(
@@ -185,12 +214,12 @@ def get_group_users_(user_id: int, group_id: int) -> list[dict]:
     ).all()
 
     if not query_result:
-        abort(404, 'Users not found in this group')
+        raise HTTPException(404, 'Users not found in this group')
 
     # Перетворюємо результати в список словників з доданими даними про відносини
     user_list = []
     for user, association in query_result:
-        user_dict = user.to_dict()
+        user_dict = UserResponse.model_validate(user).model_dump()
         user_dict['role'] = association.role
         user_dict['relation_type'] = association.relation_type
         user_list.append(user_dict)
@@ -198,32 +227,27 @@ def get_group_users_(user_id: int, group_id: int) -> list[dict]:
     return user_list
 
 
-def add_user_to_group_(user_id: int, group_id: int) -> dict:
+def add_user_to_group_(user_id: int, group_id: int, data: dict) -> dict:
     """
     add user to group
     """
     group = db.session().query(Group).get(group_id)
     if not group:
-        abort(404, 'Group not found')
+        raise HTTPException(404, 'Group not found')
 
     # Перевіряємо, чи користувач є власником групи
     if group.owner_id != user_id:
         # Перевіряємо, чи користувач є адміністратором
         user = db.session().query(User).get(user_id)
         if not user or not user.is_admin:
-            abort(403, 'Not authorized to add users to this group')
-
-    try:
-        data = request.get_json()
-    except Exception as err:
-        abort(500, f'user group association creation failed {err}')
+            raise HTTPException(403, 'Not authorized to add users to this group')
 
     user_id_to_add = data.get('user_id')
 
     # Перевіряємо, чи користувач існує
     user = db.session().query(User).get(user_id_to_add)
     if not user:
-        abort(404, 'User not found')
+        raise HTTPException(404, 'User not found')
 
     # Перевіряємо, чи користувач вже є в групі
     user_group = db.session().query(UserGroupAssociation).filter(
@@ -232,7 +256,7 @@ def add_user_to_group_(user_id: int, group_id: int) -> dict:
     ).one_or_none()
 
     if user_group:
-        abort(400, 'User is already in the group')
+        raise HTTPException(400, 'User is already in the group')
 
     # Додаємо користувача до групи
     user_group = UserGroupAssociation()
@@ -257,18 +281,18 @@ def remove_user_from_group_(
     """
     group = db.session().query(Group).get(group_id)
     if not group:
-        abort(404, 'Group not found')
+        raise HTTPException(404, 'Group not found')
 
     # Перевіряємо, чи користувач є власником групи
     if group.owner_id != user_id:
         # Перевіряємо, чи користувач є адміністратором
         user = db.session().query(User).get(user_id)
         if not user or not user.is_admin:
-            abort(403, 'Not authorized to remove users from this group')
+            raise HTTPException(403, 'Not authorized to remove users from this group')
 
     # Перевіряємо, чи користувач не видаляє власника групи
     if group.owner_id == user_id_to_remove:
-        abort(400, 'Cannot remove owner from the group')
+        raise HTTPException(400, 'Cannot remove owner from the group')
 
     # Перевіряємо, чи користувач є в групі
     user_group = db.session().query(UserGroupAssociation).filter(
@@ -277,7 +301,7 @@ def remove_user_from_group_(
     ).one_or_none()
 
     if not user_group:
-        abort(404, 'User is not in the group')
+        raise HTTPException(404, 'User is not in the group')
 
     # Видаляємо користувача з групи
     try:
@@ -296,32 +320,31 @@ def get_group_invitations_(user_id, group_id):
     """
     group = db.session().query(Group).get(group_id)
     if not group:
-        abort(404, 'Group not found')
+        raise HTTPException(404, 'Group not found')
 
     # Перевіряємо, чи користувач є власником групи
     if group.owner_id != user_id:
-        abort(403, 'Not authorized to view invitations for this group')
+        raise HTTPException(403, 'Not authorized to view invitations for this group')
 
     invitations = db.session().query(GroupInvitation).filter(
         GroupInvitation.group_id == group_id
     ).all()
 
-    return [invitation.to_dict() for invitation in invitations]
+    return [GroupInvitationResponse.model_validate(invitation).model_dump() for invitation in invitations]
 
 
-def create_group_invitation_(user_id, group_id):
+def create_group_invitation_(user_id, group_id, data: dict):
     """
     Створити запрошення до групи
     """
-    data = request.get_json()
 
     group = db.session().query(Group).get(group_id)
     if not group:
-        abort(404, 'Group not found')
+        raise HTTPException(404, 'Group not found')
 
     # Перевіряємо, чи користувач є власником групи
     if group.owner_id != user_id:
-        abort(403, 'Not authorized to create invitations for this group')
+        raise HTTPException(403, 'Not authorized to create invitations for this group')
 
     # Перевіряємо, чи вказаний email
     email = data.get('email')
@@ -337,7 +360,7 @@ def create_group_invitation_(user_id, group_id):
         ).one_or_none()
 
         if existing_invitation:
-            abort(400, 'Для цього email вже існує активне запрошення')
+            raise HTTPException(400, 'Для цього email вже існує активне запрошення')
 
         # Перевіряємо, чи користувач з таким email вже є в групі
         user_with_email = db.session().query(User).filter(
@@ -353,7 +376,7 @@ def create_group_invitation_(user_id, group_id):
             ).one_or_none()
 
             if user_in_group:
-                abort(400, 'Користувач з цим email вже є в групі')
+                raise HTTPException(400, 'Користувач з цим email вже є в групі')
 
     # Створюємо нове запрошення
     invitation = GroupInvitation()
@@ -379,22 +402,22 @@ def create_group_invitation_(user_id, group_id):
         db.session().rollback()
         raise err
 
-    return invitation.to_dict()
+    return GroupInvitationResponse.model_validate(invitation).model_dump()
 
-def update_user_relation_(user_id_current, group_id, user_id_to_update):
+def update_user_relation_(user_id_current, group_id, user_id_to_update, data: dict):
     """
     Оновити інформацію про користувача в групі
     """
     group = db.session().query(Group).get(group_id)
     if not group:
-        abort(404, 'Group not found')
+        raise HTTPException(404, 'Group not found')
 
     # Перевіряємо, чи користувач є власником групи
     if group.owner_id != user_id_current:
         # Перевіряємо, чи користувач є адміністратором
         user = db.session().query(User).get(user_id_current)
         if not user or not user.is_admin:
-            abort(403, 'Not authorized to update users in this group')
+            raise HTTPException(403, 'Not authorized to update users in this group')
 
     # Перевіряємо, чи користувач є в групі
     user_group = db.session().query(UserGroupAssociation).filter(
@@ -403,11 +426,10 @@ def update_user_relation_(user_id_current, group_id, user_id_to_update):
     ).one_or_none()
 
     if not user_group:
-        abort(404, 'User is not in the group')
+        raise HTTPException(404, 'User is not in the group')
 
     # Оновлюємо інформацію про користувача в групі
     try:
-        data = request.get_json()
         if 'relation_type' in data:
             user_group.relation_type = data['relation_type']
         if 'role' in data:

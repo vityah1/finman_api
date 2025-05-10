@@ -2,7 +2,7 @@
 import logging
 from typing import Optional, Dict, Any, List
 
-from fastapi import APIRouter, Depends, HTTPException, status, Body, Path, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Body, Path, Query, UploadFile, Form
 from pydantic import BaseModel, Field
 
 from api.services import bank_import
@@ -23,14 +23,12 @@ logger = logging.getLogger()
 
 @router.post("/api/revolut/import", status_code=status.HTTP_200_OK)
 async def revolut_import(
-    import_data: Optional[RevolutImportRequest] = Body(None),
+    file: UploadFile,
+    action: str = Form("import"),
     current_user: User = Depends(get_current_user)
 ):
     """
-    Import data from Revolut
+    Імпорт даних з Revolut через завантаження файлу
     """
-    params = None
-    if import_data:
-        params = import_data.dict(exclude_unset=True)
-    
-    return bank_import(current_user.id, 'revolut', params)
+    # Викликаємо асинхронну функцію імпорту
+    return await bank_import(current_user.id, 'revolut', file, action)

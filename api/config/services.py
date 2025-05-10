@@ -1,12 +1,13 @@
 import logging
 
-from flask import request, abort
+from fastapi import HTTPException
 from sqlalchemy import select
 
 from .schemas import ConfigTypes
 from models.models import Config, SprConfigTypes
 from mydb import db
 from .funcs import add_new_config_row
+from api.schemas import ConfigResponse
 
 logger = logging.getLogger()
 
@@ -17,9 +18,9 @@ def get_config_types_() -> list:
     """
     config_types = db.session().query(SprConfigTypes).all()
     if not config_types:
-        abort(404, 'Not found configs')
+        raise HTTPException(status_code=404, detail='Not found configs')
 
-    return [item.to_dict() for item in config_types]
+    return [ConfigResponse.model_validate(item).model_dump() for item in config_types]
 
 
 def get_user_config_(user_id: int) -> list[dict]:
@@ -38,27 +39,24 @@ def get_user_config_(user_id: int) -> list[dict]:
     configs = db.session.execute(stmt).all()
 
     if not configs:
-        abort(404, 'Not found configs')
+        raise HTTPException(status_code=404, detail='Not found configs')
 
     return [item._asdict() for item in configs]
 
 
-def add_config_(user_id: int) -> list[dict]:
+def add_config_(user_id: int, data: dict) -> list[dict]:
     """
     add config
     """
     result = []
-    try:
-        data = request.get_json()
-    except Exception as err:
-        abort(500, f'config add failed {err}')
+    
     is_multiple = True
     # check for add_value
     for type_data in list(ConfigTypes):
         if type_data.value == data['type_data']:
             is_multiple = type_data.is_multiple
             if type_data.is_need_add_value and not data.get('add_value'):
-                abort(400, 'not exist add_value key')
+                raise HTTPException(status_code=400, detail='not exist add_value key')
 
     if not is_multiple:
         stmt = select(Config).where(
@@ -67,7 +65,7 @@ def add_config_(user_id: int) -> list[dict]:
         )
         user_config = db.session.execute(stmt).scalars().one_or_none()
         if user_config:
-            abort(400, 'not allowed multiple values for this key')
+            raise HTTPException(status_code=400, detail='not allowed multiple values for this key')
 
     data['user_id'] = user_id
     result.append(add_new_config_row(data))
@@ -75,18 +73,13 @@ def add_config_(user_id: int) -> list[dict]:
     return result
 
 
-def edit_config_(config_id: int) -> Config:
+def edit_config_(config_id: int, data: dict) -> dict:
     """
     edit mono user
     """
-    try:
-        data = request.get_json()
-    except Exception as err:
-        abort(500, f'config add failed {err}')
-
     config = db.session().query(Config).get(config_id)
     if not config:
-        abort(404, 'Not found config')
+        raise HTTPException(status_code=404, detail='Not found config')
 
     config.update(**data)
 
@@ -96,7 +89,7 @@ def edit_config_(config_id: int) -> Config:
         db.session().rollback()
         raise err
 
-    return config.to_dict()
+    return ConfigResponse.model_validate(config).model_dump()
 
 
 def delete_config_(config_id: int) -> dict[str, str]:
@@ -106,7 +99,7 @@ def delete_config_(config_id: int) -> dict[str, str]:
 
     config = db.session().query(Config).get(config_id)
     if not config:
-        abort(404, 'Not found config')
+        raise HTTPException(status_code=404, detail='Not found config')
 
     try:
         db.session().delete(config)
@@ -118,13 +111,13 @@ def delete_config_(config_id: int) -> dict[str, str]:
     return {"result": "ok"}
 
 
-def get_config_(config_id: int) -> Config:
+def get_config_(config_id: int) -> dict:
     """
     get mono user
     """
 
     config = db.session().query(Config).get(config_id)
     if not config:
-        abort(404, 'Not found config')
+        raise HTTPException(status_code=404, detail='Not found config')
 
-    return config.to_dict()
+    return ConfigResponse.model_validate(config).model_dump()

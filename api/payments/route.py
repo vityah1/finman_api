@@ -34,7 +34,7 @@ async def get_payments(
     year: Optional[str] = Query(None, description="Рік для фільтрації"),
     month: Optional[str] = Query(None, description="Місяць для фільтрації"),
     q: Optional[str] = Query(None, description="Пошуковий запит"),
-    category_id: Optional[int] = Query(None, description="ID категорії для фільтрації"),
+    category_id: Optional[str] = Query(None, description="ID категорії для фільтрації. Спеціальне значення '_' для останніх платежів"),
     current_user: User = Depends(get_current_user)
 ):
     """

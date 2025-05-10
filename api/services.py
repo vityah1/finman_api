@@ -1,8 +1,9 @@
 # _*_ coding:UTF-8 _*_
 import logging
-from typing import Any
+import io
+from typing import Any, List, Dict, Optional
 
-from flask import request, abort
+from fastapi import HTTPException, UploadFile, status
 from pandas import read_csv, read_excel
 
 from api.core.funcs import p24_to_pmt
@@ -16,27 +17,37 @@ from mydb import db
 logger = logging.getLogger()
 
 
-def bank_import(user_id: int, bank: str):
+async def bank_import(user_id: int, bank: str, file: UploadFile, action: str = "import"):
     """
-    import data from wise
+    Імпорт даних з банківських виписок
+    
+    Параметри:
+        user_id: ID користувача
+        bank: Назва банку ("wise", "mono", "revolut", "p24")
+        file: Завантажений файл через FastAPI UploadFile
+        action: Дія - "show" для попереднього перегляду або "import" для імпорту даних
     """
-
-    if 'file' not in request.files:
-        abort(400, 'No file part in the request')
-
-    file = request.files['file']
+    if not file:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Файл не знайдено в запиті')
 
     if file.filename == '':
-        abort(400, 'No selected file')
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Не вказано імя файлу')
 
     try:
-        data_ = convert_file_to_data(user_id, file, bank)
+        # Зчитуємо вміст файлу
+        file_content = await file.read()
+        
+        # Перетворюємо дані
+        data_ = await convert_file_to_data(user_id, file_content, file.filename, bank)
+        
         if not data_:
-            logger.error(f'Not valid data')
-            raise Exception("Not valid data")
-        if request.form['action'] == 'show':
+            logger.error("Невалідні дані у файлі")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Невалідні дані у файлі")
+            
+        if action == 'show':
             return data_
-        if request.form['action'] == 'import':
+            
+        if action == 'import':
             result = add_bulk_payments(data_)
             if result:
                 for pmt_row in data_:
@@ -50,31 +61,54 @@ def bank_import(user_id: int, bank: str):
                         pmt_row['sql'] = False
         return data_
     except Exception as err:
-        logger.error(f'{err}', exc_info=True)
-        return {"status": "failed"}
+        logger.error(f'Помилка при імпорті даних: {err}', exc_info=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Помилка при імпорті файлу: {str(err)}")
 
 
-def convert_file_to_data(user_id: int, file: Any, bank: str) -> list[dict[str, Any]]:
+async def convert_file_to_data(user_id: int, file_content: bytes, filename: str, bank: str) -> List[Dict[str, Any]]:
+    """
+    Перетворює завантажений файл на дані платежів
+    
+    Параметри:
+        user_id: ID користувача
+        file_content: Вміст файлу в бінарному форматі
+        filename: Ім'я файлу
+        bank: Назва банку
+    """
     data = []
     user = db.session.query(User).get(user_id)
-    user_config = user.config
-    if file.filename.find('.xls') > 0:
-        df = read_excel(file)
-    elif file.filename.find('.csv') > 0:
+    
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Користувача не знайдено")
+    
+    # Створюємо об'єкт для читання файлу
+    file_obj = io.BytesIO(file_content)
+    
+    # Читаємо файл залежно від формату
+    if '.xls' in filename.lower():
+        df = read_excel(file_obj)
+    elif '.csv' in filename.lower():
         df = read_csv(
-            file,
+            file_obj,
             delimiter=',',
             parse_dates=['Date'],
             date_format='%d-%m-%Y',
         )
     else:
-        abort(400, f'Unknown file type: {file.filename}')
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, 
+            detail=f'Невідомий тип файлу: {filename}. Підтримуються тільки .xls, .xlsx та .csv'
+        )
 
     if df.empty:
-        abort(400, f'file {file.filename} is empty')
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, 
+            detail=f'Файл {filename} порожній'
+        )
 
     for _, row in df.iterrows():
-
+        pmt = None
+        # Обробляємо дані залежно від банку
         match bank:
             case 'revolut':
                 pmt = revolut_to_pmt(user, row)
@@ -83,11 +117,10 @@ def convert_file_to_data(user_id: int, file: Any, bank: str) -> list[dict[str, A
             case 'p24':
                 pmt = p24_to_pmt(user, row)
             case _:
+                logger.warning(f"Непідтримуваний банк: {bank}")
                 pmt = None
 
         if pmt:
             data.append(pmt.dict())
-        else:
-            continue
 
     return data

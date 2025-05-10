@@ -49,11 +49,10 @@ def get_categories_(user_id) -> list[dict]:
     return [item.to_dict() for item in all_categories]
 
 
-def add_category_(user_id: int) -> dict:
+def add_category_(user_id: int, data: dict) -> dict:
     """
     add category
     """
-    data = request.get_json()
     data['user_id'] = user_id
 
     group = db.session().query(Group).join(
@@ -67,8 +66,7 @@ def add_category_(user_id: int) -> dict:
     else:
         raise Exception("user not have group")
 
-    category = Category()
-    category.from_dict(**data)
+    category = Category(**data)
 
     try:
         db.session().add(category)
@@ -80,15 +78,14 @@ def add_category_(user_id: int) -> dict:
     return category.to_dict()
 
 
-def edit_category_(user_id, category_id: int) -> dict:
+def edit_category_(user_id, category_id: int, data: dict) -> dict:
     """
     edit category
     """
-    data = request.get_json()
     category = db.session().query(Category).get(category_id)
 
     if not category:
-        abort(404, 'Not found categories')
+        raise HTTPException(404, 'Not found categories')
 
     data['user_id'] = user_id
     category.update(**data)
@@ -104,7 +101,7 @@ def delete_category_(category_id: int) -> dict:
 
     category = db.session().query(Category).get(category_id)
     if not category:
-        abort(404, 'Not found categories')
+        raise HTTPException(404, 'Not found categories')
 
     db.session().delete(category)
     db.session().commit()
@@ -119,6 +116,6 @@ def get_category_(category_id: int) -> dict:
 
     category = db.session().query(Category).get(category_id)
     if not category:
-        abort(404, 'Not found categories')
+        raise HTTPException(404, 'Not found categories')
 
     return category.to_dict()

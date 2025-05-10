@@ -28,6 +28,6 @@ def get_spr_dictionary(dictionary) -> list[dict]:
         return []               
     query = db.session().query(model).all()
     if not query:
-        abort(404, 'Not found dictionary')
+        raise HTTPException(404, 'Not found dictionary')
 
     return [item.to_dict() for item in query]

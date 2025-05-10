@@ -21,13 +21,13 @@ def check_invitation_(user_id, invitation_code):
     ).one_or_none()
 
     if not invitation:
-        abort(404, 'Запрошення не знайдено або воно неактивне')
+        raise HTTPException(404, 'Запрошення не знайдено або воно неактивне')
 
     # Перевіряємо, чи дійсне запрошення за часом
     if invitation.expires and invitation.expires < datetime.datetime.now(
             datetime.timezone.utc
     ):
-        abort(400, 'Термін дії запрошення закінчився')
+        raise HTTPException(400, 'Термін дії запрошення закінчився')
 
     # Перевіряємо, чи користувач вже в групі
     user_in_group = db.session().query(UserGroupAssociation).filter(
@@ -38,7 +38,7 @@ def check_invitation_(user_id, invitation_code):
     ).one_or_none()
 
     if user_in_group:
-        abort(400, 'Ви вже є учасником цієї групи')
+        raise HTTPException(400, 'Ви вже є учасником цієї групи')
 
     # Отримуємо дані про групу та користувача, який створив запрошення
     group = db.session().query(Group).get(invitation.group_id)
@@ -62,7 +62,7 @@ def accept_invitation_(user_id, invitation_code):
     ).one_or_none()
 
     if existing_membership:
-        abort(
+        raise HTTPException(
             400,
             'Ви вже є учасником іншої групи. Вийдіть з неї перед приєднанням до нової.'
         )
@@ -75,7 +75,7 @@ def accept_invitation_(user_id, invitation_code):
     ).one_or_none()
 
     if not invitation:
-        abort(404, 'Запрошення не знайдено або воно неактивне')
+        raise HTTPException(404, 'Запрошення не знайдено або воно неактивне')
 
     # Перевіряємо, чи дійсне запрошення за часом
     if invitation.expires:
@@ -87,7 +87,7 @@ def accept_invitation_(user_id, invitation_code):
         now = datetime.datetime.now(datetime.timezone.utc)
 
         if expires < now:
-            abort(400, 'Термін дії запрошення закінчився')
+            raise HTTPException(400, 'Термін дії запрошення закінчився')
 
     # Перевіряємо, чи користувач вже в групі
     user_in_group = db.session().query(UserGroupAssociation).filter(
@@ -98,7 +98,7 @@ def accept_invitation_(user_id, invitation_code):
     ).one_or_none()
 
     if user_in_group:
-        abort(400, 'Ви вже є учасником цієї групи')
+        raise HTTPException(400, 'Ви вже є учасником цієї групи')
 
     # Додаємо користувача до групи
     user_group = UserGroupAssociation()
@@ -129,13 +129,13 @@ def get_invitation_(user_id, invitation_id):
     invitation = db.session().query(GroupInvitation).get(invitation_id)
 
     if not invitation:
-        abort(404, 'Запрошення не знайдено')
+        raise HTTPException(404, 'Запрошення не знайдено')
 
     # Перевіряємо, чи користувач має право переглядати це запрошення
     group = db.session().query(Group).get(invitation.group_id)
 
     if group.owner_id != user_id:
-        abort(403, 'У вас немає доступу до цього запрошення')
+        raise HTTPException(403, 'У вас немає доступу до цього запрошення')
 
     return invitation.to_dict()
 
@@ -147,13 +147,13 @@ def delete_invitation_(user_id, invitation_id):
     invitation = db.session().query(GroupInvitation).get(invitation_id)
 
     if not invitation:
-        abort(404, 'Запрошення не знайдено')
+        raise HTTPException(404, 'Запрошення не знайдено')
 
     # Перевіряємо, чи користувач має право видаляти це запрошення
     group = db.session().query(Group).get(invitation.group_id)
 
     if group.owner_id != user_id:
-        abort(403, 'У вас немає доступу для видалення цього запрошення')
+        raise HTTPException(403, 'У вас немає доступу для видалення цього запрошення')
 
     try:
         # Деактивуємо запрошення замість видалення
@@ -225,12 +225,12 @@ def ignore_invitation_(user_id, invitation_id):
     invitation = db.session().query(GroupInvitation).get(invitation_id)
 
     if not invitation:
-        abort(404, 'Запрошення не знайдено')
+        raise HTTPException(404, 'Запрошення не знайдено')
 
     # Перевіряємо, чи запрошення стосується цього користувача
     user = db.session().query(User).get(user_id)
     if not user or user.email != invitation.email:
-        abort(403, 'Ви не можете ігнорувати це запрошення')
+        raise HTTPException(403, 'Ви не можете ігнорувати це запрошення')
 
     try:
         # Позначаємо запрошення як неактивне

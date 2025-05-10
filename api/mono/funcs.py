@@ -5,9 +5,10 @@ import random
 import time
 
 import requests
-from flask import abort, current_app, g, request
+from fastapi import HTTPException
 from sqlalchemy import and_
 
+from app.config import MONO_API_URL, BASE_URL
 from api.config.schemas import ConfigTypes
 from api.mono.services import get_mono_users_
 from models.models import Category, Config, MonoUser, Payment, User
@@ -28,25 +29,25 @@ def get_config_accounts(mono_user_id: int) -> list[Config.value_data]:
     return [result[0] for result in results]
 
 
-def get_mono_user_info__(mono_user_id: int):
+def get_mono_user_info__(mono_user_id: int,):
     mono_user_token = get_mono_user_token(mono_user_id)
 
     if not mono_user_token:
-        current_app.logger.error(f'Token not found. mono_user_id: {mono_user_id}')
-        abort(401, f'Token not found. mono_user_id:{mono_user_id}')
+        mono_logger.error(f'Token not found. mono_user_id: {mono_user_id}')
+        raise HTTPException(401, f'Token not found. mono_user_id:{mono_user_id}')
 
     header = {"X-Token": mono_user_token}
 
-    url = f"{current_app.config.get('MONO_API_URL')}/personal/client-info"
+    url = f"{MONO_API_URL}/personal/client-info"
     r = None
     try:
         r = requests.get(url, headers=header)
     except Exception as err:
-        current_app.logger.error(f"{err}")
-        abort(400, f'Bad request: {err}\n{r.text if r else ""}')
+        mono_logger.error(f"{err}")
+        raise HTTPException(400, f'Bad request: {err}\n{r.text if r else ""}')
 
     result = r.json()
-    result['this_api_webhook'] = request.url_root.replace('http:', 'https:') + f'api/mono/users/{mono_user_id}/webhook'
+    result['this_api_webhook'] = BASE_URL + f'/api/mono/users/{mono_user_id}/webhook'
     result['mono_user_id'] = mono_user_id
     result['mono_user_token'] = mono_user_token
 
@@ -221,7 +222,7 @@ def get_mono_payments(start_date: str = "", end_date: str = "", mono_user_id: in
         if account['id'] not in config_accounts:
             continue
 
-        url = (f"{current_app.config['MONO_API_URL']}/personal/statement/"
+        url = (f"{MONO_API_URL}/personal/statement/"
                f"{account['id']}/{start_date_unix}/{end_date_unix}")
         header = {"X-Token": mono_user_token}
 
@@ -231,19 +232,19 @@ def get_mono_payments(start_date: str = "", end_date: str = "", mono_user_id: in
         while r.status_code != 200:
             err_cnn += 1
             time_to_sleep = 15 + random.randint(10, 40)
-            current_app.logger.warning(
+            mono_logger.warning(
                 f"""Status request code: {r.status_code}\nWait {time_to_sleep}s..."""
             )
             time.sleep(time_to_sleep)
             r = requests.get(url, headers=header)
             if err_cnn > 2:
-                current_app.logger.error("Error connection more then 2")
+                mono_logger.error("Error connection more then 2")
                 return result
 
         result.extend(r.json())
 
     if len(result) < 1:
-        current_app.logger.info("No rows returned from Request..")
+        mono_logger.info("No rows returned from Request..")
 
     return result
 
@@ -323,8 +324,7 @@ def get_mono_user(mono_user_id: int) -> MonoUser | None:
 
 
 def get_category_id(user_id: int, category_name: str) -> int:
-    session = g.get('db_session', None)
-    category = session.query(Category).filter(
+    category = db.session().query(Category).filter(
         and_(
             Category.name.like(f'%{category_name}%'), Category.user_id == user_id, Category.parent_id == 0, )
     ).one_or_none()
@@ -345,8 +345,7 @@ def get_category_id(user_id: int, category_name: str) -> int:
 def add_new_payment(data) -> Payment:
     result = None
     try:
-        new_payment = Payment()
-        new_payment.from_dict(**data)
+        new_payment = Payment(**data)
         db.session().add(new_payment)
         db.session().commit()
         result = new_payment

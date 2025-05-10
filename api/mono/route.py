@@ -2,7 +2,7 @@
 import logging
 from typing import Optional, Dict, Any, List
 
-from fastapi import APIRouter, Depends, HTTPException, status, Body, Path, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Body, Path, Query, Request
 from pydantic import BaseModel, Field
 
 from api.mono.services import (
@@ -23,6 +23,8 @@ class MonoPaymentProcessRequest(BaseModel):
     mono_user_id: int = Field(..., description="ID користувача Mono")
     from_date: Optional[str] = Field(None, description="Початкова дата (формат: YYYY-MM-DD)")
     to_date: Optional[str] = Field(None, description="Кінцева дата (формат: YYYY-MM-DD)")
+    mode: Optional[str] = Field("import", description="Режим обробки платежів")
+    user_id: int = Field(..., description="ID користувача")
 
 # Створюємо маршрути замість Blueprint
 router = APIRouter(tags=["mono"])
@@ -55,7 +57,7 @@ async def get_mono_user_info(
 @router.put("/api/mono/users/{mono_user_id}/webhook")
 async def set_webhook(
     mono_user_id: int,
-    webhook_data: MonoWebhookRequest = Body(...),
+    webhook_data: MonoWebhookRequest,
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -82,10 +84,12 @@ async def mono_webhook_handler(mono_user_id: int, webhook_data: Dict[str, Any] =
 
 @router.post("/api/mono/payments")
 async def get_mono_data_pmts(
-    payment_data: MonoPaymentProcessRequest = Body(...),
+    payment_data: MonoPaymentProcessRequest,
     current_user: User = Depends(get_current_user)
 ):
     """
     Обробка платежів від Monobank
     """
-    return process_mono_data_payments(current_user.id, payment_data.dict())
+    # Конвертуємо модель Pydantic в словник
+    data = payment_data.model_dump() 
+    return process_mono_data_payments(current_user.id, data)

@@ -33,8 +33,8 @@ def check_and_fill_spr_config_table() -> bool:
             ).one_or_none()
             if user_spr_config_type:
                 continue
-            dictionary_entry = SprConfigTypes()
-            dictionary_entry.from_dict(**data)
+
+            dictionary_entry = SprConfigTypes(**data)
             db.session.add(dictionary_entry)
 
         db.session.commit()
@@ -45,8 +45,8 @@ def check_and_fill_spr_config_table() -> bool:
    
 
 def add_new_config_row(data: dict) -> dict:
-    config = Config()
-    config.from_dict(**data)
+
+    config = Config(**data)
     try:
         db.session().add(config)
         db.session().commit()
