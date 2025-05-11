@@ -394,9 +394,7 @@ def create_group_invitation_(user_id, group_id, data: dict):
         invitation.email = email
 
     if 'expires' in data and data['expires']:
-        invitation.expires = datetime.datetime.fromisoformat(
-            data['expires'].replace('Z', '+00:00')
-        )
+        invitation.expires = data['expires']
 
     try:
         db.session().add(invitation)
@@ -406,6 +404,43 @@ def create_group_invitation_(user_id, group_id, data: dict):
         raise err
 
     return GroupInvitationResponse.model_validate(invitation).model_dump()
+
+def leave_group_(user_id: int, group_id: int) -> dict:
+    """
+    Вихід користувача з групи
+    
+    Параметри:
+        user_id: ID користувача, який виходить з групи
+        group_id: ID групи
+    """
+    # Отримуємо групу
+    group = db.session().query(Group).get(group_id)
+    if not group:
+        raise HTTPException(404, 'Group not found')
+
+    # Перевіряємо, чи користувач є власником групи
+    if group.owner_id == user_id:
+        raise HTTPException(400, 'Owner cannot leave the group')
+
+    # Перевіряємо, чи користувач є в групі
+    user_group = db.session().query(UserGroupAssociation).filter(
+        UserGroupAssociation.user_id == user_id,
+        UserGroupAssociation.group_id == group_id
+    ).one_or_none()
+
+    if not user_group:
+        raise HTTPException(404, 'User is not in the group')
+
+    # Видаляємо користувача з групи
+    try:
+        db.session().delete(user_group)
+        db.session().commit()
+    except Exception as err:
+        db.session().rollback()
+        raise err
+
+    return {"result": "ok"}
+
 
 def update_user_relation_(user_id_current, group_id, user_id_to_update, data: dict):
     """

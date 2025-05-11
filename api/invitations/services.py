@@ -52,7 +52,7 @@ def check_invitation_(user_id, invitation_code):
     return result
 
 
-def accept_invitation_(user_id, invitation_code):
+def accept_invitation_(user_id: int, invitation_code: str, data: dict):
     """
     Прийняття запрошення
     """
@@ -120,7 +120,7 @@ def accept_invitation_(user_id, invitation_code):
         db.session().rollback()
         raise err
 
-    return jsonify({"result": "ok", "message": "Ви успішно приєднались до групи"})
+    return {"result": "ok", "message": "Ви успішно приєднались до групи"}
 
 
 def get_invitation_(user_id, invitation_id):
@@ -164,7 +164,7 @@ def delete_invitation_(user_id, invitation_id):
         db.session().rollback()
         raise err
 
-    return jsonify({"result": "ok"})
+    return {"result": "ok"}
 
 
 def check_user_invitations_(user_id):
@@ -241,4 +241,4 @@ def ignore_invitation_(user_id, invitation_id):
         db.session().rollback()
         raise err
 
-    return jsonify({"result": "ok"})
+    return {"result": "ok"}

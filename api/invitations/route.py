@@ -43,7 +43,7 @@ async def accept_invitation(
     """
     data = None
     if accept_data:
-        data = accept_data.dict()
+        data = accept_data.model_dump()
     return accept_invitation_(current_user.id, invitation_code, data)
 
 

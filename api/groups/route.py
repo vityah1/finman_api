@@ -1,17 +1,18 @@
 # _*_ coding:UTF-8 _*_
 
-from fastapi import APIRouter, Depends, HTTPException, status, Body, Query, Path
-from typing import List, Optional, Dict, Any
+from fastapi import APIRouter, Depends, status, Body
+from typing import Optional
 from pydantic import BaseModel, Field
 
 from api.groups.service import (
     add_user_to_group_, create_group_, delete_group_, get_group_, get_group_users_,
     get_groups_,
     remove_user_from_group_, update_group_, update_user_relation_,
-    get_group_invitations_, create_group_invitation_
+    get_group_invitations_, create_group_invitation_, leave_group_
 )
 from dependencies import get_current_user
 from models.models import User
+from api.schemas.group import GroupUserUpdate, GroupInvitationCreate
 
 # Створюємо Pydantic моделі для запитів та відповідей
 class GroupBase(BaseModel):
@@ -28,9 +29,6 @@ class GroupUpdate(BaseModel):
 class GroupUserAdd(BaseModel):
     user_id: int = Field(..., description="ID користувача для додавання")
     role: Optional[str] = Field("member", description="Роль користувача в групі")
-
-class GroupUserUpdate(BaseModel):
-    role: str = Field(..., description="Нова роль користувача в групі")
 
 class GroupInvitation(BaseModel):
     email: str = Field(..., description="Email користувача для запрошення")
@@ -49,7 +47,7 @@ async def update_user_relation(
     """
     Оновити інформацію про користувача в групі
     """
-    return update_user_relation_(current_user.id, group_id, user_id, role_data=user_relation.dict())
+    return update_user_relation_(current_user.id, group_id, user_id, data=user_relation.model_dump())
 
 
 @router.get("/api/groups/{group_id}/invitations")
@@ -66,13 +64,13 @@ async def get_group_invitations(
 @router.post("/api/groups/{group_id}/invitations", status_code=status.HTTP_201_CREATED)
 async def create_group_invitation(
     group_id: int,
-    invitation: GroupInvitation = Body(...),
+    invitation_data: GroupInvitationCreate = Body(...),
     current_user: User = Depends(get_current_user)
 ):
     """
     Створити запрошення до групи
     """
-    return create_group_invitation_(current_user.id, group_id, invitation_data=invitation.dict())
+    return create_group_invitation_(current_user.id, group_id, data=invitation_data.model_dump(exclude_unset=True))
 
 
 @router.get("/api/groups")
@@ -116,7 +114,18 @@ async def update_group(
     """
     Оновити інформацію про групу
     """
-    return update_group_(current_user.id, group_id, group_data=group.dict(exclude_unset=True))
+    return update_group_(current_user.id, group_id, data=group.model_dump(exclude_unset=True))
+
+
+@router.post("/api/groups/{group_id}/leave")
+async def leave_group(
+    group_id: int,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Вихід користувача з групи
+    """
+    return leave_group_(current_user.id, group_id)
 
 
 @router.get("/api/groups/{group_id}")
