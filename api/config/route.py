@@ -1,7 +1,7 @@
 # _*_ coding:UTF-8 _*_
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status, Body
-from typing import Dict, Any, List, Optional
+from fastapi import APIRouter, Depends, Body
+from api.schemas.common import ConfigCreate, ConfigUpdate
 
 from api.config.services import (
     get_user_config_,
@@ -11,7 +11,6 @@ from api.config.services import (
     delete_config_,
     get_config_types_,
 )
-from mydb import get_db
 from dependencies import get_current_user
 from models.models import User
 
@@ -36,11 +35,14 @@ async def get_user_config(current_user: User = Depends(get_current_user)):
 
 
 @router.post("/api/users/config")
-async def add_config(current_user: User = Depends(get_current_user)):
+async def add_config(
+    config_data: ConfigCreate = Body(...),
+    current_user: User = Depends(get_current_user)
+):
     """
     Додавання користувацької конфігурації
     """
-    return add_config_(current_user.id)
+    return add_config_(current_user.id, config_data.model_dump())
 
 
 @router.delete("/api/config/{config_id}")
@@ -57,12 +59,13 @@ async def delete_config(
 @router.patch("/api/config/{config_id}")
 async def edit_config(
     config_id: int, 
+    config_data: ConfigUpdate = Body(...),
     current_user: User = Depends(get_current_user)
 ):
     """
     Редагування конфігурації
     """
-    return edit_config_(config_id)
+    return edit_config_(config_id, config_data.model_dump(exclude_unset=True))
 
 
 @router.get("/api/config/{config_id}")

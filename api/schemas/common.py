@@ -1,9 +1,9 @@
 """
 Загальні схеми моделей для серіалізації
 """
-from typing import Optional, List, Dict, Any, Union
+from typing import Optional, Dict, Any
 from datetime import datetime
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 
 class ModelResponse(BaseModel):
@@ -78,6 +78,40 @@ class GroupInvitationResponse(ModelResponse):
     creator: Optional[UserResponse] = None
 
 
+class ConfigCreate(BaseModel):
+    """Схема для створення конфігурації"""
+    type_data: str
+    value_data: str
+    json_data: Optional[Dict[str, Any]] = None
+    add_value: Optional[str] = None
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "type_data": "mono_account",
+                "value_data": "1234567890",
+                "add_value": "optional_value"
+            }
+        }
+
+
+class ConfigUpdate(BaseModel):
+    """Схема для оновлення конфігурації"""
+    type_data: Optional[str] = None
+    value_data: Optional[str] = None
+    json_data: Optional[Dict[str, Any]] = None
+    add_value: Optional[str] = None
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "type_data": "mono_account",
+                "value_data": "1234567890",
+                "add_value": "optional_value"
+            }
+        }
+
+
 class PaymentData(BaseModel):
     """Схема для даних про платіж"""
     rdate: datetime
@@ -110,3 +144,13 @@ class SprCurrencyResponse(ModelResponse):
     id: Optional[int] = None
     currency: Optional[str] = None
     currencyCode: Optional[int] = None
+
+
+class SprConfigTypesResponse(ModelResponse):
+    """Схема для відповіді з даними типів конфігурації"""
+    id: Optional[int] = None
+    type_data: Optional[str] = None
+    name: Optional[str] = None
+    is_multiple: Optional[bool] = None
+    is_need_add_value: Optional[bool] = None
+    created: Optional[datetime] = None

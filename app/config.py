@@ -5,7 +5,7 @@ from typing import Dict, Any
 dotenv.load_dotenv()
 
 # Основні налаштування додатку
-BASE_URL = "https://kt.if.ua"
+BASE_URL = "https://finman.kt.if.ua"
 SECRET_KEY = environ["SECRET_KEY"]
 JWT_SECRET_KEY = SECRET_KEY
 SQLALCHEMY_DATABASE_URI = environ["DATABASE_URI"]

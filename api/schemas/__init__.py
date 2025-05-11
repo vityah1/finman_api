@@ -5,7 +5,8 @@ from .common import (
     MonoUserResponse, 
     ConfigResponse, 
     GroupInvitationResponse,
-    PaymentData
+    PaymentData,
+    SprConfigTypesResponse,
 )
 
 __all__ = [
@@ -15,5 +16,6 @@ __all__ = [
     "MonoUserResponse", 
     "ConfigResponse", 
     "GroupInvitationResponse",
-    "PaymentData"
+    "PaymentData",
+    "SprConfigTypesResponse",
 ]

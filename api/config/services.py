@@ -7,7 +7,7 @@ from .schemas import ConfigTypes
 from models.models import Config, SprConfigTypes
 from mydb import db
 from .funcs import add_new_config_row
-from api.schemas import ConfigResponse
+from api.schemas.common import SprConfigTypesResponse, ConfigResponse
 
 logger = logging.getLogger()
 
@@ -20,7 +20,7 @@ def get_config_types_() -> list:
     if not config_types:
         raise HTTPException(status_code=404, detail='Not found configs')
 
-    return [ConfigResponse.model_validate(item).model_dump() for item in config_types]
+    return [SprConfigTypesResponse.model_validate(item).model_dump() for item in config_types]
 
 
 def get_user_config_(user_id: int) -> list[dict]:
@@ -41,7 +41,7 @@ def get_user_config_(user_id: int) -> list[dict]:
     if not configs:
         raise HTTPException(status_code=404, detail='Not found configs')
 
-    return [item._asdict() for item in configs]
+    return [ConfigResponse.model_validate(item).model_dump() for item in configs]
 
 
 def add_config_(user_id: int, data: dict) -> list[dict]:

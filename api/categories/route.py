@@ -46,7 +46,7 @@ async def add_category(
     """
     Додавання нової категорії
     """
-    return add_category_(current_user.id, category_data=category.dict())
+    return add_category_(current_user.id, data=category.model_dump())
 
 
 @router.delete("/api/categories/{category_id}")
@@ -69,7 +69,7 @@ async def edit_category(
     """
     Редагування категорії за ID
     """
-    return edit_category_(current_user.id, category_id, category_data=category.dict(exclude_unset=True))
+    return edit_category_(current_user.id, category_id, data=category.model_dump(exclude_unset=True))
 
 
 @router.get("/api/categories/{category_id}")

@@ -1,5 +1,5 @@
 import logging
-from api.schemas.common import UserResponse
+from api.schemas.common import MonoUserResponse
 
 from fastapi import HTTPException
 
@@ -17,7 +17,7 @@ def get_mono_users_(user_id) -> list[dict]:
     if not mono_users:
         raise HTTPException(404, 'Not found mono users')
 
-    return [UserResponse.model_validate(item).model_dump() for item in mono_users]
+    return [MonoUserResponse.model_validate(item).model_dump() for item in mono_users]
 
 
 def add_mono_user_(user_id: int, data: dict) -> dict:
@@ -37,7 +37,7 @@ def add_mono_user_(user_id: int, data: dict) -> dict:
         logger.error(f'user add failed {err}')
         raise HTTPException(500, 'user add failed')
 
-    return UserResponse.model_validate(mono_user).model_dump()
+    return MonoUserResponse.model_validate(mono_user).model_dump()
 
 
 def edit_mono_user_(user_id, mono_user_id: int, data: dict) -> dict:
@@ -56,7 +56,7 @@ def edit_mono_user_(user_id, mono_user_id: int, data: dict) -> dict:
         db.session().rollback()
         raise err
 
-    return UserResponse.model_validate(mono_user).model_dump()
+    return MonoUserResponse.model_validate(mono_user).model_dump()
 
 
 def delete_mono_user_(mono_user_id: int) -> dict:
@@ -87,4 +87,4 @@ def get_mono_user_(mono_user_id: int) -> dict:
     if not mono_user:
         raise HTTPException(404, 'Not found mono users')
 
-    return UserResponse.model_validate(mono_user).model_dump()
+    return MonoUserResponse.model_validate(mono_user).model_dump()
