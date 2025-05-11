@@ -59,6 +59,15 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+# Налаштування CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Дозволяємо всім доменам
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 # Додаємо CORS middleware
 app.add_middleware(
     CORSMiddleware,

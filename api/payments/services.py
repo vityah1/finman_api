@@ -134,6 +134,8 @@ def get_payments_detail(user_id: int, params: dict) -> list[dict]:
     pattern = re.compile(r"(\+38)?0\d{9}", re.MULTILINE)
     user_phones = get_user_phones_from_config(user_id)
     for row in result:
+        # Додаємо назву категорії до результату
+        row["category_name"] = row.get("category_name", "")
 
         if pattern.search(row["mydesc"]):
             phone_number = pattern.search(row["mydesc"]).group(0)
