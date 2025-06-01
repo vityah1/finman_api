@@ -10,6 +10,7 @@ from api.core.funcs import p24_to_pmt
 from api.core.revolut.funcs import revolut_to_pmt
 from api.core.wise.funcs import wise_to_pmt
 from api.core.pumb.funcs import parse_pumb_pdf, pumb_to_pmt
+from api.core.erste.funcs import parse_erste_pdf, erste_to_pmt
 from api.funcs import add_bulk_payments
 from api.mono.funcs import add_new_payment
 from models import User
@@ -24,7 +25,7 @@ async def bank_import(user: User, bank: str, file: UploadFile, action: str = "im
 
     Параметри:
         user_id: ID користувача
-        bank: Назва банку ("wise", "mono", "revolut", "p24", "pumb")
+        bank: Назва банку ("wise", "mono", "revolut", "p24", "pumb", "erste")
         file: Завантажений файл через FastAPI UploadFile
         action: Дія - "show" для попереднього перегляду або "import" для імпорту даних
     """
@@ -100,6 +101,24 @@ async def convert_file_to_data(user: User, file_content: bytes, filename: str, b
         
         return data
 
+    # Обробка PDF файлів Erste Bank
+    if bank == 'erste':
+        if not filename.lower().endswith('.pdf'):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail='Для Erste Bank підтримуються тільки PDF файли'
+            )
+        
+        # Парсимо PDF та конвертуємо транзакції
+        transactions = parse_erste_pdf(file_content)
+        
+        for transaction in transactions:
+            pmt = erste_to_pmt(user, transaction)
+            if pmt:
+                data.append(pmt.model_dump())
+        
+        return data
+
     # Створюємо об'єкт для читання файлу
     file_obj = io.BytesIO(file_content)
 
@@ -116,7 +135,7 @@ async def convert_file_to_data(user: User, file_content: bytes, filename: str, b
     else:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f'Невідомий тип файлу: {filename}. Підтримуються .xls, .xlsx, .csv та .pdf (тільки для PUMB)'
+            detail=f'Невідомий тип файлу: {filename}. Підтримуються .xls, .xlsx, .csv та .pdf (для PUMB та Erste Bank)'
         )
 
     if df.empty:
@@ -137,6 +156,9 @@ async def convert_file_to_data(user: User, file_content: bytes, filename: str, b
                 pmt = p24_to_pmt(user, row)
             case 'pumb':
                 # PUMB обробляється окремо вище
+                continue
+            case 'erste':
+                # Erste обробляється окремо вище
                 continue
             case _:
                 logger.warning(f"Непідтримуваний банк: {bank}")
