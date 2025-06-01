@@ -20,7 +20,7 @@ logger = logging.getLogger()
 async def bank_import(user: User, bank: str, file: UploadFile, action: str = "import"):
     """
     Імпорт даних з банківських виписок
-    
+
     Параметри:
         user_id: ID користувача
         bank: Назва банку ("wise", "mono", "revolut", "p24")
@@ -36,17 +36,17 @@ async def bank_import(user: User, bank: str, file: UploadFile, action: str = "im
     try:
         # Зчитуємо вміст файлу
         file_content = await file.read()
-        
+
         # Перетворюємо дані
         data_ = await convert_file_to_data(user, file_content, file.filename, bank)
-        
+
         if not data_:
             logger.error("Невалідні дані у файлі")
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Невалідні дані у файлі")
-            
+
         if action == 'show':
             return data_
-            
+
         if action == 'import':
             result = add_bulk_payments(data_)
             if result:
@@ -61,6 +61,10 @@ async def bank_import(user: User, bank: str, file: UploadFile, action: str = "im
                         pmt_row['sql'] = False
         return data_
     except Exception as err:
+        from sqlalchemy.exc import IntegrityError
+        # Дозволяємо IntegrityError пройти до глобального обробника
+        if isinstance(err, IntegrityError):
+            raise err
         logger.error(f'Помилка при імпорті даних: {err}', exc_info=True)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Помилка при імпорті файлу: {str(err)}")
 
@@ -68,7 +72,7 @@ async def bank_import(user: User, bank: str, file: UploadFile, action: str = "im
 async def convert_file_to_data(user: User, file_content: bytes, filename: str, bank: str) -> List[Dict[str, Any]]:
     """
     Перетворює завантажений файл на дані платежів
-    
+
     Параметри:
         user: Об'єкт користувача
         file_content: Вміст файлу в бінарному форматі
@@ -76,10 +80,10 @@ async def convert_file_to_data(user: User, file_content: bytes, filename: str, b
         bank: Назва банку
     """
     data = []
-    
+
     # Створюємо об'єкт для читання файлу
     file_obj = io.BytesIO(file_content)
-    
+
     # Читаємо файл залежно від формату
     if '.xls' in filename.lower():
         df = read_excel(file_obj)
@@ -92,13 +96,13 @@ async def convert_file_to_data(user: User, file_content: bytes, filename: str, b
         )
     else:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, 
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail=f'Невідомий тип файлу: {filename}. Підтримуються тільки .xls, .xlsx та .csv'
         )
 
     if df.empty:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, 
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail=f'Файл {filename} порожній'
         )
 

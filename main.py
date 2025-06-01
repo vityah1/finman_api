@@ -28,9 +28,9 @@ async def lifespan(app: FastAPI):
         raise Exception('Config table not valid')
     if not check_exsists_table(SprCurrency):
         SprCurrency.__table__.create(db.engine)
-    
+
     yield  # Тут виконується програма
-    
+
     # Код для виконання при завершенні (тут можна закрити ресурси)
 
 # Створюємо екземпляр FastAPI з підтримкою OAuth2
@@ -49,7 +49,7 @@ oauth2_scheme = OAuth2(
 )
 
 app = FastAPI(
-    title="FinMan API", 
+    title="FinMan API",
     version="1.0.0",
     swagger_ui_oauth2_redirect_url="/oauth2-redirect",
     swagger_ui_init_oauth={
@@ -107,28 +107,14 @@ app.include_router(import_router)
 from app.exceptions import register_exception_handlers
 register_exception_handlers(app)
 
-# Покращене логування та перехоплення помилок
+# Покращене логування запитів
 @app.middleware("http")
 async def log_requests(request, call_next):
     logger.info(f"Request: {request.method} {request.url.path} | Headers: {request.headers}")
-    
-    try:
-        response = await call_next(request)
-        logger.info(f"Response: {request.method} {request.url.path} | Status: {response.status_code}")
-        return response
-    except Exception as e:
-        import traceback
-        error_details = traceback.format_exc()
-        logger.error(f"Exception during request processing: {str(e)}\n{error_details}")
-        
-        # Повертаємо помилку 500 з деталями
-        from app.config import DEBUG
-        if DEBUG:
-            error_msg = {"detail": str(e), "traceback": error_details.split("\n")}
-        else:
-            error_msg = {"detail": "Непередбачена помилка", "error_type": e.__class__.__name__}
-            
-        return JSONResponse(status_code=500, content=error_msg)
+
+    response = await call_next(request)
+    logger.info(f"Response: {request.method} {request.url.path} | Status: {response.status_code}")
+    return response
 
 # Запуск додатку (якщо викликається напряму)
 if __name__ == "__main__":

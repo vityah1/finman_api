@@ -201,7 +201,7 @@ async def edit_user(
     """
     Оновлення даних користувача
     """
-    data = user_data.dict()
+    data = user_data.model_dump()
     data['user_id'] = user_id
 
     sql = """update `users` 
