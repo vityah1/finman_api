@@ -3,6 +3,7 @@ import logging
 import hashlib
 import datetime
 import re
+import time
 from decimal import Decimal
 from typing import List, Dict, Any
 
@@ -27,6 +28,7 @@ def parse_pumb_pdf(file_content: bytes) -> List[Dict[str, Any]]:
         List[Dict]: Список транзакцій
     """
     transactions = []
+    transaction_counter = 0  # Лічильник для унікальності
     
     try:
         with pdfplumber.open(BytesIO(file_content)) as pdf:
@@ -64,6 +66,8 @@ def parse_pumb_pdf(file_content: bytes) -> List[Dict[str, Any]]:
                     # Парсимо рядок транзакції
                     transaction = parse_transaction_line(line)
                     if transaction:
+                        transaction_counter += 1
+                        transaction['sequence_number'] = transaction_counter  # Додаємо порядковий номер
                         transactions.append(transaction)
                         
     except Exception as e:
@@ -161,7 +165,10 @@ def pumb_to_pmt(user: User, transaction: Dict[str, Any]) -> PaymentData | None:
         category_id, is_deleted = find_category(user, description)
         
         # Створюємо унікальний ID для банківського платежу
-        unique_string = f"pumb_{user.id}_{transaction['date'].strftime('%Y%m%d')}_{description}_{transaction['uah_amount']}"
+        # Включаємо порядковий номер для гарантії унікальності
+        unique_string = (f"pumb_{user.id}_{transaction['date'].strftime('%Y%m%d')}_"
+                        f"{description}_{transaction['uah_amount']}_{transaction.get('sequence_number', 0)}_"
+                        )  # Мікросекунди для унікальності
         bank_payment_id = hashlib.md5(unique_string.encode()).hexdigest()
         
         # Визначаємо валюту та суму
