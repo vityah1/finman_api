@@ -126,7 +126,7 @@ alembic init migrations
 alembic revision --autogenerate -m "Initial migration"
 
 # Оновлення бази даних до останньої версії
-alembic upgrade head
+alembic upgrade head 
 ```
 
 ### Налаштування вибіркової міграції таблиць
