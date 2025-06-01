@@ -11,6 +11,10 @@ from .models import (
     Payment,
     SprExchangeRates,
     GroupInvitation,
+    UtilityAddress,
+    UtilityService,
+    UtilityTariff,
+    UtilityReading,
 )
 
 __all__ = [
@@ -26,4 +30,8 @@ __all__ = [
     "Payment",
     "SprExchangeRates",
     "GroupInvitation",
+    "UtilityAddress",
+    "UtilityService",
+    "UtilityTariff",
+    "UtilityReading",
 ]

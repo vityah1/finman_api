@@ -237,3 +237,107 @@ class GroupInvitation(Base):
     _default_fields = [
         "group_id", "created_by", "invitation_code", "email", "created", "expires"
     ]
+
+
+class UtilityService(Base):
+    __tablename__ = 'utility_services'
+
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    user = relationship('User', lazy=True)
+    address_id = Column(Integer, ForeignKey('utility_addresses.id'), nullable=False)
+    address = relationship('UtilityAddress', back_populates='services', lazy=True)
+    name = Column(String(100), nullable=False, comment="Назва послуги (Електроенергія, Водопостачання)")
+    description = Column(Text, nullable=True)
+    unit = Column(String(20), nullable=False, comment="Одиниця виміру (кВт/год, м³)")
+    meter_number = Column(String(50), nullable=True, comment="Номер лічильника")
+    is_active = Column(Boolean, nullable=False, default=True)
+    
+    tariffs = relationship('UtilityTariff', back_populates='service', lazy=True)
+    readings = relationship('UtilityReading', back_populates='service', lazy=True)
+
+    _default_fields = ["name", "description", "unit", "meter_number", "is_active", "user_id", "address_id"]
+
+    __table_args__ = (
+        Index(None, 'user_id', 'address_id', 'name', unique=True),
+    )
+
+
+UtilityService.comment = 'Directory of utility services'
+
+
+class UtilityAddress(Base):
+    __tablename__ = 'utility_addresses'
+
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    user = relationship('User', lazy=True)
+    name = Column(String(100), nullable=False, comment="Назва адреси (Квартира, Дача)")
+    address = Column(String(255), nullable=False, comment="Повна адреса")
+    description = Column(Text, nullable=True)
+    is_active = Column(Boolean, nullable=False, default=True)
+    
+    services = relationship('UtilityService', back_populates='address', lazy=True)
+    readings = relationship('UtilityReading', back_populates='address', lazy=True)
+
+    _default_fields = ["name", "address", "description", "is_active", "user_id"]
+
+    __table_args__ = (
+        Index(None, 'user_id', 'name', unique=True),
+    )
+
+
+UtilityAddress.comment = 'Directory of utility addresses/households'
+
+
+class UtilityTariff(Base):
+    __tablename__ = 'utility_tariffs'
+
+    service_id = Column(Integer, ForeignKey('utility_services.id'), nullable=False)
+    service = relationship('UtilityService', back_populates='tariffs', lazy=True)
+    name = Column(String(100), nullable=False, comment="Назва тарифу (Денний, Нічний, Подача води)")
+    rate = Column(Float, nullable=False, comment="Ставка за одиницю")
+    currency = Column(String(3), nullable=False, default='UAH')
+    valid_from = Column(DateTime, nullable=False, comment="Дата початку дії тарифу")
+    valid_to = Column(DateTime, nullable=True, comment="Дата закінчення дії тарифу")
+    is_active = Column(Boolean, nullable=False, default=True)
+    
+    readings = relationship('UtilityReading', back_populates='tariff', lazy=True)
+
+    _default_fields = ["service_id", "name", "rate", "currency", "valid_from", "valid_to", "is_active"]
+
+    __table_args__ = (
+        Index(None, 'service_id', 'name', 'valid_from', unique=True),
+    )
+
+
+UtilityTariff.comment = 'Tariff history for utility services'
+
+
+class UtilityReading(Base):
+    __tablename__ = 'utility_readings'
+
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    user = relationship('User', lazy=True)
+    address_id = Column(Integer, ForeignKey('utility_addresses.id'), nullable=False)
+    address = relationship('UtilityAddress', back_populates='readings', lazy=True)
+    service_id = Column(Integer, ForeignKey('utility_services.id'), nullable=False)
+    service = relationship('UtilityService', back_populates='readings', lazy=True)
+    period = Column(String(7), nullable=False, comment="Період YYYY-MM")
+    current_reading = Column(Float, nullable=False, comment="Поточний показник")
+    previous_reading = Column(Float, nullable=True, comment="Попередній показник")
+    consumption = Column(Float, nullable=True, comment="Споживання")
+    tariff_id = Column(Integer, ForeignKey('utility_tariffs.id'), nullable=False)
+    tariff = relationship('UtilityTariff', back_populates='readings', lazy=True)
+    amount = Column(Float, nullable=True, comment="Сума до сплати")
+    reading_date = Column(DateTime, nullable=False, default=datetime.datetime.now(datetime.timezone.utc))
+    is_paid = Column(Boolean, nullable=False, default=False)
+    notes = Column(Text, nullable=True)
+
+    _default_fields = ["user_id", "address_id", "service_id", "period", "current_reading", "previous_reading", 
+                      "consumption", "tariff_id", "amount", "reading_date", "is_paid", "notes"]
+
+    __table_args__ = (
+        Index(None, 'user_id', 'address_id', 'service_id', 'period', unique=True),
+    )
+
+
+UtilityReading.comment = 'Monthly utility readings'

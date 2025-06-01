@@ -154,3 +154,147 @@ class SprConfigTypesResponse(ModelResponse):
     is_multiple: Optional[bool] = None
     is_need_add_value: Optional[bool] = None
     created: Optional[datetime] = None
+
+
+class UtilityAddressResponse(ModelResponse):
+    """Схема для відповіді з даними адреси комунальних служб"""
+    id: Optional[int] = None
+    user_id: Optional[int] = None
+    name: Optional[str] = None
+    address: Optional[str] = None
+    description: Optional[str] = None
+    is_active: Optional[bool] = None
+    created: Optional[datetime] = None
+    updated: Optional[datetime] = None
+
+
+class UtilityServiceResponse(ModelResponse):
+    """Схема для відповіді з даними комунальної служби"""
+    id: Optional[int] = None
+    user_id: Optional[int] = None
+    address_id: Optional[int] = None
+    name: Optional[str] = None
+    description: Optional[str] = None
+    unit: Optional[str] = None
+    meter_number: Optional[str] = None
+    is_active: Optional[bool] = None
+    created: Optional[datetime] = None
+    updated: Optional[datetime] = None
+    address: Optional[UtilityAddressResponse] = None
+
+
+class UtilityTariffResponse(ModelResponse):
+    """Схема для відповіді з даними тарифу комунальної служби"""
+    id: Optional[int] = None
+    service_id: Optional[int] = None
+    name: Optional[str] = None
+    rate: Optional[float] = None
+    currency: Optional[str] = None
+    valid_from: Optional[datetime] = None
+    valid_to: Optional[datetime] = None
+    is_active: Optional[bool] = None
+    created: Optional[datetime] = None
+    updated: Optional[datetime] = None
+    service: Optional[UtilityServiceResponse] = None
+
+
+class UtilityReadingResponse(ModelResponse):
+    """Схема для відповіді з даними показників комунальної служби"""
+    id: Optional[int] = None
+    user_id: Optional[int] = None
+    address_id: Optional[int] = None
+    service_id: Optional[int] = None
+    period: Optional[str] = None
+    current_reading: Optional[float] = None
+    previous_reading: Optional[float] = None
+    consumption: Optional[float] = None
+    tariff_id: Optional[int] = None
+    amount: Optional[float] = None
+    reading_date: Optional[datetime] = None
+    is_paid: Optional[bool] = None
+    notes: Optional[str] = None
+    created: Optional[datetime] = None
+    updated: Optional[datetime] = None
+    address: Optional[UtilityAddressResponse] = None
+    service: Optional[UtilityServiceResponse] = None
+    tariff: Optional[UtilityTariffResponse] = None
+
+
+class UtilityAddressCreate(BaseModel):
+    """Схема для створення адреси комунальних служб"""
+    name: str
+    address: str
+    description: Optional[str] = None
+    is_active: Optional[bool] = True
+
+
+class UtilityAddressUpdate(BaseModel):
+    """Схема для оновлення адреси комунальних служб"""
+    name: Optional[str] = None
+    address: Optional[str] = None
+    description: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+class UtilityServiceCreate(BaseModel):
+    """Схема для створення комунальної служби"""
+    address_id: int
+    name: str
+    description: Optional[str] = None
+    unit: str
+    meter_number: Optional[str] = None
+    is_active: Optional[bool] = True
+
+
+class UtilityServiceUpdate(BaseModel):
+    """Схема для оновлення комунальної служби"""
+    address_id: Optional[int] = None
+    name: Optional[str] = None
+    description: Optional[str] = None
+    unit: Optional[str] = None
+    meter_number: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+class UtilityTariffCreate(BaseModel):
+    """Схема для створення тарифу"""
+    service_id: int
+    name: str
+    rate: float
+    currency: Optional[str] = "UAH"
+    valid_from: datetime
+    valid_to: Optional[datetime] = None
+    is_active: Optional[bool] = True
+
+
+class UtilityTariffUpdate(BaseModel):
+    """Схема для оновлення тарифу"""
+    name: Optional[str] = None
+    rate: Optional[float] = None
+    currency: Optional[str] = None
+    valid_from: Optional[datetime] = None
+    valid_to: Optional[datetime] = None
+    is_active: Optional[bool] = None
+
+
+class UtilityReadingCreate(BaseModel):
+    """Схема для створення показника"""
+    address_id: int
+    service_id: int
+    period: str
+    current_reading: float
+    previous_reading: Optional[float] = None
+    tariff_id: int
+    reading_date: Optional[datetime] = None
+    is_paid: Optional[bool] = False
+    notes: Optional[str] = None
+
+
+class UtilityReadingUpdate(BaseModel):
+    """Схема для оновлення показника"""
+    current_reading: Optional[float] = None
+    previous_reading: Optional[float] = None
+    tariff_id: Optional[int] = None
+    reading_date: Optional[datetime] = None
+    is_paid: Optional[bool] = None
+    notes: Optional[str] = None

@@ -89,6 +89,7 @@ from api.payments.route import router as payments_router
 from api.groups.route import router as groups_router
 from api.invitations.route import router as invitations_router
 from api.import_route import router as import_router
+from api.utilities.route import router as utilities_router
 
 # Підключаємо маршрути
 app.include_router(config_router)
@@ -102,6 +103,7 @@ app.include_router(categories_router)
 app.include_router(groups_router)
 app.include_router(invitations_router)
 app.include_router(import_router)
+app.include_router(utilities_router)
 
 # Підключаємо обробники помилок
 from app.exceptions import register_exception_handlers
