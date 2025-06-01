@@ -9,6 +9,7 @@ from pandas import read_csv, read_excel
 from api.core.funcs import p24_to_pmt
 from api.core.revolut.funcs import revolut_to_pmt
 from api.core.wise.funcs import wise_to_pmt
+from api.core.pumb.funcs import parse_pumb_pdf, pumb_to_pmt
 from api.funcs import add_bulk_payments
 from api.mono.funcs import add_new_payment
 from models import User
@@ -23,7 +24,7 @@ async def bank_import(user: User, bank: str, file: UploadFile, action: str = "im
 
     Параметри:
         user_id: ID користувача
-        bank: Назва банку ("wise", "mono", "revolut", "p24")
+        bank: Назва банку ("wise", "mono", "revolut", "p24", "pumb")
         file: Завантажений файл через FastAPI UploadFile
         action: Дія - "show" для попереднього перегляду або "import" для імпорту даних
     """
@@ -81,6 +82,24 @@ async def convert_file_to_data(user: User, file_content: bytes, filename: str, b
     """
     data = []
 
+    # Обробка PDF файлів PUMB
+    if bank == 'pumb':
+        if not filename.lower().endswith('.pdf'):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail='Для PUMB банку підтримуються тільки PDF файли'
+            )
+        
+        # Парсимо PDF та конвертуємо транзакції
+        transactions = parse_pumb_pdf(file_content)
+        
+        for transaction in transactions:
+            pmt = pumb_to_pmt(user, transaction)
+            if pmt:
+                data.append(pmt.model_dump())
+        
+        return data
+
     # Створюємо об'єкт для читання файлу
     file_obj = io.BytesIO(file_content)
 
@@ -97,7 +116,7 @@ async def convert_file_to_data(user: User, file_content: bytes, filename: str, b
     else:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f'Невідомий тип файлу: {filename}. Підтримуються тільки .xls, .xlsx та .csv'
+            detail=f'Невідомий тип файлу: {filename}. Підтримуються .xls, .xlsx, .csv та .pdf (тільки для PUMB)'
         )
 
     if df.empty:
@@ -116,6 +135,9 @@ async def convert_file_to_data(user: User, file_content: bytes, filename: str, b
                 pmt = wise_to_pmt(user, row)
             case 'p24':
                 pmt = p24_to_pmt(user, row)
+            case 'pumb':
+                # PUMB обробляється окремо вище
+                continue
             case _:
                 logger.warning(f"Непідтримуваний банк: {bank}")
                 pmt = None
