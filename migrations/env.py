@@ -28,11 +28,17 @@ def include_object(object, name: str, type_, reflected, compare_to):
 
 def get_engine_url():
     try:
-        # Отримуємо зв'язок з БД з mydb
-        from mydb import db
-        return str(db.engine.url).replace('%', '%%')
+        import os
+        from dotenv import load_dotenv
+        load_dotenv()
+        db_url = os.getenv('DATABASE_URI')
+        if db_url:
+            return db_url.replace('%', '%%')
+        else:
+            # Фолбек на mydb
+            from mydb import db
+            return str(db.engine.url).replace('%', '%%')
     except Exception as e:
-        # Фолбек на випадок помилки
         raise e
 
 
