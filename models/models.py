@@ -295,6 +295,7 @@ class UtilityTariff(Base):
     service = relationship('UtilityService', back_populates='tariffs', lazy=True)
     name = Column(String(100), nullable=False, comment="Назва тарифу (Денний, Нічний, Подача води)")
     rate = Column(Float, nullable=False, comment="Ставка за одиницю")
+    subscription_fee = Column(Float, nullable=True, default=0, comment="Абонентська плата")
     currency = Column(String(3), nullable=False, default='UAH')
     valid_from = Column(DateTime, nullable=False, comment="Дата початку дії тарифу")
     valid_to = Column(DateTime, nullable=True, comment="Дата закінчення дії тарифу")
@@ -302,7 +303,7 @@ class UtilityTariff(Base):
     
     readings = relationship('UtilityReading', back_populates='tariff', lazy=True)
 
-    _default_fields = ["service_id", "name", "rate", "currency", "valid_from", "valid_to", "is_active"]
+    _default_fields = ["service_id", "name", "rate", "subscription_fee", "currency", "valid_from", "valid_to", "is_active"]
 
     __table_args__ = (
         Index(None, 'service_id', 'name', 'valid_from', unique=True),

@@ -363,9 +363,10 @@ def update_utility_reading(user_id: int, reading_id: int, data: dict) -> dict:
             tariff = reading.tariff
             
         if tariff and filtered_data['consumption'] > 0:
-            filtered_data['amount'] = filtered_data['consumption'] * tariff.rate
+            filtered_data['amount'] = (filtered_data['consumption'] * tariff.rate) + (tariff.subscription_fee or 0)
         else:
-            filtered_data['amount'] = 0
+            # Навіть якщо споживання 0, може бути абонплата
+            filtered_data['amount'] = tariff.subscription_fee or 0 if tariff else 0
     
     reading.update(**filtered_data)
     
@@ -571,9 +572,10 @@ def create_utility_reading(user_id: int, data: dict) -> dict:
     
     # Розраховуємо суму
     if data['consumption'] > 0:
-        data['amount'] = data['consumption'] * tariff.rate
+        data['amount'] = (data['consumption'] * tariff.rate) + (tariff.subscription_fee or 0)
     else:
-        data['amount'] = 0
+        # Навіть якщо споживання 0, може бути абонплата
+        data['amount'] = tariff.subscription_fee or 0
     
     reading = UtilityReading(**data)
     
@@ -644,9 +646,10 @@ def update_utility_reading(user_id: int, reading_id: int, data: dict) -> dict:
             tariff = reading.tariff
             
         if tariff and filtered_data['consumption'] > 0:
-            filtered_data['amount'] = filtered_data['consumption'] * tariff.rate
+            filtered_data['amount'] = (filtered_data['consumption'] * tariff.rate) + (tariff.subscription_fee or 0)
         else:
-            filtered_data['amount'] = 0
+            # Навіть якщо споживання 0, може бути абонплата
+            filtered_data['amount'] = tariff.subscription_fee or 0 if tariff else 0
     
     reading.update(**filtered_data)
     

@@ -189,6 +189,7 @@ class UtilityTariffResponse(ModelResponse):
     service_id: Optional[int] = None
     name: Optional[str] = None
     rate: Optional[float] = None
+    subscription_fee: Optional[float] = None
     currency: Optional[str] = None
     valid_from: Optional[datetime] = None
     valid_to: Optional[datetime] = None
@@ -261,6 +262,7 @@ class UtilityTariffCreate(BaseModel):
     service_id: int
     name: str
     rate: float
+    subscription_fee: Optional[float] = 0
     currency: Optional[str] = "UAH"
     valid_from: datetime
     valid_to: Optional[datetime] = None
@@ -271,6 +273,7 @@ class UtilityTariffUpdate(BaseModel):
     """Схема для оновлення тарифу"""
     name: Optional[str] = None
     rate: Optional[float] = None
+    subscription_fee: Optional[float] = None
     currency: Optional[str] = None
     valid_from: Optional[datetime] = None
     valid_to: Optional[datetime] = None
