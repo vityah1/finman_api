@@ -55,10 +55,8 @@ class Category(Base):
 
     # Обмеження: категорія повинна належати або користувачу, або групі
     __table_args__ = (
-        # CheckConstraint('(user_id IS NULL AND group_id IS NOT NULL) OR (user_id IS NOT NULL AND group_id IS NULL)',
-        #               name='check_category_owner'),
         Index(None, 'user_id', 'name', 'parent_id', unique=True),
-        Index(None, 'group_id', 'name', 'parent_id', unique=True),
+        Index('idx_categories_group_id', 'group_id', 'name', 'parent_id', unique=True),
     )
 
 
@@ -237,6 +235,14 @@ class GroupInvitation(Base):
     _default_fields = [
         "group_id", "created_by", "invitation_code", "email", "created", "expires"
     ]
+
+    # __table_args__ = (
+    #     Index(
+    #         "idx_invitation_code",
+    #         "invitation_code",
+    #         unique=True,
+    #     ),
+    # )
 
 
 class UtilityService(Base):
