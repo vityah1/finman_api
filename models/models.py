@@ -343,7 +343,7 @@ class UtilityReading(Base):
                       "consumption", "tariff_id", "amount", "reading_date", "is_paid", "notes"]
 
     __table_args__ = (
-        Index(None, 'user_id', 'address_id', 'service_id', 'period', 'tariff_id', unique=True),
+        Index('ix_utility_readings_unique_period_tariff', 'user_id', 'address_id', 'service_id', 'period', 'tariff_id', unique=True),
     )
 
 
