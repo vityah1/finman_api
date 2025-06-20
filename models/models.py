@@ -257,11 +257,12 @@ class UtilityService(Base):
     unit = Column(String(20), nullable=False, comment="Одиниця виміру (кВт/год, м³)")
     meter_number = Column(String(50), nullable=True, comment="Номер лічильника")
     is_active = Column(Boolean, nullable=False, default=True)
+    has_shared_meter = Column(Boolean, nullable=False, default=False, comment="Чи має спільний показник для групи тарифів")
     
     tariffs = relationship('UtilityTariff', back_populates='service', lazy=True)
     readings = relationship('UtilityReading', back_populates='service', lazy=True)
 
-    _default_fields = ["name", "description", "unit", "meter_number", "is_active", "user_id", "address_id"]
+    _default_fields = ["name", "description", "unit", "meter_number", "is_active", "user_id", "address_id", "has_shared_meter"]
 
     __table_args__ = (
         Index(None, 'user_id', 'address_id', 'name', unique=True),
@@ -307,12 +308,19 @@ class UtilityTariff(Base):
     valid_to = Column(DateTime, nullable=True, comment="Дата закінчення дії тарифу")
     is_active = Column(Boolean, nullable=False, default=True)
     
+    # Нові поля для групування та розрахунків
+    tariff_type = Column(String(50), nullable=True, comment="Тип тарифу (consumption, drainage, day, night, etc)")
+    group_code = Column(String(50), nullable=True, comment="Код групи для об'єднання тарифів")
+    calculation_method = Column(String(50), nullable=True, default='standard', comment="Метод розрахунку (standard, percentage, fixed)")
+    percentage_of = Column(Float, nullable=True, comment="Відсоток від основного тарифу (для зливу води)")
+    
     readings = relationship('UtilityReading', back_populates='tariff', lazy=True)
 
-    _default_fields = ["service_id", "name", "rate", "subscription_fee", "currency", "valid_from", "valid_to", "is_active"]
+    _default_fields = ["service_id", "name", "rate", "subscription_fee", "currency", "valid_from", "valid_to", "is_active", "tariff_type", "group_code", "calculation_method", "percentage_of"]
 
     __table_args__ = (
         Index(None, 'service_id', 'name', 'valid_from', unique=True),
+        Index('idx_tariff_group', 'service_id', 'group_code'),
     )
 
 
@@ -338,12 +346,16 @@ class UtilityReading(Base):
     reading_date = Column(DateTime, nullable=False, default=datetime.datetime.now(datetime.timezone.utc))
     is_paid = Column(Boolean, nullable=False, default=False)
     notes = Column(Text, nullable=True)
+    
+    # Нові поля для детальних розрахунків
+    calculation_details = Column(Text, nullable=True, comment="JSON з деталями розрахунку")
+    reading_type = Column(String(50), nullable=True, comment="Тип показника (standard, day, night)")
 
     _default_fields = ["user_id", "address_id", "service_id", "period", "current_reading", "previous_reading", 
-                      "consumption", "tariff_id", "amount", "reading_date", "is_paid", "notes"]
+                      "consumption", "tariff_id", "amount", "reading_date", "is_paid", "notes", "calculation_details", "reading_type"]
 
     __table_args__ = (
-        Index('ix_utility_readings_unique_period_tariff', 'user_id', 'address_id', 'service_id', 'period', 'tariff_id', unique=True),
+        Index('ix_utility_readings_unique_period_tariff', 'user_id', 'address_id', 'service_id', 'period', 'tariff_id', 'reading_type', unique=True),
     )
 
 
