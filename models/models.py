@@ -258,11 +258,12 @@ class UtilityService(Base):
     meter_number = Column(String(50), nullable=True, comment="Номер лічильника")
     is_active = Column(Boolean, nullable=False, default=True)
     has_shared_meter = Column(Boolean, nullable=False, default=False, comment="Чи має спільний показник для групи тарифів")
+    service_group = Column(String(50), nullable=True, comment="Група служб для об'єднання (electricity, water, etc)")
     
     tariffs = relationship('UtilityTariff', back_populates='service', lazy=True)
     readings = relationship('UtilityReading', back_populates='service', lazy=True)
 
-    _default_fields = ["name", "description", "unit", "meter_number", "is_active", "user_id", "address_id", "has_shared_meter"]
+    _default_fields = ["name", "description", "unit", "meter_number", "is_active", "user_id", "address_id", "has_shared_meter", "service_group"]
 
     __table_args__ = (
         Index(None, 'user_id', 'address_id', 'name', unique=True),
