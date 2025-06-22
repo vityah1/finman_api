@@ -1,5 +1,6 @@
-from fastapi import APIRouter, Depends, Body, Query
-from typing import List, Optional
+from fastapi import APIRouter, Depends, Body, Query, HTTPException
+from typing import List, Optional, Dict
+from datetime import datetime
 
 from api.utilities.services import (
     get_utility_addresses, get_utility_address, create_utility_address,
@@ -11,11 +12,13 @@ from api.utilities.services import (
     get_utility_readings, get_utility_reading, create_utility_reading, 
     update_utility_reading, delete_utility_reading
 )
+from api.utilities.calculation_service import UtilityCalculationService
 from api.schemas.common import (
     UtilityAddressCreate, UtilityAddressUpdate,
     UtilityServiceCreate, UtilityServiceUpdate,
-    UtilityTariffCreate, UtilityTariffUpdate,
-    UtilityReadingCreate, UtilityReadingUpdate
+    UtilityTariffCreate, UtilityTariffUpdate, UtilityTariffResponse,
+    UtilityReadingCreate, UtilityReadingUpdate,
+    GroupedReadingsResponse, LatestPeriodResponse
 )
 from dependencies import get_current_user
 from models.models import User
@@ -134,7 +137,7 @@ async def get_tariff(
     return get_utility_tariff(current_user.id, tariff_id)
 
 
-@router.post("/api/utilities/tariffs")
+@router.post("/api/utilities/tariffs", response_model=UtilityTariffResponse)
 async def create_tariff(
     tariff: UtilityTariffCreate = Body(...),
     current_user: User = Depends(get_current_user)
@@ -143,7 +146,7 @@ async def create_tariff(
     return create_utility_tariff(current_user.id, tariff.model_dump())
 
 
-@router.patch("/api/utilities/tariffs/{tariff_id}")
+@router.patch("/api/utilities/tariffs/{tariff_id}", response_model=UtilityTariffResponse)
 async def update_tariff(
     tariff_id: int,
     tariff: UtilityTariffUpdate = Body(...),
@@ -209,3 +212,133 @@ async def delete_reading(
 ):
     """Видалити показник"""
     return delete_utility_reading(current_user.id, reading_id)
+
+
+# Нові endpoints для розширених функцій
+@router.get("/api/utilities/tariffs/grouped/{service_id}")
+async def get_grouped_tariffs(
+    service_id: int,
+    period: str = Query(..., description="Період у форматі YYYY-MM"),
+    current_user: User = Depends(get_current_user)
+):
+    """Отримати згруповані тарифи для служби на заданий період"""
+    grouped_tariffs = UtilityCalculationService.get_grouped_tariffs(service_id, period)
+    
+    # Конвертуємо в список для JSON відповіді
+    result = {}
+    for group_code, tariffs in grouped_tariffs.items():
+        result[group_code] = [
+            {
+                'id': t.id,
+                'name': t.name,
+                'rate': t.rate,
+                'subscription_fee': t.subscription_fee,
+                'tariff_type': t.tariff_type,
+                'calculation_method': t.calculation_method,
+                'percentage_of': t.percentage_of
+            }
+            for t in tariffs
+        ]
+    
+    return result
+
+
+@router.post("/api/utilities/readings/batch")
+async def create_batch_readings(
+    readings_data: Dict = Body(..., description="Дані для групового створення показників"),
+    current_user: User = Depends(get_current_user)
+):
+    """Створити декілька показників одночасно (для електрики день/ніч)"""
+    created_readings = []
+    
+    # Базові дані спільні для всіх показників
+    base_data = {
+        'address_id': readings_data['address_id'],
+        'service_id': readings_data['service_id'],
+        'period': readings_data['period'],
+        'reading_date': readings_data.get('reading_date'),
+        'is_paid': readings_data.get('is_paid', False),
+        'notes': readings_data.get('notes')
+    }
+    
+    # Створюємо показники для кожного типу
+    for reading in readings_data.get('readings', []):
+        reading_data = {**base_data}
+        reading_data.update({
+            'current_reading': reading['current_reading'],
+            'previous_reading': reading.get('previous_reading'),
+            'tariff_id': reading['tariff_id'],
+            'reading_type': reading.get('reading_type', 'standard')
+        })
+        
+        try:
+            created = create_utility_reading(current_user.id, reading_data)
+            created_readings.append(created)
+        except Exception as e:
+            # Якщо один показник не створився, відкочуємо всі
+            for created_reading in created_readings:
+                delete_utility_reading(current_user.id, created_reading['id'])
+            raise HTTPException(400, f"Error creating batch readings: {str(e)}")
+    
+    return {
+        'created_count': len(created_readings),
+        'readings': created_readings
+    }
+
+
+@router.get("/api/utilities/readings/detailed/{service_id}")
+async def get_detailed_readings(
+    service_id: int,
+    period: str = Query(..., description="Період у форматі YYYY-MM"),
+    current_user: User = Depends(get_current_user)
+):
+    """Отримати показники з деталізованими розрахунками"""
+    readings = get_utility_readings(
+        user_id=current_user.id,
+        service_id=service_id,
+        period=period
+    )
+    
+    # Додаємо розшифровку розрахунків
+    import json
+    for reading in readings:
+        if reading.get('calculation_details'):
+            try:
+                reading['calculation_breakdown'] = json.loads(reading['calculation_details'])
+            except:
+                reading['calculation_breakdown'] = None
+    
+    return readings
+
+
+
+@router.get("/api/utilities/readings/latest-period/{address_id}", response_model=LatestPeriodResponse)
+async def get_latest_period_with_readings_endpoint(
+    address_id: int,
+    current_user: User = Depends(get_current_user)
+):
+    """Отримати останній період з показниками для адреси"""
+    from api.utilities.services import get_latest_period_with_readings
+    
+    period = get_latest_period_with_readings(current_user.id, address_id)
+    return {"period": period or datetime.now().strftime("%Y-%m")}
+
+
+@router.get("/api/utilities/grouped-readings", response_model=GroupedReadingsResponse)
+async def get_grouped_readings_endpoint(
+    address_id: int = Query(..., description="ID адреси"),
+    period: str = Query(None, description="Період у форматі YYYY-MM"),
+    current_user: User = Depends(get_current_user)
+):
+    """Отримати згруповані показники для адреси за період"""
+    from api.utilities.services import get_grouped_readings, get_latest_period_with_readings
+    
+    # Якщо період не вказано, отримуємо останній період з показниками
+    if not period:
+        period = get_latest_period_with_readings(current_user.id, address_id)
+        if not period:
+            # Якщо немає показників взагалі, повертаємо поточний місяць
+            period = datetime.now().strftime("%Y-%m")
+    
+    result = get_grouped_readings(current_user.id, address_id, period)
+    return result

@@ -1,7 +1,7 @@
 """
 Загальні схеми моделей для серіалізації
 """
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from datetime import datetime
 from pydantic import BaseModel
 
@@ -178,6 +178,8 @@ class UtilityServiceResponse(ModelResponse):
     unit: Optional[str] = None
     meter_number: Optional[str] = None
     is_active: Optional[bool] = None
+    has_shared_meter: Optional[bool] = None
+    service_group: Optional[str] = None
     created: Optional[datetime] = None
     updated: Optional[datetime] = None
     address: Optional[UtilityAddressResponse] = None
@@ -197,6 +199,11 @@ class UtilityTariffResponse(ModelResponse):
     created: Optional[datetime] = None
     updated: Optional[datetime] = None
     service: Optional[UtilityServiceResponse] = None
+    # Нові поля
+    tariff_type: Optional[str] = None
+    group_code: Optional[str] = None
+    calculation_method: Optional[str] = None
+    percentage_of: Optional[float] = None
 
 
 class UtilityReadingResponse(ModelResponse):
@@ -219,6 +226,9 @@ class UtilityReadingResponse(ModelResponse):
     address: Optional[UtilityAddressResponse] = None
     service: Optional[UtilityServiceResponse] = None
     tariff: Optional[UtilityTariffResponse] = None
+    # Нові поля
+    calculation_details: Optional[str] = None
+    reading_type: Optional[str] = None
 
 
 class UtilityAddressCreate(BaseModel):
@@ -245,6 +255,8 @@ class UtilityServiceCreate(BaseModel):
     unit: str
     meter_number: Optional[str] = None
     is_active: Optional[bool] = True
+    has_shared_meter: Optional[bool] = False
+    service_group: Optional[str] = None
 
 
 class UtilityServiceUpdate(BaseModel):
@@ -255,6 +267,8 @@ class UtilityServiceUpdate(BaseModel):
     unit: Optional[str] = None
     meter_number: Optional[str] = None
     is_active: Optional[bool] = None
+    has_shared_meter: Optional[bool] = None
+    service_group: Optional[str] = None
 
 
 class UtilityTariffCreate(BaseModel):
@@ -267,6 +281,11 @@ class UtilityTariffCreate(BaseModel):
     valid_from: datetime
     valid_to: Optional[datetime] = None
     is_active: Optional[bool] = True
+    # Нові поля
+    tariff_type: Optional[str] = None
+    group_code: Optional[str] = None
+    calculation_method: Optional[str] = "standard"
+    percentage_of: Optional[float] = None
 
 
 class UtilityTariffUpdate(BaseModel):
@@ -278,6 +297,11 @@ class UtilityTariffUpdate(BaseModel):
     valid_from: Optional[datetime] = None
     valid_to: Optional[datetime] = None
     is_active: Optional[bool] = None
+    # Нові поля
+    tariff_type: Optional[str] = None
+    group_code: Optional[str] = None
+    calculation_method: Optional[str] = None
+    percentage_of: Optional[float] = None
 
 
 class UtilityReadingCreate(BaseModel):
@@ -288,16 +312,96 @@ class UtilityReadingCreate(BaseModel):
     current_reading: float
     previous_reading: Optional[float] = None
     tariff_id: int
+    amount: Optional[float] = None
     reading_date: Optional[datetime] = None
     is_paid: Optional[bool] = False
     notes: Optional[str] = None
+    # Нові поля
+    reading_type: Optional[str] = "standard"
 
 
 class UtilityReadingUpdate(BaseModel):
     """Схема для оновлення показника"""
+    period: Optional[str] = None
     current_reading: Optional[float] = None
     previous_reading: Optional[float] = None
     tariff_id: Optional[int] = None
     reading_date: Optional[datetime] = None
     is_paid: Optional[bool] = None
     notes: Optional[str] = None
+
+
+# Схеми для згрупованих показників
+class ServiceInGroup(BaseModel):
+    """Служба в групі"""
+    id: int
+    name: str
+    unit: str
+    has_shared_meter: bool
+    
+    class Config:
+        from_attributes = True
+
+
+class GroupedReadingItem(BaseModel):
+    """Елемент згрупованого показника"""
+    id: Optional[int] = None
+    service_id: Optional[int] = None
+    service_name: str
+    tariff_name: Optional[str] = None
+    tariff_type: Optional[str] = None
+    current_reading: float
+    previous_reading: Optional[float] = None
+    consumption: Optional[float] = None
+    amount: Optional[float] = 0.0
+    tariff: Optional[dict] = None
+    is_paid: Optional[bool] = False
+    period: Optional[str] = None
+    reading_date: Optional[datetime] = None
+    
+    class Config:
+        from_attributes = True
+
+
+class ServiceGroup(BaseModel):
+    """Група служб"""
+    group_name: str
+    services: List[ServiceInGroup]
+    readings: List[GroupedReadingItem]
+    total_amount: float
+    has_shared_meter: bool
+    
+    class Config:
+        from_attributes = True
+
+
+class ServiceWithReadings(BaseModel):
+    """Служба з показниками"""
+    service_id: int
+    service_name: str
+    unit: str
+    has_shared_meter: bool
+    readings: List[GroupedReadingItem]
+    total_amount: float
+    
+    class Config:
+        from_attributes = True
+
+
+class GroupedReadingsResponse(BaseModel):
+    """Відповідь для згрупованих показників"""
+    address_id: int
+    period: str
+    service_groups: List[ServiceGroup]
+    services: List[ServiceWithReadings]
+    
+    class Config:
+        from_attributes = True
+
+
+class LatestPeriodResponse(BaseModel):
+    """Відповідь для останнього періоду"""
+    period: str
+    
+    class Config:
+        from_attributes = True
