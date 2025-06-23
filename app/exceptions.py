@@ -11,7 +11,10 @@ def register_exception_handlers(app):
     """
     @app.exception_handler(404)
     async def page_not_found(request: Request, exc: HTTPException):
-        logger.error(f'Resource not found: {request.url.path}')
+        logger.warning(f'=== 404 НЕ ЗНАЙДЕНО ===')
+        logger.warning(f'URL: {request.url}')
+        logger.warning(f'Method: {request.method}')
+        logger.warning(f'Деталі: {exc.detail}')
         return JSONResponse(
             status_code=404,
             content={"detail": f"{exc.detail}, path: {request.url.path}"}
@@ -23,7 +26,14 @@ def register_exception_handlers(app):
         Обробляє помилки цілісності бази даних (IntegrityError)
         Відправляє зрозуміле повідомлення про помилку без розкриття структури БД
         """
-        logger.error(f'Помилка цілісності бази даних: {exc}')
+        import traceback
+        
+        logger.error(f'=== ПОМИЛКА ЦІЛІСНОСТІ БД ===')
+        logger.error(f'URL: {request.url}')
+        logger.error(f'Method: {request.method}')
+        logger.error(f'Помилка: {exc}')
+        logger.error(f'ПОВНИЙ ТРЕЙС:\n{traceback.format_exc()}')
+        logger.error(f'=== КІНЕЦЬ ТРЕЙСУ ===')
 
         error_message = str(exc)
 
@@ -58,7 +68,15 @@ def register_exception_handlers(app):
     from pydantic import ValidationError
     @app.exception_handler(ValidationError)
     async def validation_error_handler(request: Request, exc: ValidationError):
-        logger.error(f'Помилка валідації Pydantic: {exc}')
+        import traceback
+        
+        logger.error(f'=== ПОМИЛКА ВАЛІДАЦІЇ PYDANTIC ===')
+        logger.error(f'URL: {request.url}')
+        logger.error(f'Method: {request.method}')
+        logger.error(f'Помилка: {exc}')
+        logger.error(f'ПОВНИЙ ТРЕЙС:\n{traceback.format_exc()}')
+        logger.error(f'=== КІНЕЦЬ ТРЕЙСУ ===')
+        
         return JSONResponse(
             status_code=422,
             content={
@@ -73,15 +91,25 @@ def register_exception_handlers(app):
         Загальний обробник помилок, який краще обробляє неочікувані помилки
         Цей обробник буде використаний тільки якщо помилка не була оброблена іншими обробниками
         """
+        import traceback
+        
         # Якщо це вже відформатована помилка FastAPI, не переобробляємо її
         if isinstance(exc, HTTPException):
+            logger.error(f'HTTP помилка {exc.status_code}: {exc.detail}')
             return JSONResponse(
                 status_code=exc.status_code,
                 content={"detail": str(exc.detail)}
             )
 
-        # Логуємо необроблені помилки
-        logger.error(f'Загальна помилка: {str(exc)}', exc_info=True)  # Додаємо exc_info=True для виведення стеку викликів
+        # Логуємо необроблені помилки з повним трейсом
+        logger.error(f'=== ЗАГАЛЬНА ПОМИЛКА ===')
+        logger.error(f'URL: {request.url}')
+        logger.error(f'Method: {request.method}')
+        logger.error(f'Помилка: {str(exc)}')
+        logger.error(f'Тип помилки: {exc.__class__.__name__}')
+        logger.error(f'=== ПОВНИЙ ТРЕЙС ===')
+        logger.error(traceback.format_exc())
+        logger.error(f'=== КІНЕЦЬ ТРЕЙСУ ===')
 
         # В продакшн режимі не відображаємо деталі помилки клієнту
         from app.config import DEBUG
@@ -90,7 +118,8 @@ def register_exception_handlers(app):
                 status_code=500,
                 content={
                     "detail": str(exc),
-                    "error_type": exc.__class__.__name__
+                    "error_type": exc.__class__.__name__,
+                    "traceback": traceback.format_exc().split('\n')
                 }
             )
         else:

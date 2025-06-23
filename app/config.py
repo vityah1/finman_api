@@ -17,13 +17,16 @@ logger_config = {
     "formatters": {
         "default": {
             "format": "[%(asctime)s] %(levelname)s in %(module)s: %(message)s",
+        },
+        "detailed": {
+            "format": "[%(asctime)s] %(levelname)s in %(name)s (%(filename)s:%(lineno)d): %(message)s",
         }
     },
     "handlers": {
         "console": {
             "class": "logging.StreamHandler",
             "stream": "ext://sys.stdout",
-            "formatter": "default",
+            "formatter": "detailed",
         },
         # "file": {
         #     "class": "logging.FileHandler",
@@ -35,7 +38,7 @@ logger_config = {
             "filename": "finman.log",
             "maxBytes": 1000000,
             "backupCount": 5,
-            "formatter": "default",
+            "formatter": "detailed",
         },
         "mono": {
             "class": "logging.handlers.RotatingFileHandler",
@@ -51,8 +54,16 @@ logger_config = {
             "backupCount": 5,
             "formatter": "default",
         },
+        "errors": {
+            "class": "logging.handlers.RotatingFileHandler",
+            "filename": "errors.log",
+            "maxBytes": 1000000,
+            "backupCount": 5,
+            "formatter": "detailed",
+            "level": "ERROR",
+        },
     },
-    "root": {"level": "DEBUG", "handlers": ["console", "size-rotate"]},
+    "root": {"level": "DEBUG", "handlers": ["console", "size-rotate", "errors"]},
     "loggers": {
         "mono": {
             "level": "INFO",
