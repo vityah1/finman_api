@@ -164,6 +164,7 @@ class UtilityAddressResponse(ModelResponse):
     address: Optional[str] = None
     description: Optional[str] = None
     is_active: Optional[bool] = None
+    source: Optional[str] = None
     created: Optional[datetime] = None
     updated: Optional[datetime] = None
 
@@ -180,6 +181,7 @@ class UtilityServiceResponse(ModelResponse):
     is_active: Optional[bool] = None
     has_shared_meter: Optional[bool] = None
     service_group: Optional[str] = None
+    source: Optional[str] = None
     created: Optional[datetime] = None
     updated: Optional[datetime] = None
     address: Optional[UtilityAddressResponse] = None
@@ -203,6 +205,7 @@ class UtilityTariffResponse(ModelResponse):
     group_code: Optional[str] = None
     calculation_method: Optional[str] = None
     percentage_of: Optional[float] = None
+    source: Optional[str] = None
 
 
 class UtilityReadingResponse(ModelResponse):
@@ -236,6 +239,7 @@ class UtilityAddressCreate(BaseModel):
     address: str
     description: Optional[str] = None
     is_active: Optional[bool] = True
+    source: Optional[str] = 'interface'
 
 
 class UtilityAddressUpdate(BaseModel):
@@ -244,6 +248,7 @@ class UtilityAddressUpdate(BaseModel):
     address: Optional[str] = None
     description: Optional[str] = None
     is_active: Optional[bool] = None
+    source: Optional[str] = None
 
 
 class UtilityServiceCreate(BaseModel):
@@ -256,6 +261,7 @@ class UtilityServiceCreate(BaseModel):
     is_active: Optional[bool] = True
     has_shared_meter: Optional[bool] = False
     service_group: Optional[str] = None
+    source: Optional[str] = 'interface'
 
 
 class UtilityServiceUpdate(BaseModel):
@@ -268,6 +274,7 @@ class UtilityServiceUpdate(BaseModel):
     is_active: Optional[bool] = None
     has_shared_meter: Optional[bool] = None
     service_group: Optional[str] = None
+    source: Optional[str] = None
 
 
 class UtilityTariffCreate(BaseModel):
@@ -284,6 +291,7 @@ class UtilityTariffCreate(BaseModel):
     group_code: Optional[str] = None
     calculation_method: Optional[str] = "standard"
     percentage_of: Optional[float] = None
+    source: Optional[str] = 'interface'
 
 
 class UtilityTariffUpdate(BaseModel):
@@ -299,6 +307,7 @@ class UtilityTariffUpdate(BaseModel):
     group_code: Optional[str] = None
     calculation_method: Optional[str] = None
     percentage_of: Optional[float] = None
+    source: Optional[str] = None
 
 
 class UtilityReadingCreate(BaseModel):

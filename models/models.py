@@ -259,11 +259,12 @@ class UtilityService(Base):
     is_active = Column(Boolean, nullable=False, default=True)
     has_shared_meter = Column(Boolean, nullable=False, default=False, comment="Чи має спільний показник для групи тарифів")
     service_group = Column(String(50), nullable=True, comment="Група служб для об'єднання (electricity, water, etc)")
+    source = Column(String(20), nullable=False, default='interface', comment="Джерело створення (import/interface)")
     
     tariffs = relationship('UtilityTariff', back_populates='service', lazy=True)
     readings = relationship('UtilityReading', back_populates='service', lazy=True)
 
-    _default_fields = ["name", "description", "unit", "meter_number", "is_active", "user_id", "address_id", "has_shared_meter", "service_group"]
+    _default_fields = ["name", "description", "unit", "meter_number", "is_active", "user_id", "address_id", "has_shared_meter", "service_group", "source"]
 
     __table_args__ = (
         Index(None, 'user_id', 'address_id', 'name', unique=True),
@@ -282,11 +283,12 @@ class UtilityAddress(Base):
     address = Column(String(255), nullable=False, comment="Повна адреса")
     description = Column(Text, nullable=True)
     is_active = Column(Boolean, nullable=False, default=True)
+    source = Column(String(20), nullable=False, default='interface', comment="Джерело створення (import/interface)")
     
     services = relationship('UtilityService', back_populates='address', lazy=True)
     readings = relationship('UtilityReading', back_populates='address', lazy=True)
 
-    _default_fields = ["name", "address", "description", "is_active", "user_id"]
+    _default_fields = ["name", "address", "description", "is_active", "user_id", "source"]
 
     __table_args__ = (
         Index(None, 'user_id', 'name', unique=True),
@@ -313,10 +315,11 @@ class UtilityTariff(Base):
     group_code = Column(String(50), nullable=True, comment="Код групи для об'єднання тарифів")
     calculation_method = Column(String(50), nullable=True, default='standard', comment="Метод розрахунку (standard, percentage, fixed)")
     percentage_of = Column(Float, nullable=True, comment="Відсоток від основного тарифу (для зливу води)")
+    source = Column(String(20), nullable=False, default='interface', comment="Джерело створення (import/interface)")
     
     readings = relationship('UtilityReading', back_populates='tariff', lazy=True)
 
-    _default_fields = ["service_id", "name", "rate", "currency", "valid_from", "valid_to", "is_active", "tariff_type", "group_code", "calculation_method", "percentage_of"]
+    _default_fields = ["service_id", "name", "rate", "currency", "valid_from", "valid_to", "is_active", "tariff_type", "group_code", "calculation_method", "percentage_of", "source"]
 
     __table_args__ = (
         Index(None, 'service_id', 'name', 'valid_from', unique=True),

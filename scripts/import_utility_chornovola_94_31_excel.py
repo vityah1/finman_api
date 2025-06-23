@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
-Скрипт імпорту комунальних показників з ODS файлу для адреси Чорновола 94/31
+Скрипт імпорту комунальних показників з Excel файлу для адреси Чорновола 94/31
+Excel версія з збереженням всієї логіки очищення та перевірок
 """
 
 import sys
@@ -13,9 +14,7 @@ import traceback
 # Додаємо шлях до проекту
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from odf import opendocument
-from odf.table import Table, TableRow, TableCell
-from odf.text import P
+import pandas as pd
 from sqlalchemy import or_, and_
 from sqlalchemy.pool import NullPool
 
@@ -31,19 +30,9 @@ ADDRESS_NAME = "Чорновола 94, кв. 31"
 ADDRESS_FULL = "м. Івано-Франківськ, вул. Чорновола 94, кв. 31"
 USER_ID = 1
 
-
-def get_cell_value(cell):
-    """Отримати значення з комірки"""
-    ps = cell.getElementsByType(P)
-    text_content = ""
-    for p in ps:
-        text_content += str(p)
-    return text_content
-
-
 def parse_number(value):
     """Парсинг числа з рядка"""
-    if not value or value == '0':
+    if pd.isna(value) or value == '' or value == 0:
         return 0
     
     # Конвертуємо в рядок якщо потрібно
@@ -245,7 +234,6 @@ def get_or_create_tariff(service_id, name, rate, currency, valid_from, valid_to,
         logger.info(f"Створено новий тариф: {name}")
         return new_tariff
 
-
 def create_tariffs(services):
     """Створити тарифи для всіх служб"""
     
@@ -290,7 +278,7 @@ def create_tariffs(services):
     
     # Тарифи для води - водопостачання (змінювались)
     water_supply_tariffs = [
-        {'from': '2021-01-01', 'to': '2022-01-01', 'rate': 11.59},
+        {'from': '2021-01-01', 'to': '2021-12-31', 'rate': 11.59},
         {'from': '2022-01-01', 'to': None, 'rate': 12.95}
     ]
     
@@ -310,7 +298,7 @@ def create_tariffs(services):
     
     # Тарифи для води - водовідведення (змінювались)
     water_wastewater_tariffs = [
-        {'from': '2021-01-01', 'to': '2022-01-01', 'rate': 13.66},
+        {'from': '2021-01-01', 'to': '2021-12-31', 'rate': 13.66},
         {'from': '2022-01-01', 'to': None, 'rate': 15.29}
     ]
     
@@ -444,25 +432,24 @@ def create_tariffs(services):
     logger.info("Створено/оновлено всі тарифи")
     return {}
 
-def import_readings(services, rows):
-    """Імпортувати показники з ODS файлу"""
+def import_readings(services, df):
+    """Імпортувати показники з Excel файлу"""
     
     # Спочатку визначаємо які періоди є у файлі
     file_periods = set()
-    for i, row in enumerate(rows):
-        if i < 3:  # Пропускаємо заголовки
+    for i in range(len(df)):
+        if i < 4:  # Пропускаємо заголовки (4 рядки)
             continue
             
-        cells = row.getElementsByType(TableCell)
-        if len(cells) < 17:
-            continue
-            
-        date_str = get_cell_value(cells[0]).strip()
-        if not date_str or date_str == '0' or date_str == 'Дата' or not date_str.startswith('01.'):
+        date_value = df.iloc[i, 0]  # Колонка 0 - дата
+        if pd.isna(date_value):
             continue
             
         try:
-            date = datetime.strptime(date_str, '%d.%m.%Y')
+            if isinstance(date_value, str):
+                date = datetime.strptime(date_value, '%d.%m.%Y')
+            else:
+                date = date_value
             period_date = date - relativedelta(months=1)
             period = period_date.strftime('%Y-%m')
             file_periods.add(period)
@@ -504,21 +491,20 @@ def import_readings(services, rows):
         db.session.add(new_reading)
         return new_reading
     
-    for i, row in enumerate(rows):
-        if i < 3:  # Пропускаємо заголовки (у PDF 3 рядки заголовків)
-            continue
-            
-        cells = row.getElementsByType(TableCell)
-        if len(cells) < 17:  # Мінімум потрібно 17 колонок
+    for i in range(len(df)):
+        if i < 4:  # Пропускаємо заголовки (4 рядки в Excel)
             continue
             
         # Парсимо дату
-        date_str = get_cell_value(cells[0]).strip()
-        if not date_str or date_str == '0' or date_str == 'Дата' or not date_str.startswith('01.'):
+        date_value = df.iloc[i, 0]  # Колонка 0 - дата
+        if pd.isna(date_value):
             continue
             
         try:
-            date = datetime.strptime(date_str, '%d.%m.%Y')
+            if isinstance(date_value, str):
+                date = datetime.strptime(date_value, '%d.%m.%Y')
+            else:
+                date = date_value
             # ВАЖЛИВО: показники станом на 01.05.2025 - це дані за КВІТЕНЬ!
             period_date = date - relativedelta(months=1)
             period = period_date.strftime('%Y-%m')
@@ -530,22 +516,22 @@ def import_readings(services, rows):
             logger.warning(f"Пропускаємо дублюючий період: {period}")
             continue
         processed_periods.add(period)        
-        # Показники (правильні колонки з ODS)
-        water_reading = parse_number(get_cell_value(cells[1]))      # B: показник води
-        water_consumption = parse_number(get_cell_value(cells[2]))   # C: споживання води
-        water_abon = parse_number(get_cell_value(cells[3]))         # D: абонплата води
-        water_amount = parse_number(get_cell_value(cells[4]))       # E: сума за воду
-        gas_reading = parse_number(get_cell_value(cells[6]))        # G: показник газу
-        gas_consumption = parse_number(get_cell_value(cells[7]))    # H: споживання газу
-        gas_delivery = parse_number(get_cell_value(cells[8]))       # I: доставлення (АБОНПЛАТА)
-        gas_amount = parse_number(get_cell_value(cells[9]))         # J: сума за споживання
-        rent_amount = parse_number(get_cell_value(cells[11]))       # L: квартплата
-        garbage_amount = parse_number(get_cell_value(cells[13]))    # N: сміття
-        electricity_reading = parse_number(get_cell_value(cells[15])) # P: показник світла
         
-        # Логування для діагностики
-        if rent_amount != 0:
-            logger.info(f"Період {period}: квартплата raw='{get_cell_value(cells[11])}' parsed={rent_amount}")
+        # Показники з правильних колонок Excel структури (з аналізу)
+        water_reading = parse_number(df.iloc[i, 1])        # Кол.1: показник води
+        water_consumption = parse_number(df.iloc[i, 2])    # Кол.2: споживання води
+        water_abon = parse_number(df.iloc[i, 3])           # Кол.3: абонплата води
+        water_amount = parse_number(df.iloc[i, 4])         # Кол.4: сума за воду
+        gas_reading = parse_number(df.iloc[i, 6])          # Кол.6: показник газу
+        gas_consumption = parse_number(df.iloc[i, 7])      # Кол.7: споживання газу
+        gas_delivery = parse_number(df.iloc[i, 8])         # Кол.8: доставлення (АБОНПЛАТА)
+        gas_amount = parse_number(df.iloc[i, 9])           # Кол.9: сума за споживання
+        rent_amount = parse_number(df.iloc[i, 11])         # Кол.11: квартплата
+        garbage_amount = parse_number(df.iloc[i, 13])      # Кол.13: сміття
+        electricity_reading = parse_number(df.iloc[i, 15]) # Кол.15: показник світла
+        
+        # Загальне логування всіх показників для періоду
+        logger.info(f"Період {period}: Вода={water_reading} (спож.={water_consumption}, абон.={water_abon:.2f}, сума={water_amount:.2f}), Газ={gas_reading} (спож.={gas_consumption}, абон.={gas_delivery:.2f}, сума={gas_amount:.2f}), Світло={electricity_reading}, Квартплата={rent_amount:.2f} грн, Сміття={garbage_amount:.2f} грн")
         
         # Створюємо показники для води
         if water_reading > 0:
@@ -559,7 +545,7 @@ def import_readings(services, rows):
                 # Для абонплати показник завжди 0
                 reading_value = 0 if tariff.tariff_type == 'subscription' else water_reading
                 
-                # Для абонплати води з березня 2024 використовуємо значення з колонки D
+                # Для абонплати води з березня 2024 використовуємо значення з колонки 3
                 if tariff.tariff_type == 'subscription' and water_abon > 0:
                     amount = water_abon
                 else:
@@ -700,19 +686,20 @@ def calculate_previous_readings_and_amounts(address_id):
                 reading.previous_reading = reading.current_reading
                 reading.consumption = 0
             
-            # Розрахунок суми
-            if tariff.tariff_type == 'subscription':
-                # Для абонплати сума = тариф
-                reading.amount = tariff.rate
-            elif tariff.tariff_type == 'fixed':
-                # Для фіксованих платежів сума = тариф
-                reading.amount = tariff.rate  
-            elif tariff.tariff_type == 'apartment':
-                # Для квартплати сума залишається як є (вже встановлена при імпорті)
-                pass  # Не перераховуємо суму
-            else:
-                # Для споживання сума = споживання * тариф
-                reading.amount = reading.consumption * tariff.rate if reading.consumption else 0
+            # Розрахунок суми ТІЛЬКИ якщо не встановлена
+            if reading.amount is None or reading.amount == 0:
+                if tariff.tariff_type == 'subscription':
+                    # Для абонплати сума = тариф
+                    reading.amount = tariff.rate
+                elif tariff.tariff_type == 'fixed':
+                    # Для фіксованих платежів сума = тариф
+                    reading.amount = tariff.rate  
+                elif tariff.tariff_type == 'apartment':
+                    # Для квартплати сума залишається як є (вже встановлена при імпорті)
+                    pass  # Не перераховуємо суму
+                else:
+                    # Для споживання сума = споживання * тариф
+                    reading.amount = reading.consumption * tariff.rate if reading.consumption else 0
     
     db.session.commit()
     logger.info("✅ Розрахунки завершено")
@@ -720,13 +707,11 @@ def calculate_previous_readings_and_amounts(address_id):
 def main():
     """Головна функція"""
     try:
-        logger.info("Початок імпорту комунальних даних для адреси Чорновола 94/31")
+        logger.info("Початок імпорту комунальних даних для адреси Чорновола 94/31 (Excel версія)")
         
-        # Завантажуємо ODS файл
-        doc = opendocument.load("scripts/utility_chornovola_94_31.ods")
-        tables = doc.getElementsByType(Table)
-        table = tables[0]
-        rows = table.getElementsByType(TableRow)
+        # Завантажуємо Excel файл
+        df = pd.read_excel("scripts/utility_chornovola_94_31.xlsx", header=None)
+        logger.info(f"Завантажено Excel файл: {df.shape[0]} рядків, {df.shape[1]} колонок")
         
         # Створюємо адресу
         address = create_or_get_address()
@@ -735,13 +720,13 @@ def main():
         logger.info("Створення служб...")
         services = create_services(address.id)
         
-        # Створюємо тарифи
+        # Створюємо тарифи (з логікою очищення всередині)
         logger.info("Створення тарифів...")
         create_tariffs(services)
         
         # Імпортуємо показники
         logger.info("Імпорт показників...")
-        imported_count = import_readings(services, rows)
+        imported_count = import_readings(services, df)
         
         # Розраховуємо попередні показники та суми
         calculate_previous_readings_and_amounts(address.id)
@@ -769,7 +754,6 @@ def main():
             db.session.close()
     
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

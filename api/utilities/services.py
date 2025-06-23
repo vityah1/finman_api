@@ -879,29 +879,41 @@ def get_latest_period_with_readings(user_id: int, address_id: int) -> Optional[s
     return latest_reading.period if latest_reading else None
 
 
-def get_grouped_readings(user_id: int, address_id: int, period: str) -> dict:
+def get_grouped_readings(user_id: int, address_id: int, period: str, service_id: int = None) -> dict:
     """Отримати згруповані показники для адреси за період"""
     
     try:
-        logger.info(f"Starting get_grouped_readings for user_id={user_id}, address_id={address_id}, period={period}")
+        logger.info(f"Starting get_grouped_readings for user_id={user_id}, address_id={address_id}, period={period}, service_id={service_id}")
         
         # Отримуємо всі показники для адреси за період
-        readings = db.session().query(UtilityReading).join(
+        readings_query = db.session().query(UtilityReading).join(
             UtilityService
         ).filter(
             UtilityService.user_id == user_id,
             UtilityService.address_id == address_id,
             UtilityReading.period == period
-        ).all()
+        )
+        
+        # Додаємо фільтр по службі якщо вказано
+        if service_id:
+            readings_query = readings_query.filter(UtilityService.id == service_id)
+            
+        readings = readings_query.all()
         
         logger.info(f"Found {len(readings)} readings for period {period}")
         
         # Отримуємо всі служби для групування
-        services = db.session().query(UtilityService).filter(
+        services_query = db.session().query(UtilityService).filter(
             UtilityService.user_id == user_id,
             UtilityService.address_id == address_id,
             UtilityService.is_active == True
-        ).all()
+        )
+        
+        # Додаємо фільтр по службі якщо вказано
+        if service_id:
+            services_query = services_query.filter(UtilityService.id == service_id)
+            
+        services = services_query.all()
         
         logger.info(f"Found {len(services)} active services for address {address_id}")
         

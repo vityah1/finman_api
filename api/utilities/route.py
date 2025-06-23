@@ -331,6 +331,7 @@ async def get_latest_period_with_readings_endpoint(
 async def get_grouped_readings_endpoint(
     address_id: int = Query(..., description="ID адреси"),
     period: str = Query(None, description="Період у форматі YYYY-MM"),
+    service_id: int = Query(None, description="ID служби для фільтрації"),
     current_user: User = Depends(get_current_user)
 ):
     """Отримати згруповані показники для адреси за період"""
@@ -343,7 +344,7 @@ async def get_grouped_readings_endpoint(
             # Якщо немає показників взагалі, повертаємо поточний місяць
             period = datetime.now().strftime("%Y-%m")
     
-    logger.info(f"Getting grouped readings for address {address_id}, period {period}")
-    result = get_grouped_readings(current_user.id, address_id, period)
+    logger.info(f"Getting grouped readings for address {address_id}, period {period}, service_id {service_id}")
+    result = get_grouped_readings(current_user.id, address_id, period, service_id)
     return result
 
