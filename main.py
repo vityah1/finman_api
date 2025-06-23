@@ -1,7 +1,6 @@
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 import logging
 
 # Імпортуємо конфігурацію
@@ -100,15 +99,48 @@ app.include_router(utilities_router)
 from app.exceptions import register_exception_handlers
 register_exception_handlers(app)
 
-# Покращене логування запитів
+# Middleware для логування помилок
 @app.middleware("http")
-async def log_requests(request, call_next):
-    logger.info(f"Request: {request.method} {request.url.path} | Headers: {request.headers}")
-
-    response = await call_next(request)
-    logger.info(f"Response: {request.method} {request.url.path} | Status: {response.status_code}")
-    return response
+async def session_and_logging_middleware(request, call_next):
+    import traceback
+    from mydb import db_session
+    
+    try:
+        # Логуємо запит
+        logger.info(f"Request: {request.method} {request.url.path} | Headers: {request.headers}")
+        
+        # Обробляємо запит
+        response = await call_next(request)
+        
+        # Логуємо відповідь
+        logger.info(f"Response: {request.method} {request.url.path} | Status: {response.status_code}")
+        
+        # Якщо відповідь має статус помилки 5xx, логуємо з підвищеною деталізацією
+        if response.status_code >= 500:
+            logger.error(f"ПОМИЛКА 5XX: {request.method} {request.url.path} | Status: {response.status_code}")
+        
+        return response
+    except Exception as e:
+        # Логуємо неперехоплені винятки з ПОВНИМ трейсбеком
+        logger.error(f"КРИТИЧНА ПОМИЛКА при обробці {request.url.path}: {str(e)}")
+        logger.error(traceback.format_exc())
+        
+        # Повертаємо помилку клієнту
+        from fastapi.responses import JSONResponse
+        return JSONResponse(
+            status_code=500,
+            content={"detail": f"Внутрішня помилка сервера: {str(e)}"}
+        )
+    finally:
+        # Закриваємо сесію після кожного запиту
+        db_session.remove()
+        from fastapi.responses import JSONResponse
+        return JSONResponse(
+            status_code=500,
+            content={"detail": f"Внутрішня помилка сервера: {str(e)}"}
+        )
 
 # Запуск додатку (якщо викликається напряму)
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=8090, reload=True)
+    # Запускаємо сервер
+    uvicorn.run("main:app", host="0.0.0.0", port=8090, reload=True, log_level="debug")

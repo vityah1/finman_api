@@ -339,8 +339,7 @@ class ServiceInGroup(BaseModel):
     unit: str
     has_shared_meter: bool
     
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
 
 class GroupedReadingItem(BaseModel):
@@ -350,7 +349,7 @@ class GroupedReadingItem(BaseModel):
     service_name: str
     tariff_name: Optional[str] = None
     tariff_type: Optional[str] = None
-    current_reading: float
+    current_reading: Optional[float] = None
     previous_reading: Optional[float] = None
     consumption: Optional[float] = None
     amount: Optional[float] = 0.0
@@ -359,8 +358,7 @@ class GroupedReadingItem(BaseModel):
     period: Optional[str] = None
     reading_date: Optional[datetime] = None
     
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
 
 class ServiceGroup(BaseModel):
@@ -371,8 +369,7 @@ class ServiceGroup(BaseModel):
     total_amount: float
     has_shared_meter: bool
     
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
 
 class ServiceWithReadings(BaseModel):
@@ -384,8 +381,7 @@ class ServiceWithReadings(BaseModel):
     readings: List[GroupedReadingItem]
     total_amount: float
     
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
 
 class GroupedReadingsResponse(BaseModel):
@@ -395,13 +391,11 @@ class GroupedReadingsResponse(BaseModel):
     service_groups: List[ServiceGroup]
     services: List[ServiceWithReadings]
     
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
 
 class LatestPeriodResponse(BaseModel):
     """Відповідь для останнього періоду"""
     period: str
     
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}

@@ -53,6 +53,19 @@ def register_exception_handlers(app):
             status_code=500,
             content={"detail": "Помилка цілосності БД"}
         )
+        
+    # Додаємо обробник для помилок валідації Pydantic
+    from pydantic import ValidationError
+    @app.exception_handler(ValidationError)
+    async def validation_error_handler(request: Request, exc: ValidationError):
+        logger.error(f'Помилка валідації Pydantic: {exc}')
+        return JSONResponse(
+            status_code=422,
+            content={
+                "detail": "Помилка валідації даних",
+                "errors": exc.errors() if hasattr(exc, 'errors') else str(exc)
+            }
+        )
 
     @app.exception_handler(Exception)
     async def handle_generic_exception(request: Request, exc: Exception):
@@ -68,7 +81,7 @@ def register_exception_handlers(app):
             )
 
         # Логуємо необроблені помилки
-        logger.error(f'Загальна помилка: {str(exc)}')
+        logger.error(f'Загальна помилка: {str(exc)}', exc_info=True)  # Додаємо exc_info=True для виведення стеку викликів
 
         # В продакшн режимі не відображаємо деталі помилки клієнту
         from app.config import DEBUG

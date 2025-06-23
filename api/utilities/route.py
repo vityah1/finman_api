@@ -14,16 +14,19 @@ from api.utilities.services import (
 )
 from api.utilities.calculation_service import UtilityCalculationService
 from api.schemas.common import (
-    UtilityAddressCreate, UtilityAddressUpdate,
-    UtilityServiceCreate, UtilityServiceUpdate,
+    UtilityAddressCreate, UtilityAddressUpdate, UtilityAddressResponse,
+    UtilityServiceCreate, UtilityServiceUpdate, UtilityServiceResponse,
     UtilityTariffCreate, UtilityTariffUpdate, UtilityTariffResponse,
-    UtilityReadingCreate, UtilityReadingUpdate,
+    UtilityReadingCreate, UtilityReadingUpdate, UtilityReadingResponse,
     GroupedReadingsResponse, LatestPeriodResponse
 )
 from dependencies import get_current_user
 from models.models import User
+import logging
 
 router = APIRouter(tags=["utilities"])
+
+logger = logging.getLogger(__name__)
 
 
 # Utility Addresses routes
@@ -165,7 +168,7 @@ async def delete_tariff(
     return delete_utility_tariff(current_user.id, tariff_id)
 
 
-# Utility Readings routes
+# Utility Tariffs routes
 @router.get("/api/utilities/readings")
 async def get_readings(
     address_id: Optional[int] = Query(None),
@@ -195,7 +198,7 @@ async def create_reading(
     return create_utility_reading(current_user.id, reading.model_dump())
 
 
-@router.patch("/api/utilities/readings/{reading_id}")
+@router.patch("/api/utilities/readings/{reading_id}", response_model=UtilityReadingResponse)
 async def update_reading(
     reading_id: int,
     reading: UtilityReadingUpdate = Body(...),
@@ -340,5 +343,7 @@ async def get_grouped_readings_endpoint(
             # Якщо немає показників взагалі, повертаємо поточний місяць
             period = datetime.now().strftime("%Y-%m")
     
+    logger.info(f"Getting grouped readings for address {address_id}, period {period}")
     result = get_grouped_readings(current_user.id, address_id, period)
     return result
+
