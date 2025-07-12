@@ -1053,8 +1053,9 @@ def get_grouped_readings(user_id: int, address_id: int, period: str, service_id:
                                 'service_name': f"{service.name}\n{component.get('name', '')}" if component.get('name') != service.name else service.name,
                                 'tariff_name': component.get('name', ''),
                                 'tariff_type': component.get('type', ''),
-                                'current_reading': reading.current_reading if component.get('type') != 'subscription' else None,
-                                'previous_reading': reading.previous_reading if component.get('type') != 'subscription' else None,
+                                # Для спільного лічільника всі компоненти мають той самий показник
+                                'current_reading': reading.current_reading,
+                                'previous_reading': reading.previous_reading,
                                 'consumption': component.get('consumption', 0),
                                 'amount': component.get('amount', 0),
                                 'reading_date': reading.reading_date,
