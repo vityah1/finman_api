@@ -753,17 +753,17 @@ def get_utility_reading(user_id: int, reading_id: int) -> dict:
     if not reading:
         raise HTTPException(404, 'Utility reading not found')
     
-    # Для служб зі спільним лічільником, якщо current_reading відсутній,
+    # Для служб зі спільним лічільником, якщо current_reading відсутній або 0,
     # знаходимо основний показник для того самого періоду та служби
     if (reading.service and reading.service.has_shared_meter and 
-        reading.current_reading is None):
+        (reading.current_reading is None or reading.current_reading <= 0)):
         
-        # Шукаємо основний показник (той що має current_reading)
+        # Шукаємо основний показник (той що має current_reading > 0)
         main_reading = db.session().query(UtilityReading).filter_by(
             user_id=user_id,
             service_id=reading.service_id,
             period=reading.period
-        ).filter(UtilityReading.current_reading.isnot(None)).first()
+        ).filter(UtilityReading.current_reading > 0).first()
         
         if main_reading:
             # Повертаємо дані основного показника, але зберігаємо ID поточного
@@ -858,10 +858,32 @@ def update_utility_reading(user_id: int, reading_id: int, data: dict) -> dict:
                         amount = consumption * tariff.rate  # subscription_fee видалено
                         filtered_data['amount'] = amount
         
-        # Оновлюємо атрибути стандартним способом SQLAlchemy
-        for key, value in filtered_data.items():
-            if hasattr(reading, key):
-                setattr(reading, key, value)
+        # Для служб зі спільним лічільником оновлюємо показники у всіх тарифах групи
+        if (service and service.has_shared_meter and 
+            ('current_reading' in filtered_data or 'previous_reading' in filtered_data)):
+            
+            logger.info(f"Updating shared meter readings for service {service.name}")
+            
+            # Знаходимо всі показники цієї служби за цей період
+            all_readings = db.session().query(UtilityReading).filter_by(
+                user_id=user_id,
+                service_id=service.id,
+                period=reading.period
+            ).all()
+            
+            # Оновлюємо current_reading та previous_reading у всіх показниках
+            for r in all_readings:
+                if 'current_reading' in filtered_data:
+                    r.current_reading = filtered_data['current_reading']
+                if 'previous_reading' in filtered_data:
+                    r.previous_reading = filtered_data['previous_reading']
+                
+                logger.info(f"Updated reading {r.id} with current={r.current_reading}, previous={r.previous_reading}")
+        else:
+            # Оновлюємо атрибути стандартним способом SQLAlchemy
+            for key, value in filtered_data.items():
+                if hasattr(reading, key):
+                    setattr(reading, key, value)
         
         try:
             db.session().commit()
