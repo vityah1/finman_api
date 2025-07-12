@@ -208,17 +208,19 @@ class UtilityCalculationService:
             tariff = db.session().query(UtilityTariff).get(tariff_id)
             
             if tariff:
-                # Перевіряємо, чи тариф є абонплатою
-                if tariff.tariff_type == 'subscription':
+                # Перевіряємо тип розрахунку
+                if tariff.tariff_type == 'subscription' or tariff.calculation_method == 'fixed':
+                    # Для абонплати або фіксованих платежів - використовуємо введену суму (current_reading)
+                    amount = reading_data['current_reading']
                     return {
                         'components': [{
                             'name': tariff.name,
-                            'type': 'subscription',
+                            'type': tariff.tariff_type or 'fixed',
                             'consumption': 0,
                             'rate': tariff.rate,
-                            'amount': tariff.rate
+                            'amount': amount
                         }],
-                        'total_amount': tariff.rate,
+                        'total_amount': amount,
                         'subscription_fee': 0  # Deprecated: тепер реалізується через окремі тарифи
                     }
                 else:
