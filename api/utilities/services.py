@@ -1045,7 +1045,7 @@ def get_grouped_readings(user_id: int, address_id: int, period: str, service_id:
                                 component_reading_data = {
                                     'id': reading.id,
                                     'service_id': service.id,
-                                    'service_name': f"{service.name} (абонплата)",
+                                    'service_name': service.name,
                                     'tariff_name': tariff.name,
                                     'tariff_type': 'subscription',
                                     'current_reading': None,
@@ -1091,7 +1091,7 @@ def get_grouped_readings(user_id: int, address_id: int, period: str, service_id:
                             component_reading_data = {
                                 'id': reading.id,
                                 'service_id': service.id,
-                                'service_name': f"{service.name}\n{component.get('name', '')}" if component.get('name') != service.name else service.name,
+                                'service_name': service.name,
                                 'tariff_name': component.get('name', ''),
                                 'tariff_type': component.get('type', ''),
                                 # Для спільного лічільника всі компоненти мають той самий показник
