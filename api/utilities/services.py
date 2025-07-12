@@ -753,6 +753,25 @@ def get_utility_reading(user_id: int, reading_id: int) -> dict:
     if not reading:
         raise HTTPException(404, 'Utility reading not found')
     
+    # Для служб зі спільним лічільником, якщо current_reading відсутній,
+    # знаходимо основний показник для того самого періоду та служби
+    if (reading.service and reading.service.has_shared_meter and 
+        reading.current_reading is None):
+        
+        # Шукаємо основний показник (той що має current_reading)
+        main_reading = db.session().query(UtilityReading).filter_by(
+            user_id=user_id,
+            service_id=reading.service_id,
+            period=reading.period
+        ).filter(UtilityReading.current_reading.isnot(None)).first()
+        
+        if main_reading:
+            # Повертаємо дані основного показника, але зберігаємо ID поточного
+            result = UtilityReadingResponse.model_validate(main_reading).model_dump()
+            result['id'] = reading.id  # Зберігаємо оригінальний ID для редагування
+            result['tariff_id'] = reading.tariff_id  # Зберігаємо оригінальний tariff_id
+            return result
+    
     return UtilityReadingResponse.model_validate(reading).model_dump()
 
 
