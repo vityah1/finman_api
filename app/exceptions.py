@@ -2,8 +2,56 @@ from fastapi import Request, HTTPException
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError
 import logging
+from datetime import datetime
+from utils.telegram_notifier import telegram_notifier
 
 logger = logging.getLogger(__name__)
+
+def get_user_id_from_request(request: Request) -> int:
+    """
+    Витягти user_id з request (з JWT токена або іншим способом)
+    """
+    try:
+        # Спробуємо отримати користувача з state якщо він є
+        if hasattr(request.state, 'user'):
+            return request.state.user.id
+        
+        # Альтернативно можна парсити JWT токен з Authorization header
+        from dependencies import get_current_user_from_token
+        auth_header = request.headers.get('Authorization')
+        if auth_header and auth_header.startswith('Bearer '):
+            token = auth_header.split(' ')[1]
+            user = get_current_user_from_token(token)
+            if user:
+                return user.id
+    except Exception:
+        pass
+    
+    return None
+
+def send_telegram_error_notification(request: Request, exc: Exception, error_type: str = None):
+    """
+    Відправити повідомлення про помилку в Telegram користувачу
+    """
+    try:
+        user_id = get_user_id_from_request(request)
+        
+        if user_id:
+            import traceback
+            
+            error_details = {
+                'url': str(request.url),
+                'method': request.method,
+                'error_type': error_type or exc.__class__.__name__,
+                'error_message': str(exc),
+                'traceback': traceback.format_exc(),
+                'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            }
+            
+            telegram_notifier.send_error_notification(user_id, error_details)
+            
+    except Exception as notify_error:
+        logger.error(f"Помилка при відправці Telegram повідомлення: {notify_error}")
 
 def register_exception_handlers(app):
     """
@@ -34,6 +82,9 @@ def register_exception_handlers(app):
         logger.error(f'Помилка: {exc}')
         logger.error(f'ПОВНИЙ ТРЕЙС:\n{traceback.format_exc()}')
         logger.error(f'=== КІНЕЦЬ ТРЕЙСУ ===')
+
+        # Відправляємо повідомлення в Telegram
+        send_telegram_error_notification(request, exc, 'IntegrityError')
 
         error_message = str(exc)
 
@@ -77,6 +128,9 @@ def register_exception_handlers(app):
         logger.error(f'ПОВНИЙ ТРЕЙС:\n{traceback.format_exc()}')
         logger.error(f'=== КІНЕЦЬ ТРЕЙСУ ===')
         
+        # Відправляємо повідомлення в Telegram
+        send_telegram_error_notification(request, exc, 'ValidationError')
+        
         return JSONResponse(
             status_code=422,
             content={
@@ -110,6 +164,9 @@ def register_exception_handlers(app):
         logger.error(f'=== ПОВНИЙ ТРЕЙС ===')
         logger.error(traceback.format_exc())
         logger.error(f'=== КІНЕЦЬ ТРЕЙСУ ===')
+
+        # Відправляємо повідомлення в Telegram
+        send_telegram_error_notification(request, exc)
 
         # В продакшн режимі не відображаємо деталі помилки клієнту
         from app.config import DEBUG

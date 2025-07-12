@@ -11,6 +11,29 @@ from app.auth.jwt import decode_token
 
 logger = logging.getLogger(__name__)
 
+def get_current_user_from_token(token: str) -> Optional[User]:
+    """
+    Функція для отримання користувача з JWT токена без dependency injection
+    Використовується в обробниках помилок
+    """
+    try:
+        from mydb import db
+        
+        # Декодуємо JWT токен
+        user_data = decode_token(token)
+        user_id = user_data.get('user_id')
+        
+        if not user_id:
+            return None
+        
+        # Знаходимо користувача в базі
+        user = db.session().query(User).filter(User.id == user_id).first()
+        return user
+        
+    except Exception as e:
+        logger.error(f"Помилка при отриманні користувача з токена: {e}")
+        return None
+
 # Створюємо схеми автентифікації
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/signin")
 security = HTTPBearer()

@@ -657,8 +657,11 @@ def create_utility_reading(user_id: int, data: dict) -> dict:
             db.session().commit()
         except Exception as err:
             db.session().rollback()
+            import traceback
             logger.error(f"Error creating utility reading: {err}")
-            raise HTTPException(400, 'Error creating utility reading')
+            logger.error(f"Full traceback:\n{traceback.format_exc()}")
+            logger.error(f"Reading data: {data}")
+            raise HTTPException(500, f'Error creating utility reading: {str(err)}')
         
         # Якщо є компоненти абонплати (tariff_type='subscription'), створюємо окремий запис
         components = calculation_result.get('components', [])
