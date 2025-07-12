@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from api.schemas import UserResponse
 
-from utils import do_sql_cmd
+from utility_helpers import do_sql_cmd
 from mydb import get_db
 from models import User
 from app.auth.jwt import create_access_token

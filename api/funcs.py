@@ -5,7 +5,7 @@ from api.config.schemas import ConfigTypes
 from api.mono.funcs import get_category_id
 from models import Payment, User
 from mydb import db
-from utils import do_sql_sel
+from utility_helpers import do_sql_sel
 
 logger = logging.getLogger()
 

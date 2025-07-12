@@ -13,7 +13,7 @@ from api.payments.funcs import (
 from api.groups.services import check_user_in_group
 from models.models import Payment
 from mydb import db
-from utils import do_sql_sel
+from utility_helpers import do_sql_sel
 
 logger = logging.getLogger()
 

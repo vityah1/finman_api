@@ -8,7 +8,7 @@ from api.funcs import get_main_sql
 from api.payments.funcs import get_dates
 from mydb import db, get_db
 from sqlalchemy.orm import Session
-from utils import do_sql_sel
+from utility_helpers import do_sql_sel
 from dependencies import get_current_user
 from models.models import User
 
