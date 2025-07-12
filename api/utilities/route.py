@@ -235,7 +235,7 @@ async def get_grouped_tariffs(
                 'id': t.id,
                 'name': t.name,
                 'rate': t.rate,
-                'subscription_fee': t.subscription_fee,
+                # 'subscription_fee': t.subscription_fee,  # Поле видалено
                 'tariff_type': t.tariff_type,
                 'calculation_method': t.calculation_method,
                 'percentage_of': t.percentage_of

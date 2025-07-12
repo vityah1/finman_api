@@ -688,7 +688,7 @@ def create_utility_reading(user_id: int, data: dict) -> dict:
                     subscription_data['calculation_details'] = json.dumps({
                         'components': [sub_component],
                         'total_amount': sub_component.get('amount', 0),
-                        'subscription_fee': 0
+                        'subscription_fee': 0  # Deprecated
                     }, ensure_ascii=False)
                     
                     subscription_reading = UtilityReading(**subscription_data)
@@ -706,10 +706,10 @@ def create_utility_reading(user_id: int, data: dict) -> dict:
     else:
         # Стандартний розрахунок суми
         if data['consumption'] > 0:
-            data['amount'] = (data['consumption'] * tariff.rate) + (tariff.subscription_fee or 0)
+            data['amount'] = (data['consumption'] * tariff.rate)  # subscription_fee видалено
         else:
             # Навіть якщо споживання 0, може бути абонплата
-            data['amount'] = tariff.subscription_fee or 0
+            data['amount'] = 0  # subscription_fee видалено, тепер окремі тарифи
         
         reading = UtilityReading(**data)
         
@@ -836,7 +836,7 @@ def update_utility_reading(user_id: int, reading_id: int, data: dict) -> dict:
                     # Fallback: використовуємо простий розрахунок
                     if tariff:
                         consumption = filtered_data.get('consumption', 0)
-                        amount = consumption * tariff.rate + (tariff.subscription_fee or 0)
+                        amount = consumption * tariff.rate  # subscription_fee видалено
                         filtered_data['amount'] = amount
         
         # Оновлюємо атрибути стандартним способом SQLAlchemy
@@ -970,7 +970,7 @@ def get_grouped_readings(user_id: int, address_id: int, period: str, service_id:
                             calculation_details = {
                                 'components': [],
                                 'total_amount': reading.amount or 0,
-                                'subscription_fee': 0
+                                'subscription_fee': 0  # Deprecated
                             }
                             
                             # Додаємо базовий компонент з інформацією про показник

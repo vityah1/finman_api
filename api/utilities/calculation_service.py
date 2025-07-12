@@ -46,7 +46,7 @@ class UtilityCalculationService:
         details = {
             'components': [],
             'total_amount': 0,
-            'subscription_fee': 0
+            'subscription_fee': 0  # Deprecated: тепер реалізується через окремі тарифи
         }
         
         # Знаходимо основний тариф (без percentage_of або з calculation_method='standard')
@@ -85,18 +85,8 @@ class UtilityCalculationService:
             
             details['total_amount'] += consumption_amount
             
-            # Додаємо абонплату основного тарифу як окремий компонент, але не додаємо до total_amount
-            # (абонплата буде збережена окремим записом)
-            if main_tariff.subscription_fee:
-                details['subscription_fee'] = main_tariff.subscription_fee
-                # Додаємо компонент абонплати, але не додаємо до загальної суми
-                details['components'].append({
-                    'name': main_tariff.name,
-                    'type': 'subscription',
-                    'consumption': 0,
-                    'rate': main_tariff.subscription_fee,
-                    'amount': main_tariff.subscription_fee
-                })
+            # Абонплата тепер реалізується через окремі тарифи з tariff_type='subscription'
+            # Тому цей код видалено
         
         # Розрахунок додаткових тарифів (percentage або fixed)
         for tariff in tariffs:
@@ -149,7 +139,7 @@ class UtilityCalculationService:
         details = {
             'components': [],
             'total_amount': 0,
-            'subscription_fee': 0
+            'subscription_fee': 0  # Deprecated: тепер реалізується через окремі тарифи
         }
         
         # Обробляємо кожен тип показника
@@ -174,9 +164,10 @@ class UtilityCalculationService:
                 details['total_amount'] += amount
                 
                 # Абонплата додається лише один раз
-                if tariff.subscription_fee and details['subscription_fee'] == 0:
-                    details['subscription_fee'] = tariff.subscription_fee
-                    details['total_amount'] += tariff.subscription_fee
+                # subscription_fee видалено з моделі - тепер використовуються окремі тарифи
+                # if tariff.subscription_fee and details['subscription_fee'] == 0:
+                #     details['subscription_fee'] = tariff.subscription_fee
+                #     details['total_amount'] += tariff.subscription_fee
         
         return details
     
@@ -228,11 +219,11 @@ class UtilityCalculationService:
                             'amount': tariff.rate
                         }],
                         'total_amount': tariff.rate,
-                        'subscription_fee': 0
+                        'subscription_fee': 0  # Deprecated: тепер реалізується через окремі тарифи
                     }
                 else:
                     amount = consumption * tariff.rate
-                    subscription = tariff.subscription_fee or 0
+                    subscription = 0  # subscription_fee видалено з моделі
                     
                     result = {
                         'components': [{
@@ -243,7 +234,7 @@ class UtilityCalculationService:
                             'amount': amount
                         }],
                         'total_amount': amount,
-                        'subscription_fee': subscription
+                        'subscription_fee': subscription  # Deprecated
                     }
                     
                     # Якщо є абонплата, додаємо її як окремий компонент, але не в total_amount
@@ -261,5 +252,5 @@ class UtilityCalculationService:
         return {
             'components': [],
             'total_amount': 0,
-            'subscription_fee': 0
+            'subscription_fee': 0  # Deprecated: тепер реалізується через окремі тарифи
         }
