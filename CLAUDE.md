@@ -33,7 +33,7 @@ The API is organized by feature modules in `/api/`:
 
 **Local Development:**
 ```bash
-uvicorn main:app --reload --host 0.0.0.0 --port 8090
+source .venv/bin/activate && uvicorn main:app --reload --host 0.0.0.0 --port 8090 --workers 2
 ```
 
 **Docker:**

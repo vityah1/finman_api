@@ -1,6 +1,9 @@
 from fastapi import APIRouter, Depends, Body, Query, HTTPException
 from typing import List, Optional, Dict
 from datetime import datetime
+import logging
+
+logger = logging.getLogger(__name__)
 
 from api.utilities.services import (
     get_utility_addresses, get_utility_address, create_utility_address,
@@ -205,7 +208,10 @@ async def update_reading(
     current_user: User = Depends(get_current_user)
 ):
     """Оновити показник"""
-    return update_utility_reading(current_user.id, reading_id, reading.model_dump(exclude_unset=True))
+    logger.info(f"DEBUG: PATCH endpoint called for reading_id={reading_id}, data={reading.model_dump(exclude_unset=True)}")
+    result = update_utility_reading(current_user.id, reading_id, reading.model_dump(exclude_unset=True))
+    logger.info(f"DEBUG: PATCH endpoint completed successfully")
+    return result
 
 
 @router.delete("/api/utilities/readings/{reading_id}")

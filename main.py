@@ -123,4 +123,7 @@ async def session_and_logging_middleware(request, call_next):
 if __name__ == "__main__":
     # Запускаємо uvicorn з підвищеним рівнем логування
     import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8090, reload=True, log_level="debug")
+    uvicorn.run("main:app", host="0.0.0.0", port=8090,
+        # reload=True,
+        log_level="debug"
+    )

@@ -1,7 +1,7 @@
 import logging
 import json
 from datetime import datetime
-from typing import List, Optional
+from typing import Any, List, Optional
 from fastapi import HTTPException
 from sqlalchemy import and_, desc
 
@@ -257,7 +257,8 @@ def delete_utility_tariff(user_id: int, tariff_id: int) -> dict:
 
 
 def create_shared_meter_readings(user_id: int, service: UtilityService, data: dict) -> dict:
-    """Створити показники для служби зі спільним лічильником - окремий запис для кожного тарифу"""
+    """Створити показники для служби зі спільним лічільником - окремий запис для кожного тарифу"""
+    logger.info(f"Creating shared meter readings for service {service.name} with data: {data}")
     from datetime import datetime
     from sqlalchemy import or_
     
@@ -297,11 +298,18 @@ def create_shared_meter_readings(user_id: int, service: UtilityService, data: di
         for tariff in all_service_tariffs:
             # Розрахунок на основі calculation_method
             if tariff.calculation_method == 'fixed':
-                # Фіксована сума (абонплата) - не залежить від споживання
-                amount = tariff.rate
-                tariff_consumption = 0
-                current_reading = 0
-                previous_reading = 0
+                if tariff.tariff_type == 'subscription':
+                    # Фіксована сума (абонплата) - не залежить від споживання
+                    amount = tariff.rate
+                    tariff_consumption = 0
+                    current_reading = tariff.rate  # Store the fixed amount in current_reading
+                    previous_reading = 0
+                else:
+                    # Фіксована ставка але з споживанням (наприклад, освітлення)
+                    amount = consumption * tariff.rate
+                    tariff_consumption = consumption
+                    current_reading = data['current_reading']
+                    previous_reading = data['previous_reading']
             elif tariff.calculation_method == 'percentage':
                 # Відсоток від споживання
                 base_amount = consumption * tariff.rate
@@ -349,6 +357,8 @@ def create_shared_meter_readings(user_id: int, service: UtilityService, data: di
 
 def create_utility_reading(user_id: int, data: dict) -> dict:
     """Створити новий показник"""
+    logger.info(f"Creating utility reading for user {user_id} with data: {data}")
+    
     # Перевіряємо, що служба належить користувачу
     service = db.session().query(UtilityService).filter_by(
         id=data['service_id'], user_id=user_id
@@ -357,19 +367,25 @@ def create_utility_reading(user_id: int, data: dict) -> dict:
     if not service:
         raise HTTPException(404, 'Utility service not found')
     
+    logger.info(f"Service {service.name} has_shared_meter: {service.has_shared_meter}")
+    
     # Перевіряємо, чи служба має спільний лічильник
     if service.has_shared_meter:
         # Для служб зі спільним лічильником створюємо показники для всіх активних тарифів групи
         return create_shared_meter_readings(user_id, service, data)
     
     # Стандартне створення для звичайних служб
+    # Перевіряємо, що tariff_id передано
+    if not data.get('tariff_id'):
+        raise HTTPException(400, 'Tariff ID is required for services without shared meter')
+        
     # Перевіряємо, що тариф існує та належить цій службі
     tariff = db.session().query(UtilityTariff).filter_by(
         id=data['tariff_id'], service_id=data['service_id']
     ).first()
     
     if not tariff:
-        raise HTTPException(404, 'Utility tariff not found')
+        raise HTTPException(404, f'Utility tariff not found for tariff_id={data.get("tariff_id")} and service_id={data.get("service_id")}')
     
     data['user_id'] = user_id
     
@@ -591,150 +607,6 @@ def delete_utility_service(user_id: int, service_id: int) -> dict:
     
     return {"result": "ok"}
 
-
-def create_utility_reading(user_id: int, data: dict) -> dict:
-    """Створити новий показник"""
-    # Перевіряємо, що адреса належить користувачу
-    address = db.session().query(UtilityAddress).filter_by(
-        id=data['address_id'], user_id=user_id
-    ).first()
-    
-    if not address:
-        raise HTTPException(404, 'Utility address not found')
-    
-    # Перевіряємо, що служба належить користувачу та адресі
-    service = db.session().query(UtilityService).filter_by(
-        id=data['service_id'], user_id=user_id, address_id=data['address_id']
-    ).first()
-    
-    if not service:
-        raise HTTPException(404, 'Utility service not found')
-    
-    # Перевіряємо, що тариф існує та належить цій службі
-    tariff = db.session().query(UtilityTariff).filter_by(
-        id=data['tariff_id'], service_id=data['service_id']
-    ).first()
-    
-    if not tariff:
-        raise HTTPException(404, 'Utility tariff not found')
-    
-    data['user_id'] = user_id
-    
-    # Якщо не передано попередній показник, знаходимо його автоматично
-    if not data.get('previous_reading'):
-        previous_reading = db.session().query(UtilityReading).filter(
-            UtilityReading.user_id == user_id,
-            UtilityReading.address_id == data['address_id'],
-            UtilityReading.service_id == data['service_id'],
-            UtilityReading.period < data['period']
-        ).order_by(desc(UtilityReading.period)).first()
-        
-        if previous_reading:
-            data['previous_reading'] = previous_reading.current_reading
-        else:
-            data['previous_reading'] = 0
-    
-    # Розраховуємо споживання
-    data['consumption'] = data['current_reading'] - data['previous_reading']
-    
-    # Розраховуємо суму
-    if service.has_shared_meter:
-        # Якщо тариф має спільний лічильник, використовуємо UtilityCalculationService
-        # для правильного розрахунку суми та абонплати
-        grouped_tariffs = UtilityCalculationService.get_grouped_tariffs(
-            service.id, data['period']
-        )
-        
-        reading_data = {
-            'current_reading': data['current_reading'],
-            'previous_reading': data['previous_reading'],
-            'tariff_id': tariff.id,
-            'tariff_group': tariff.group_code,
-            'reading_type': data.get('reading_type', 'standard')
-        }
-        
-        calculation_result = UtilityCalculationService.calculate_reading_amount(
-            service, reading_data, grouped_tariffs
-        )
-        
-        data['amount'] = calculation_result['total_amount']
-        data['calculation_details'] = json.dumps(calculation_result, ensure_ascii=False)
-        
-        # Створюємо основний запис
-        reading = UtilityReading(**data)
-        
-        try:
-            db.session().add(reading)
-            db.session().commit()
-        except Exception as err:
-            db.session().rollback()
-            import traceback
-            logger.error(f"Error creating utility reading: {err}")
-            logger.error(f"Full traceback:\n{traceback.format_exc()}")
-            logger.error(f"Reading data: {data}")
-            raise HTTPException(500, f'Error creating utility reading: {str(err)}')
-        
-        # Якщо є компоненти абонплати (tariff_type='subscription'), створюємо окремий запис
-        components = calculation_result.get('components', [])
-        subscription_components = [c for c in components if c.get('type') == 'subscription']
-        
-        if subscription_components:
-            for sub_component in subscription_components:
-                # Знаходимо тариф абонплати
-                sub_tariff_name = sub_component.get('name')
-                sub_tariff = db.session().query(UtilityTariff).filter(
-                    UtilityTariff.service_id == service.id,
-                    UtilityTariff.name == sub_tariff_name,
-                    UtilityTariff.tariff_type == 'subscription'
-                ).first()
-                
-                if sub_tariff:
-                    # Створюємо новий запис для абонплати
-                    subscription_data = data.copy()
-                    subscription_data['tariff_id'] = sub_tariff.id
-                    subscription_data['consumption'] = 0  # Споживання для абонплати завжди 0
-                    subscription_data['current_reading'] = 0  # Показник для абонплати завжди 0
-                    subscription_data['previous_reading'] = 0  # Попередній показник для абонплати завжди 0
-                    subscription_data['amount'] = sub_component.get('amount', 0)
-                    subscription_data['calculation_details'] = json.dumps({
-                        'components': [sub_component],
-                        'total_amount': sub_component.get('amount', 0),
-                        'subscription_fee': 0  # Deprecated
-                    }, ensure_ascii=False)
-                    
-                    subscription_reading = UtilityReading(**subscription_data)
-                    
-                    try:
-                        db.session().add(subscription_reading)
-                        db.session().commit()
-                        logger.info(f"Created subscription reading for {sub_tariff_name}")
-                    except Exception as err:
-                        db.session().rollback()
-                        logger.error(f"Error creating subscription reading: {err}")
-                        # Не зупиняємо процес, якщо не вдалося створити запис абонплати
-        
-        return UtilityReadingResponse.model_validate(reading).model_dump()
-    else:
-        # Стандартний розрахунок суми
-        if data['consumption'] > 0:
-            data['amount'] = (data['consumption'] * tariff.rate)  # subscription_fee видалено
-        else:
-            # Навіть якщо споживання 0, може бути абонплата
-            data['amount'] = 0  # subscription_fee видалено, тепер окремі тарифи
-        
-        reading = UtilityReading(**data)
-        
-        try:
-            db.session().add(reading)
-            db.session().commit()
-        except Exception as err:
-            db.session().rollback()
-            logger.error(f"Error creating utility reading: {err}")
-            raise HTTPException(400, 'Error creating utility reading')
-        
-        return UtilityReadingResponse.model_validate(reading).model_dump()
-
-
 def get_utility_readings(user_id: int, address_id: Optional[int] = None, 
                         service_id: Optional[int] = None, period: Optional[str] = None) -> List[dict]:
     """Отримати показники комунальних служб"""
@@ -786,7 +658,7 @@ def get_utility_reading(user_id: int, reading_id: int) -> dict:
     return UtilityReadingResponse.model_validate(reading).model_dump()
 
 
-def update_utility_reading(user_id: int, reading_id: int, data: dict) -> dict:
+def update_utility_reading(user_id: int, reading_id: int, data: dict) -> UtilityReadingResponse | Any:
     """Оновити показник"""
     try:
         reading = db.session().query(UtilityReading).filter_by(
@@ -808,23 +680,36 @@ def update_utility_reading(user_id: int, reading_id: int, data: dict) -> dict:
                 UtilityReading.period == reading.period
             ).all()
             
+            logger.info(f"DEBUG: Updating {len(related_readings)} related readings for shared meter service")
+            
+            # Оновлюємо всі пов'язані записи
             for related_reading in related_readings:
-                db.session().delete(related_reading)
+                # Оновлюємо загальні поля для всіх записів
+                if 'period' in data:
+                    related_reading.period = data['period']
+                if 'reading_date' in data:
+                    related_reading.reading_date = data['reading_date']
+                if 'is_paid' in data:
+                    related_reading.is_paid = data['is_paid']
+                if 'notes' in data:
+                    related_reading.notes = data['notes']
+                
+                # Для поточного запису (що редагується) оновлюємо показники
+                if related_reading.id == reading_id:
+                    if 'current_reading' in data:
+                        related_reading.current_reading = data['current_reading']
+                    if 'previous_reading' in data:
+                        related_reading.previous_reading = data['previous_reading']
+                    if 'tariff_id' in data:
+                        related_reading.tariff_id = data['tariff_id']
+                
+                logger.info(f"DEBUG: Updated reading {related_reading.id}")
             
-            # Створюємо нові записи з оновленими даними
-            create_data = {
-                'address_id': reading.address_id,
-                'service_id': reading.service_id,
-                'period': reading.period,
-                'current_reading': data.get('current_reading', reading.current_reading),
-                'previous_reading': data.get('previous_reading', reading.previous_reading),
-                'reading_date': data.get('reading_date', reading.reading_date),
-                'is_paid': data.get('is_paid', reading.is_paid),
-                'notes': data.get('notes', reading.notes)
-            }
+            db.session().commit()
             
-            db.session().commit()  # Коммітимо видалення
-            return create_shared_meter_readings(user_id, service, create_data)
+            # Повертаємо оновлений запис використовуючи схему FastAPI
+            updated_reading = db.session().query(UtilityReading).filter_by(id=reading_id).first()
+            return UtilityReadingResponse.model_validate(updated_reading)
         
         # Видаляємо None значення з data
         filtered_data = {k: v for k, v in data.items() if v is not None}
@@ -1094,7 +979,7 @@ def get_grouped_readings(user_id: int, address_id: int, period: str, service_id:
                                     'reading_date': reading.reading_date,
                                     'is_paid': reading.is_paid,
                                     'period': reading.period,
-                                    'tariff': {'rate': tariff.rate}
+                                    'tariff': {'id': tariff.id, 'rate': tariff.rate}
                                 }
                                 
                                 if service.service_group and service.service_group in service_groups:
@@ -1141,7 +1026,7 @@ def get_grouped_readings(user_id: int, address_id: int, period: str, service_id:
                                 'reading_date': reading.reading_date,
                                 'is_paid': reading.is_paid,
                                 'period': reading.period,
-                                'tariff': {'rate': component.get('rate', 0)}
+                                'tariff': {'id': component.get('tariff_id'), 'rate': component.get('rate', 0)}
                             }
                             
                             if service.service_group and service.service_group in service_groups:
@@ -1185,7 +1070,7 @@ def get_grouped_readings(user_id: int, address_id: int, period: str, service_id:
                         reading_data['service_name'] = service.name
                         reading_data['tariff_name'] = tariff.name if tariff else None
                         reading_data['tariff_type'] = tariff.tariff_type if tariff else None
-                        reading_data['tariff'] = {'rate': tariff.rate} if tariff else None
+                        reading_data['tariff'] = {'id': tariff.id, 'rate': tariff.rate} if tariff else None
                         group['readings'].append(reading_data)
                         group['total_amount'] += reading.amount or 0
                         logger.info(f"Added standard reading to group {service.service_group}")
@@ -1205,7 +1090,7 @@ def get_grouped_readings(user_id: int, address_id: int, period: str, service_id:
                         reading_data = UtilityReadingResponse.model_validate(reading).model_dump()
                         reading_data['service_name'] = service.name
                         reading_data['tariff_name'] = tariff.name if tariff else None
-                        reading_data['tariff'] = {'rate': tariff.rate} if tariff else None
+                        reading_data['tariff'] = {'id': tariff.id, 'rate': tariff.rate} if tariff else None
                         grouped_data[service_key]['readings'].append(reading_data)
                         grouped_data[service_key]['total_amount'] += reading.amount or 0
                         logger.info(f"Added standard reading to service {service.name}")
