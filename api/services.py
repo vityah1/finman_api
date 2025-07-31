@@ -62,6 +62,9 @@ async def bank_import(user: User, bank: str, file: UploadFile, action: str = "im
                     else:
                         pmt_row['sql'] = False
         return data_
+    except HTTPException:
+        # Передаємо HTTPException без змін
+        raise
     except Exception as err:
         from sqlalchemy.exc import IntegrityError
         # Дозволяємо IntegrityError пройти до глобального обробника

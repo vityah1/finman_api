@@ -11,6 +11,7 @@ from api.categories.services import (
     delete_category_,
     get_category_,
 )
+from api.schemas import CategoryResponse
 from dependencies import get_current_user
 from models.models import User
 
@@ -30,7 +31,7 @@ class CategoryUpdate(CategoryBase):
 router = APIRouter(tags=["categories"])
 
 
-@router.get("/api/categories")
+@router.get("/api/categories", response_model=List[CategoryResponse])
 async def get_categories(current_user: User = Depends(get_current_user)):
     """
     Отримання списку категорій користувача
@@ -38,7 +39,7 @@ async def get_categories(current_user: User = Depends(get_current_user)):
     return get_categories_(current_user.id)
 
 
-@router.post("/api/categories", status_code=status.HTTP_201_CREATED)
+@router.post("/api/categories", status_code=status.HTTP_201_CREATED, response_model=CategoryResponse)
 async def add_category(
     category: CategoryCreate = Body(...), 
     current_user: User = Depends(get_current_user)
@@ -72,7 +73,7 @@ async def edit_category(
     return edit_category_(current_user.id, category_id, data=category.model_dump(exclude_unset=True))
 
 
-@router.get("/api/categories/{category_id}")
+@router.get("/api/categories/{category_id}", response_model=CategoryResponse)
 async def get_category(
     category_id: int, 
     current_user: User = Depends(get_current_user)

@@ -47,7 +47,7 @@ def get_main_sql(
     if data.get("start_date"):
         condition.append(" and p.`rdate` >= :start_date")
 
-    condition.append(" and p.`rdate` <= :end_date")
+    condition.append(" and p.`rdate` < :end_date")
 
     # Додаємо фільтр за конкретним користувачем групи
     if data.get("group_user_id"):
