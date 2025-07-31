@@ -23,7 +23,7 @@ def p24_to_pmt(user: User, data: Series) -> PaymentData | None:
         amount = 0
 
     mydesc = data.iloc[3]
-    category_id, is_deleted = find_category(user, data.iloc[1])
+    category_id, is_deleted = find_category(user, mydesc)
 
     if data.iloc[7] not in ["EUR", "USD", "UAH"]:
         mydesc = data.iloc[3] + f"; {data.iloc[6]}{data.iloc[7]}"
