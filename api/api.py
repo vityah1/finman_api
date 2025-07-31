@@ -1,5 +1,6 @@
 from typing import Optional, Dict, List, Any, Union
 from fastapi import APIRouter, Request, Depends, HTTPException, Query
+from datetime import datetime
 from fastapi.responses import JSONResponse
 import logging
 import json
@@ -21,6 +22,8 @@ async def payments_for_period(
     request: Request, 
     year: str = Query("", description="Рік для фільтрації"),
     month: str = Query("", description="Місяць для фільтрації"),
+    start_date: Optional[str] = Query(None, description="Дата початку періоду (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(None, description="Дата кінця періоду (YYYY-MM-DD)"),
     mono_user_id: Optional[str] = Query(None, description="ID користувача Monobank"),
     currency: str = Query("UAH", description="Валюта"),
     group_user_id: Optional[str] = Query(None, description="ID користувача групи"),
@@ -28,19 +31,30 @@ async def payments_for_period(
     db: Session = Depends(get_db)
 ):
     """
-    Повертає платежі згруповані за категоріями за певний період (рік, місяць)
+    Повертає платежі згруповані за категоріями за певний період (рік, місяць або custom період)
     """
     
-    if year:
-        year = year.zfill(2)
-    if month:
-        month = month.zfill(2)
-
-    current_date, end_date, start_date = get_dates(month, year)
+    # Якщо передані кастомні дати, використовуємо їх
+    if start_date and end_date:
+        # Валідація формату дат
+        try:
+            datetime.strptime(start_date, '%Y-%m-%d')
+            datetime.strptime(end_date, '%Y-%m-%d')
+            calculated_start_date = start_date
+            calculated_end_date = end_date
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Невірний формат дати. Використовуйте YYYY-MM-DD")
+    else:
+        # Використовуємо логіку рік/місяць
+        if year:
+            year = year.zfill(2)
+        if month:
+            month = month.zfill(2)
+        current_date, calculated_end_date, calculated_start_date = get_dates(month, year)
 
     data = {
-        "start_date": start_date,
-        "end_date": end_date,
+        "start_date": calculated_start_date,
+        "end_date": calculated_end_date,
         "user_id": current_user.id,
         "mono_user_id": mono_user_id,
         "currency": currency or 'UAH',
