@@ -870,18 +870,21 @@ def get_grouped_readings(user_id: int, address_id: int, period: str, service_id:
         
         logger.info(f"Found {len(readings)} readings for period {period}")
         
-        # Отримуємо всі служби для групування
-        services_query = db.session().query(UtilityService).filter(
+        # Отримуємо тільки служби які мають показники за цей період
+        services_with_readings = db.session().query(UtilityService).join(
+            UtilityReading
+        ).filter(
             UtilityService.user_id == user_id,
             UtilityService.address_id == address_id,
-            UtilityService.is_active == True
-        )
+            UtilityService.is_active == True,
+            UtilityReading.period == period
+        ).distinct()
         
         # Додаємо фільтр по службі якщо вказано
         if service_id:
-            services_query = services_query.filter(UtilityService.id == service_id)
+            services_with_readings = services_with_readings.filter(UtilityService.id == service_id)
             
-        services = services_query.all()
+        services = services_with_readings.all()
         
         logger.info(f"Found {len(services)} active services for address {address_id}")
         
