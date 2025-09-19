@@ -302,8 +302,9 @@ def create_shared_meter_readings(user_id: int, service: UtilityService, data: di
                     # Фіксована сума (абонплата) - не залежить від споживання
                     amount = tariff.rate
                     tariff_consumption = 0
-                    current_reading = tariff.rate  # Store the fixed amount in current_reading
-                    previous_reading = 0
+                    # Store actual meter reading, not the fixed amount
+                    current_reading = data['current_reading']
+                    previous_reading = data['previous_reading']
                 else:
                     # Фіксована ставка але з споживанням (наприклад, освітлення)
                     amount = consumption * tariff.rate
