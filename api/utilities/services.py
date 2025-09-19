@@ -683,6 +683,22 @@ def update_utility_reading(user_id: int, reading_id: int, data: dict) -> Utility
             
             logger.info(f"DEBUG: Updating {len(related_readings)} related readings for shared meter service")
             
+            # Перевіряємо чи зміна періоду не створить конфлікт
+            if 'period' in data and data['period'] != reading.period:
+                # Check if changing period would create duplicates
+                new_period = data['period']
+                existing_readings = db.session().query(UtilityReading).filter(
+                    UtilityReading.user_id == user_id,
+                    UtilityReading.service_id == reading.service_id,
+                    UtilityReading.period == new_period
+                ).all()
+
+                if existing_readings:
+                    # Delete existing readings for the new period to avoid conflicts
+                    for existing in existing_readings:
+                        db.session().delete(existing)
+                    logger.info(f"Deleted {len(existing_readings)} existing readings for period {new_period}")
+
             # Оновлюємо всі пов'язані записи
             for related_reading in related_readings:
                 # Оновлюємо загальні поля для всіх записів
