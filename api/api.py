@@ -4,6 +4,7 @@ from datetime import datetime
 from fastapi.responses import JSONResponse
 import logging
 import json
+from sqlalchemy import select, func, extract, and_, or_, case
 
 from api.funcs import get_main_sql
 from api.payments.funcs import get_dates
@@ -11,7 +12,7 @@ from mydb import db, get_db
 from sqlalchemy.orm import Session
 from utility_helpers import do_sql_sel
 from dependencies import get_current_user
-from models.models import User
+from models.models import User, Payment, Category
 
 # Створюємо router замість Blueprint
 router = APIRouter(tags=["api"])
@@ -148,40 +149,47 @@ async def payment_by_months(
     """
     Повертає платежі згруповані за місяцями в році
     """
-    
-    data = {
-        "user_id": current_user.id,
-        "year": str(year),
-        "mono_user_id": mono_user_id,
-        "currency": currency or 'UAH',
-    }
-    main_sql = get_main_sql(data)
 
-    dialect_name = db.engine.dialect.name
-    if dialect_name == 'sqlite':
-        month_func = "strftime('%m', p.`rdate`)"
-        year_func = "strftime('%Y', p.`rdate`)"
-        amount_func = "CAST(sum(p.`amount`) AS INTEGER)"
-    elif dialect_name == 'mysql':
-        month_func = 'extract(MONTH from p.`rdate`)'
-        year_func = 'extract(YEAR from p.`rdate`)'
-        amount_func = 'convert(sum(p.`amount`), UNSIGNED)'
-    else:
-        raise HTTPException(status_code=400, detail=f"Substring function not implemented for dialect: {dialect_name}")
+    # Build query conditions
+    conditions = [
+        Payment.user_id == current_user.id,
+        extract('year', Payment.rdate) == year,
+        Payment.is_deleted == False
+    ]
 
-    sql = f"""select 
-{month_func} month, {amount_func} as amount,
-count(*) as cnt
-from 
-(
-{main_sql}
-and {year_func} = :year
-) p
-where 1=1
-group by {month_func} order by 1 desc
-"""
+    # Add mono_user filter if provided
+    if mono_user_id:
+        conditions.append(Payment.mono_user_id == mono_user_id)
 
-    return do_sql_sel(sql, data)
+    # Handle currency filter
+    if currency and currency != 'UAH':
+        conditions.append(Payment.currency == currency)
+
+    # Build aggregation query using SQLAlchemy
+    stmt = select(
+        extract('month', Payment.rdate).label('month'),
+        func.sum(Payment.amount).label('amount'),
+        func.count().label('cnt')
+    ).where(
+        and_(*conditions)
+    ).group_by(
+        extract('month', Payment.rdate)
+    ).order_by(
+        extract('month', Payment.rdate).desc()
+    )
+
+    # Execute query
+    result = db.execute(stmt).all()
+
+    # Format results
+    return [
+        {
+            "month": int(row.month),
+            "amount": float(row.amount) if row.amount else 0,
+            "cnt": row.cnt
+        }
+        for row in result
+    ]
 
 
 @router.get("/api/about")
