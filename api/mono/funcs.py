@@ -175,10 +175,21 @@ def convert_imp_mono_to_payment(user_id: int, mono_user: MonoUser, mono_payment:
         user_id, mono_user, data['mcc'], data['mydesc']
     )
 
-    # New currency tracking fields
-    data['amount_original'] = data['amount']  # MonoBank already converts to UAH
+    # Calculate original amount and exchange rate
+    operationAmount = mono_payment.get("operationAmount")
+    if operationAmount and mono_payment["currencyCode"] != 980:  # Foreign currency transaction
+        # operationAmount is in minor units of original currency (also negative for expenses)
+        original_amount = -1 * operationAmount / 100  # Convert to positive like we do with amount
+        exchange_rate = abs(data['amount'] / original_amount) if original_amount != 0 else 1.0
+    else:
+        # UAH transaction or no operationAmount
+        original_amount = data['amount']
+        exchange_rate = 1.0
+
+    # New currency tracking fields with proper values
+    data['amount_original'] = original_amount
     data['currency_original'] = original_currency
-    data['exchange_rate'] = 1.0  # Exchange rate is 1 because MonoBank provides amount already in UAH
+    data['exchange_rate'] = exchange_rate
 
     return data
 
@@ -193,7 +204,7 @@ def convert_webhook_mono_to_payment(mono_user: MonoUser, data: dict) -> dict:
     description = data["data"]["statementItem"]["description"].replace("'", "")
     mcc = data["data"]["statementItem"]["mcc"]
     amount = data["data"]["statementItem"]["amount"] / 100
-    # operationAmount = data["data"]["statementItem"]["operationAmount"]
+    operationAmount = data["data"]["statementItem"].get("operationAmount")
     currencyCode = data["data"]["statementItem"]["currencyCode"]
     currency = 'UAH'
     balance = data["data"]["statementItem"]["balance"]
@@ -209,17 +220,25 @@ def convert_webhook_mono_to_payment(mono_user: MonoUser, data: dict) -> dict:
     currency_map = {978: 'EUR', 840: 'USD', 980: 'UAH', 348: 'HUF', 191: 'HRK', 826: 'GBP', 203: 'CZK'}
     original_currency = currency_map.get(currencyCode, 'UAH')
 
-    # MonoBank always returns amount in UAH for foreign currency transactions
-    # So we set amount_original = amount (already in UAH) and exchange_rate = 1.0
+    # Calculate original amount and exchange rate
+    if operationAmount and currencyCode != 980:  # Foreign currency transaction
+        # operationAmount is in minor units of original currency
+        original_amount = operationAmount / 100
+        exchange_rate = abs(amount / original_amount) if original_amount != 0 else 1.0
+    else:
+        # UAH transaction or no operationAmount
+        original_amount = amount
+        exchange_rate = 1.0
+
     data_ = {
         'category_id': category_id, 'mydesc': description, 'amount': -1 * amount, 'currencyCode': currencyCode,
         'mcc': mcc, 'rdate': rdate, 'type_payment': 'card', 'bank_payment_id': id, 'user_id': user_id, 'source': 'mono',
         'account': account, 'mono_user_id': mono_user.id, 'is_deleted': is_deleted, "category_name": category_name,
         "balance": balance, 'currency': currency, "currency_amount": -1 * amount,
-        # New currency tracking fields
-        'amount_original': -1 * amount,  # MonoBank already converts to UAH
+        # New currency tracking fields with proper values
+        'amount_original': -1 * original_amount,
         'currency_original': original_currency,
-        'exchange_rate': 1.0  # Exchange rate is 1 because MonoBank provides amount already in UAH
+        'exchange_rate': exchange_rate
     }
 
     return data_

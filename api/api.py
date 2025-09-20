@@ -1,10 +1,9 @@
-from typing import Optional, Dict, List, Any, Union
+from typing import Optional
 from fastapi import APIRouter, Request, Depends, HTTPException, Query
 from datetime import datetime
 from fastapi.responses import JSONResponse
 import logging
-import json
-from sqlalchemy import select, func, extract, and_, or_, case
+
 
 from api.funcs import get_main_sql
 from api.payments.funcs import get_dates
@@ -103,58 +102,44 @@ async def payments_by_years(
     grouped: Optional[bool] = Query(False, description="Чи групувати за роками"),
     mono_user_id: Optional[str] = Query(None, description="ID користувача Monobank"),
     currency: str = Query("UAH", description="Валюта"),
-    show_original: Optional[bool] = Query(False, description="Показувати в оригінальній валюті"),
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
 ):
     """
-    Повертає платежі згруповані за роками з підтримкою валют
+    Повертає платежі згруповані за роками з підтримкою валют UAH, EUR, USD
     """
 
     substring_func = 'YEAR(rdate)'
 
-    # Choose amount field based on show_original flag
-    if show_original:
-        amount_field = 'amount_original'
-        currency_filter = "AND currency_original = :currency" if currency != "ALL" else ""
-    else:
-        amount_field = 'amount'
-        currency_filter = ""
-
-    amount_func = f'ROUND(SUM({amount_field}), 2)'
-
     data = {"user_id": current_user.id}
     if grouped:
-        main_sql = (f"SELECT rdate, {amount_field}, currency_original FROM payments "
+        main_sql = (f"SELECT rdate, amount, currency FROM payments "
                     f"WHERE amount > 0 AND (is_deleted = 0 OR is_deleted IS NULL) AND user_id = :user_id")
-        add_fields = ""
     else:
         data["user_id"] = current_user.id
         data["mono_user_id"] = mono_user_id
         data["currency"] = currency or 'UAH'
-        add_fields = f", {amount_func} as amount, COUNT(*) as cnt"
 
-        if show_original and currency != "ALL":
-            add_fields += ", currency_original"
+        # Use get_main_sql for proper currency conversion
+        main_sql_inner = get_main_sql(data)
 
-        # Optimized SQL without subquery for better performance
-        conditions = ["amount > 0", "(is_deleted = 0 OR is_deleted IS NULL)", "user_id = :user_id"]
+        sql = f"""
+        SELECT {substring_func} as year,
+               ROUND(SUM(amount), 2) as amount,
+               COUNT(*) as cnt
+        FROM ({main_sql_inner}) p
+        GROUP BY {substring_func}
+        ORDER BY year DESC
+        """
 
-        if mono_user_id:
-            conditions.append("mono_user_id = :mono_user_id")
-
-        if show_original and currency != "ALL":
-            conditions.append("currency_original = :currency")
-
-        main_sql = f"SELECT {substring_func} as year {add_fields} FROM payments WHERE {' AND '.join(conditions)} GROUP BY {substring_func} ORDER BY year DESC"
-
-        return do_sql_sel(main_sql, data)
+        return do_sql_sel(sql, data)
 
     sql = f"""
-SELECT {substring_func} as year {add_fields}
+SELECT {substring_func} as year,
+       ROUND(SUM(amount), 2) as amount,
+       COUNT(*) as cnt
 FROM
 (
-{main_sql} {currency_filter}
+{main_sql}
 ) p
 WHERE 1=1
 GROUP BY {substring_func} ORDER BY 1 DESC
@@ -168,58 +153,45 @@ async def payment_by_months(
     year: int,
     mono_user_id: Optional[str] = Query(None, description="ID користувача Monobank"),
     currency: str = Query("UAH", description="Валюта"),
-    show_original: Optional[bool] = Query(False, description="Показувати в оригінальній валюті"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    Повертає платежі згруповані за місяцями в році з підтримкою валют
+    Повертає платежі згруповані за місяцями в році з підтримкою валют UAH, EUR, USD
     """
 
-    # Build query conditions
-    conditions = [
-        Payment.user_id == current_user.id,
-        extract('year', Payment.rdate) == year,
-        or_(Payment.is_deleted == False, Payment.is_deleted == None)
-    ]
+    # Use get_main_sql for proper currency conversion
+    data = {
+        "user_id": current_user.id,
+        "start_date": f"{year}-01-01",
+        "end_date": f"{year + 1}-01-01",
+        "currency": currency or 'UAH'
+    }
 
-    # Add mono_user filter if provided
     if mono_user_id:
-        conditions.append(Payment.mono_user_id == mono_user_id)
+        data["mono_user_id"] = mono_user_id
 
-    # Choose amount field based on show_original flag
-    if show_original:
-        amount_field = Payment.amount_original
-        # Filter by original currency if specified
-        if currency and currency != 'ALL':
-            conditions.append(Payment.currency_original == currency)
-    else:
-        amount_field = Payment.amount
-        # For UAH view, no need to filter by currency
+    main_sql = get_main_sql(data)
 
-    # Build aggregation query using SQLAlchemy
-    stmt = select(
-        extract('month', Payment.rdate).label('month'),
-        func.sum(amount_field).label('amount'),
-        func.count().label('cnt')
-    ).where(
-        and_(*conditions)
-    ).group_by(
-        extract('month', Payment.rdate)
-    ).order_by(
-        extract('month', Payment.rdate).desc()
-    )
+    sql = f"""
+    SELECT MONTH(p.rdate) as month,
+           ROUND(SUM(p.amount), 2) as amount,
+           COUNT(*) as cnt
+    FROM ({main_sql}) p
+    WHERE YEAR(p.rdate) = {year}
+    GROUP BY MONTH(p.rdate)
+    ORDER BY month DESC
+    """
 
-    # Execute query
-    result = db.execute(stmt).all()
+    result = do_sql_sel(sql, data)
 
     # Format results
     return [
         {
-            "month": int(row.month),
-            "amount": float(row.amount) if row.amount else 0,
-            "cnt": row.cnt,
-            "currency": currency if show_original else "UAH"
+            "month": int(row["month"]),
+            "amount": float(row["amount"]) if row["amount"] else 0,
+            "cnt": row["cnt"],
+            "currency": currency
         }
         for row in result
     ]
