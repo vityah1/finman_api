@@ -76,6 +76,9 @@ def get_dates(month, year):
     try:
         year_int = int(year)
         month_int = int(month)
+        # Validate month is between 1-12
+        if month_int < 1 or month_int > 12:
+            month_int = current_date.month
     except (ValueError, TypeError):
         year_int = current_date.year
         month_int = current_date.month
