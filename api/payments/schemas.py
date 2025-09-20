@@ -20,6 +20,10 @@ class PaymentBase(BaseModel):
     rdate: Optional[datetime] = Field(None, description="Дата платежу")
     source: Optional[str] = Field(None, description="Джерело платежу (mono, p24, revolut, wise, webapp)")
     refuel_data: Optional[RefuelData] = Field(None, description="Дані про заправку (якщо це заправка)")
+    # New currency tracking fields
+    amount_original: Optional[float] = Field(None, description="Original amount in transaction currency")
+    currency_original: Optional[str] = Field("UAH", description="Original transaction currency")
+    exchange_rate: Optional[float] = Field(1.0, description="Exchange rate at transaction time")
 
     model_config = {
         "from_attributes": True

@@ -157,6 +157,11 @@ class Payment(Base):
     currency_amount = Column(Float, comment="amount of currency")
     bank_hash = Column(String(64), unique=True, default=generate_uuid4, comment="hash bank payment")
 
+    # New fields for proper currency tracking
+    amount_original = Column(Float, nullable=True, comment="Original amount in transaction currency")
+    currency_original = Column(String(3), nullable=True, default='UAH', comment="Original transaction currency")
+    exchange_rate = Column(Float, nullable=True, default=1.0, comment="Exchange rate at transaction time")
+
     __table_args__ = (Index(
         None, 'rdate', 'user_id', 'category_id', 'mydesc', 'amount', 'is_deleted', 'bank_payment_id', unique=True
     ), Index(
@@ -164,7 +169,7 @@ class Payment(Base):
     ),)
 
     _default_fields = ["rdate", "category_id", "mydesc", "currency_amount", "currency", "category", "source",
-        "mono_user", "bank_payment_id", ]
+        "mono_user", "bank_payment_id", "amount_original", "currency_original", "exchange_rate"]
 
     _readonly_fields = ["category", ]
 

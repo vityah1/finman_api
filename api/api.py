@@ -103,36 +103,61 @@ async def payments_by_years(
     grouped: Optional[bool] = Query(False, description="Чи групувати за роками"),
     mono_user_id: Optional[str] = Query(None, description="ID користувача Monobank"),
     currency: str = Query("UAH", description="Валюта"),
+    show_original: Optional[bool] = Query(False, description="Показувати в оригінальній валюті"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    Повертає платежі згруповані за роками
+    Повертає платежі згруповані за роками з підтримкою валют
     """
 
-    substring_func = 'extract(YEAR from `rdate`)'
-    amount_func = 'convert(sum(`amount`), UNSIGNED)'
+    substring_func = 'YEAR(rdate)'
+
+    # Choose amount field based on show_original flag
+    if show_original:
+        amount_field = 'amount_original'
+        currency_filter = "AND currency_original = :currency" if currency != "ALL" else ""
+    else:
+        amount_field = 'amount'
+        currency_filter = ""
+
+    amount_func = f'ROUND(SUM({amount_field}), 2)'
+
     data = {"user_id": current_user.id}
     if grouped:
-        main_sql = ("select rdate from `payments` "
-                    "where amount > 0 and is_deleted = 0 and user_id = :user_id")
+        main_sql = (f"SELECT rdate, {amount_field}, currency_original FROM payments "
+                    f"WHERE amount > 0 AND (is_deleted = 0 OR is_deleted IS NULL) AND user_id = :user_id")
         add_fields = ""
     else:
         data["user_id"] = current_user.id
         data["mono_user_id"] = mono_user_id
         data["currency"] = currency or 'UAH'
-        add_fields = f", {amount_func} as amount, count(*) as cnt"
+        add_fields = f", {amount_func} as amount, COUNT(*) as cnt"
 
-        main_sql = get_main_sql(data)
+        if show_original and currency != "ALL":
+            add_fields += ", currency_original"
+
+        # Optimized SQL without subquery for better performance
+        conditions = ["amount > 0", "(is_deleted = 0 OR is_deleted IS NULL)", "user_id = :user_id"]
+
+        if mono_user_id:
+            conditions.append("mono_user_id = :mono_user_id")
+
+        if show_original and currency != "ALL":
+            conditions.append("currency_original = :currency")
+
+        main_sql = f"SELECT {substring_func} as year {add_fields} FROM payments WHERE {' AND '.join(conditions)} GROUP BY {substring_func} ORDER BY year DESC"
+
+        return do_sql_sel(main_sql, data)
 
     sql = f"""
-select {substring_func} as year {add_fields}
-from 
+SELECT {substring_func} as year {add_fields}
+FROM
 (
-{main_sql}
+{main_sql} {currency_filter}
 ) p
-where 1=1
-group by {substring_func} order by 1 desc
+WHERE 1=1
+GROUP BY {substring_func} ORDER BY 1 DESC
 """
 
     return do_sql_sel(sql, data)
@@ -143,32 +168,39 @@ async def payment_by_months(
     year: int,
     mono_user_id: Optional[str] = Query(None, description="ID користувача Monobank"),
     currency: str = Query("UAH", description="Валюта"),
+    show_original: Optional[bool] = Query(False, description="Показувати в оригінальній валюті"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    Повертає платежі згруповані за місяцями в році
+    Повертає платежі згруповані за місяцями в році з підтримкою валют
     """
 
     # Build query conditions
     conditions = [
         Payment.user_id == current_user.id,
         extract('year', Payment.rdate) == year,
-        Payment.is_deleted == False
+        or_(Payment.is_deleted == False, Payment.is_deleted == None)
     ]
 
     # Add mono_user filter if provided
     if mono_user_id:
         conditions.append(Payment.mono_user_id == mono_user_id)
 
-    # Handle currency filter
-    if currency and currency != 'UAH':
-        conditions.append(Payment.currency == currency)
+    # Choose amount field based on show_original flag
+    if show_original:
+        amount_field = Payment.amount_original
+        # Filter by original currency if specified
+        if currency and currency != 'ALL':
+            conditions.append(Payment.currency_original == currency)
+    else:
+        amount_field = Payment.amount
+        # For UAH view, no need to filter by currency
 
     # Build aggregation query using SQLAlchemy
     stmt = select(
         extract('month', Payment.rdate).label('month'),
-        func.sum(Payment.amount).label('amount'),
+        func.sum(amount_field).label('amount'),
         func.count().label('cnt')
     ).where(
         and_(*conditions)
@@ -186,7 +218,8 @@ async def payment_by_months(
         {
             "month": int(row.month),
             "amount": float(row.amount) if row.amount else 0,
-            "cnt": row.cnt
+            "cnt": row.cnt,
+            "currency": currency if show_original else "UAH"
         }
         for row in result
     ]

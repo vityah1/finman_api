@@ -133,7 +133,8 @@ def get_main_sql(
                )
                ELSE p.currency_amount
            END, 2) AS amount,
-           p.mono_user_id, p.currency, p.currency_amount, p.source, p.user_id
+           p.mono_user_id, p.currency, p.currency_amount, p.source, p.user_id,
+           p.amount_original, p.currency_original, p.exchange_rate
     FROM `payments` p
     {' '.join(joins)}
     WHERE 1=1

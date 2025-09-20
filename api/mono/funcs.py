@@ -162,6 +162,10 @@ def convert_imp_mono_to_payment(user_id: int, mono_user: MonoUser, mono_payment:
         'amount': -1 * mono_payment["amount"] / 100, 'currencyCode': mono_payment["currencyCode"]
     }
 
+    # Currency code mapping: 978=EUR, 840=USD, 980=UAH
+    currency_map = {978: 'EUR', 840: 'USD', 980: 'UAH', 348: 'HUF', 191: 'HRK', 826: 'GBP', 203: 'CZK'}
+    original_currency = currency_map.get(mono_payment["currencyCode"], 'UAH')
+
     data['currency_amount'] = data['amount']
     data['currency'] = 'UAH'
     data['mono_user_id'] = mono_user.id
@@ -170,6 +174,12 @@ def convert_imp_mono_to_payment(user_id: int, mono_user: MonoUser, mono_payment:
     data['category_id'], data['category_name'], data['is_deleted'] = set_category(
         user_id, mono_user, data['mcc'], data['mydesc']
     )
+
+    # New currency tracking fields
+    data['amount_original'] = data['amount']  # MonoBank already converts to UAH
+    data['currency_original'] = original_currency
+    data['exchange_rate'] = 1.0  # Exchange rate is 1 because MonoBank provides amount already in UAH
+
     return data
 
 
@@ -195,11 +205,21 @@ def convert_webhook_mono_to_payment(mono_user: MonoUser, data: dict) -> dict:
 
     category_id, category_name, is_deleted = set_category(user_id, mono_user, mcc, description)
 
+    # Currency code mapping: 978=EUR, 840=USD, 980=UAH
+    currency_map = {978: 'EUR', 840: 'USD', 980: 'UAH', 348: 'HUF', 191: 'HRK', 826: 'GBP', 203: 'CZK'}
+    original_currency = currency_map.get(currencyCode, 'UAH')
+
+    # MonoBank always returns amount in UAH for foreign currency transactions
+    # So we set amount_original = amount (already in UAH) and exchange_rate = 1.0
     data_ = {
         'category_id': category_id, 'mydesc': description, 'amount': -1 * amount, 'currencyCode': currencyCode,
         'mcc': mcc, 'rdate': rdate, 'type_payment': 'card', 'bank_payment_id': id, 'user_id': user_id, 'source': 'mono',
         'account': account, 'mono_user_id': mono_user.id, 'is_deleted': is_deleted, "category_name": category_name,
-        "balance": balance, 'currency': currency, "currency_amount": -1 * amount
+        "balance": balance, 'currency': currency, "currency_amount": -1 * amount,
+        # New currency tracking fields
+        'amount_original': -1 * amount,  # MonoBank already converts to UAH
+        'currency_original': original_currency,
+        'exchange_rate': 1.0  # Exchange rate is 1 because MonoBank provides amount already in UAH
     }
 
     return data_

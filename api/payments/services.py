@@ -40,8 +40,16 @@ def add_payment_(user_id: int, payment_data: PaymentCreate):
     if payment_data.currency != 'UAH' and payment_data.currency_amount:
         rate = get_last_rate(payment_data.currency, payment_data.rdate)
         payment_data.amount = float(payment_data.currency_amount) * rate
+        # Set new currency tracking fields
+        payment_data.amount_original = payment_data.currency_amount
+        payment_data.currency_original = payment_data.currency
+        payment_data.exchange_rate = rate
     else:
         payment_data.amount = payment_data.currency_amount
+        # Set default values for UAH transactions
+        payment_data.amount_original = payment_data.currency_amount
+        payment_data.currency_original = 'UAH'
+        payment_data.exchange_rate = 1.0
     
     # Створюємо об'єкт Payment з Pydantic моделі
     payment = Payment()
@@ -117,8 +125,8 @@ def get_payments_detail(user_id: int, params: dict) -> list[dict]:
     SELECT p.id, p.rdate, p.category_id, c.name AS category_name,
            c.parent_id, p.mydesc, p.amount,
            m.name AS mono_user_name, p.currency, p.currency_amount, p.source,
-           u.login AS user_login
-           /*, p.saleRate*/
+           u.login AS user_login,
+           p.amount_original, p.currency_original, p.exchange_rate
     from ({main_sql}) p
     LEFT JOIN categories c ON p.category_id = c.id
     LEFT OUTER JOIN mono_users m on p.mono_user_id = m.id
@@ -127,7 +135,14 @@ def get_payments_detail(user_id: int, params: dict) -> list[dict]:
     {sort}
     """
 
-    result = do_sql_sel(sql, data)
+    try:
+        result = do_sql_sel(sql, data)
+    except Exception as e:
+        logger.error(f"SQL error in get_payments_detail: {str(e)}")
+        logger.error(f"SQL query: {sql}")
+        logger.error(f"Data: {data}")
+        raise
+
     if not result:
         return []
 
