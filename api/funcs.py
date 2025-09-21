@@ -109,10 +109,12 @@ def get_main_sql(
     else:
         recursive_cte = ""
 
-    sql = f"""
-    {recursive_cte}
-    SELECT p.id, p.rdate, p.category_id, p.mydesc,
-           ROUND(
+    # Optimize for UAH - no currency conversion needed
+    if data.get("currency") == "UAH":
+        amount_calc = "p.currency_amount"
+    else:
+        # Only do currency conversion for EUR/USD
+        amount_calc = f"""ROUND(
            CASE
                WHEN p.currency = :currency THEN p.currency_amount
                WHEN p.currency = 'UAH' AND :currency IN ('EUR', 'USD')
@@ -132,9 +134,13 @@ def get_main_sql(
                    LIMIT 1
                )
                ELSE p.currency_amount
-           END, 2) AS amount,
-           p.mono_user_id, p.currency, p.currency_amount, p.source, p.user_id,
-           p.amount_original, p.currency_original, p.exchange_rate
+           END, 2)"""
+
+    sql = f"""
+    {recursive_cte}
+    SELECT p.id, p.rdate, p.category_id, p.mydesc,
+           {amount_calc} AS amount,
+           p.mono_user_id, p.currency, p.currency_amount, p.source, p.user_id
     FROM `payments` p
     {' '.join(joins)}
     WHERE 1=1
