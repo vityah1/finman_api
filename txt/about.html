@@ -1,42 +1,398 @@
-<div class="row">
-    <div class="col">
-        <h4>Про програму</h4>
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="text-center mb-4">
+                <h2 class="display-4 text-primary">
+                    <i class="fas fa-chart-line me-3"></i>FinMan v0.2.0
+                </h2>
+                <p class="lead text-muted">
+                    Сучасний багатоплатформенний менеджер фінансів для особистого та сімейного обліку витрат
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <!-- Основні можливості -->
+        <div class="col-lg-6">
+            <div class="card h-100 shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-star me-2"></i>Основні можливості
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <div class="d-flex align-items-start">
+                                <i class="fas fa-cloud text-info me-2 mt-1"></i>
+                                <div>
+                                    <strong>Хмарне зберігання</strong>
+                                    <p class="small text-muted mb-0">Доступ з будь-якого пристрою</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="d-flex align-items-start">
+                                <i class="fas fa-mobile-alt text-success me-2 mt-1"></i>
+                                <div>
+                                    <strong>Мобільний доступ</strong>
+                                    <p class="small text-muted mb-0">PWA версія для смартфонів</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="d-flex align-items-start">
+                                <i class="fas fa-university text-warning me-2 mt-1"></i>
+                                <div>
+                                    <strong>Інтеграція з банками</strong>
+                                    <p class="small text-muted mb-0">6 банків України та Європи</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="d-flex align-items-start">
+                                <i class="fas fa-users text-primary me-2 mt-1"></i>
+                                <div>
+                                    <strong>Сімейний облік</strong>
+                                    <p class="small text-muted mb-0">Групи та ролі користувачів</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="d-flex align-items-start">
+                                <i class="fas fa-robot text-danger me-2 mt-1"></i>
+                                <div>
+                                    <strong>Розумна категоризація</strong>
+                                    <p class="small text-muted mb-0">Автоматичні правила</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="d-flex align-items-start">
+                                <i class="fas fa-home text-secondary me-2 mt-1"></i>
+                                <div>
+                                    <strong>Комунальні послуги</strong>
+                                    <p class="small text-muted mb-0">Лічильники та тарифи</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="d-flex align-items-start">
+                                <i class="fas fa-coins text-success me-2 mt-1"></i>
+                                <div>
+                                    <strong>Мультивалютність</strong>
+                                    <p class="small text-muted mb-0">UAH, EUR, USD з курсами НБУ</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="d-flex align-items-start">
+                                <i class="fas fa-palette text-info me-2 mt-1"></i>
+                                <div>
+                                    <strong>Сучасний дизайн</strong>
+                                    <p class="small text-muted mb-0">PrimeVue 4, адаптивна верстка</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Технічні характеристики -->
+        <div class="col-lg-6">
+            <div class="card h-100 shadow-sm">
+                <div class="card-header bg-success text-white">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-cogs me-2"></i>Технічний стек
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <div class="d-flex align-items-center mb-2">
+                            <i class="fab fa-vuejs text-success me-2"></i>
+                            <strong>Frontend</strong>
+                        </div>
+                        <p class="text-muted small ms-3">Vue.js 3.3.4 + TypeScript + PrimeVue 4 + Bootstrap 5</p>
+                    </div>
+                    <div class="mb-3">
+                        <div class="d-flex align-items-center mb-2">
+                            <i class="fas fa-server text-primary me-2"></i>
+                            <strong>Backend</strong>
+                        </div>
+                        <p class="text-muted small ms-3">FastAPI 1.0.0 + SQLAlchemy 2.0.36 + MySQL</p>
+                    </div>
+                    <div class="mb-3">
+                        <div class="d-flex align-items-center mb-2">
+                            <i class="fas fa-cube text-info me-2"></i>
+                            <strong>Архітектура</strong>
+                        </div>
+                        <p class="text-muted small ms-3">REST API + JWT auth + Docker</p>
+                    </div>
+                    <div class="mb-3">
+                        <div class="d-flex align-items-center mb-2">
+                            <i class="fab fa-docker text-primary me-2"></i>
+                            <strong>Деплоймент</strong>
+                        </div>
+                        <p class="text-muted small ms-3">Docker Compose з автоматичними міграціями</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-history me-2"></i>Останні оновлення
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="timeline">
+                        <div class="timeline-item">
+                            <div class="timeline-marker bg-primary"></div>
+                            <div class="timeline-content">
+                                <h6 class="mb-1">Грудень 2024</h6>
+                                <p class="text-muted small mb-0">Міграція інтерфейсу на PrimeVue 4, оновлений дизайн компонентів з адаптивною версткою</p>
+                            </div>
+                        </div>
+                        <div class="timeline-item">
+                            <div class="timeline-marker bg-success"></div>
+                            <div class="timeline-content">
+                                <h6 class="mb-1">Листопад 2024</h6>
+                                <p class="text-muted small mb-0">Оптимізація SQL запитів, виправлення обробки дат, покращення продуктивності</p>
+                            </div>
+                        </div>
+                        <div class="timeline-item">
+                            <div class="timeline-marker bg-info"></div>
+                            <div class="timeline-content">
+                                <h6 class="mb-1">Жовтень 2024</h6>
+                                <p class="text-muted small mb-0">Рефакторинг моделі платежів з валютним відстеженням та ORM оптимізацією</p>
+                            </div>
+                        </div>
+                        <div class="timeline-item">
+                            <div class="timeline-marker bg-warning"></div>
+                            <div class="timeline-content">
+                                <h6 class="mb-1">Липень 2024</h6>
+                                <p class="text-muted small mb-0">Фільтрація за кастомний період, правила категоризації, ієрархія категорій</p>
+                            </div>
+                        </div>
+                        <div class="timeline-item">
+                            <div class="timeline-marker bg-secondary"></div>
+                            <div class="timeline-content">
+                                <h6 class="mb-1">Березень 2024</h6>
+                                <p class="text-muted small mb-0">Система сімейних груп з ролями користувачів та запрошеннями</p>
+                            </div>
+                        </div>
+                        <div class="timeline-item">
+                            <div class="timeline-marker bg-primary"></div>
+                            <div class="timeline-content">
+                                <h6 class="mb-1">Червень 2024</h6>
+                                <p class="text-muted small mb-0">Інтеграція з Erste Bank (парсинг PDF виписок)</p>
+                            </div>
+                        </div>
+                        <div class="timeline-item">
+                            <div class="timeline-marker bg-success"></div>
+                            <div class="timeline-content">
+                                <h6 class="mb-1">Січень 2024</h6>
+                                <p class="text-muted small mb-0">Імпорт транзакцій з ПриватБанку</p>
+                            </div>
+                        </div>
+                        <div class="timeline-item">
+                            <div class="timeline-marker bg-warning"></div>
+                            <div class="timeline-content">
+                                <h6 class="mb-1">Квітень 2024</h6>
+                                <p class="text-muted small mb-0">Мультивалютний облік з автоматичною конвертацією НБУ</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt-4 g-4">
+        <!-- Підтримувані банки -->
+        <div class="col-md-6">
+            <div class="card shadow-sm">
+                <div class="card-header bg-info text-white">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-university me-2"></i>Підтримувані банки
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-2">
+                        <div class="col-12">
+                            <div class="d-flex align-items-center">
+                                <span class="badge bg-success me-2">RT</span>
+                                <strong>MonoBank</strong>
+                                <small class="text-muted ms-auto">Webhook</small>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <div class="d-flex align-items-center">
+                                <span class="badge bg-primary me-2">CSV</span>
+                                <strong>ПриватБанк</strong>
+                                <small class="text-muted ms-auto">Excel/CSV</small>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <div class="d-flex align-items-center">
+                                <span class="badge bg-warning me-2">PDF</span>
+                                <strong>PUMB</strong>
+                                <small class="text-muted ms-auto">PDF парсинг</small>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <div class="d-flex align-items-center">
+                                <span class="badge bg-info me-2">CSV</span>
+                                <strong>Revolut</strong>
+                                <small class="text-muted ms-auto">CSV імпорт</small>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <div class="d-flex align-items-center">
+                                <span class="badge bg-secondary me-2">CSV</span>
+                                <strong>Wise</strong>
+                                <small class="text-muted ms-auto">Виписки</small>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <div class="d-flex align-items-center">
+                                <span class="badge bg-danger me-2">PDF</span>
+                                <strong>Erste Bank</strong>
+                                <small class="text-muted ms-auto">EUR→UAH</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Безпека -->
+        <div class="col-md-6">
+            <div class="card shadow-sm">
+                <div class="card-header bg-danger text-white">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-shield-alt me-2"></i>Безпека
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <ul class="list-unstyled mb-0">
+                        <li class="d-flex align-items-center mb-2">
+                            <i class="fas fa-server text-primary me-2"></i>
+                            <span>Захищені сервери</span>
+                        </li>
+                        <li class="d-flex align-items-center mb-2">
+                            <i class="fas fa-key text-warning me-2"></i>
+                            <span>JWT токени</span>
+                        </li>
+                        <li class="d-flex align-items-center mb-2">
+                            <i class="fas fa-lock text-success me-2"></i>
+                            <span>Шифрування API ключів</span>
+                        </li>
+                        <li class="d-flex align-items-center mb-2">
+                            <i class="fas fa-certificate text-info me-2"></i>
+                            <span>HTTPS з'єднання</span>
+                        </li>
+                        <li class="d-flex align-items-center mb-0">
+                            <i class="fas fa-database text-secondary me-2"></i>
+                            <span>Регулярні бекапи</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Розробник -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-header bg-dark text-white">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-code me-2"></i>Розробник
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-md-8">
+                            <h6 class="mb-2">
+                                <i class="fas fa-user-tie text-primary me-2"></i>
+                                Viktor Holoshivskiy
+                            </h6>
+                            <p class="text-muted mb-2">Full-Stack Developer</p>
+                            <div class="d-flex flex-wrap gap-2 mb-3">
+                                <span class="badge bg-primary">Vue.js</span>
+                                <span class="badge bg-success">FastAPI</span>
+                                <span class="badge bg-warning">Python</span>
+                                <span class="badge bg-info">TypeScript</span>
+                                <span class="badge bg-secondary">MySQL</span>
+                            </div>
+                            <p class="small text-muted mb-0">
+                                <i class="fas fa-map-marker-alt me-1"></i>Україна
+                                <span class="mx-2">•</span>
+                                <i class="fas fa-calendar-alt me-1"></i>З 2020 року
+                            </p>
+                        </div>
+                        <div class="col-md-4 text-md-end">
+                            <a href="mailto:vholoshivskiy@gmail.com" class="btn btn-outline-primary">
+                                <i class="fas fa-envelope me-2"></i>Написати
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <div class="col-12 text-center">
+            <div class="alert alert-light" role="alert">
+                <i class="fas fa-heart text-danger me-2"></i>
+                <strong>Проект активно розвивається!</strong>
+                Для звітів про помилки та пропозицій звертайтеся до розробника.
+            </div>
+        </div>
     </div>
 </div>
-<div class="row">
-    <div class="col">
-        <p>
-            <strong>FinMan</strong> — це сучасний багатоплатформенний менеджер фінансів, який дозволяє легко та зручно вести облік особистих і сімейних витрат.
-        </p>
 
-        <h5>Основні можливості:</h5>
-        <ul>
-            <li><strong>Хмарне зберігання</strong> — доступ до ваших даних з будь-якого пристрою в будь-який час</li>
-            <li><strong>Мобільний доступ</strong> — веб-додаток та PWA версія для встановлення на смартфон прямо з Chrome</li>
-            <li><strong>Інтеграція з банками</strong> — автоматичний імпорт транзакцій з Monobank, PrivatBank, Revolut, Wise та Erste Bank</li>
-            <li><strong>Сімейний облік</strong> — створюйте групи, запрошуйте членів сім'ї та ведіть спільний облік витрат</li>
-            <li><strong>Категорії витрат</strong> — гнучка система категоризації для кращого аналізу ваших фінансів</li>
-            <li><strong>Мультивалютний облік</strong> — підтримка гривні, євро, долара та інших валют</li>
-        </ul>
+<style>
+.timeline {
+    position: relative;
+    padding-left: 2rem;
+}
 
-        <h5>Історія оновлень:</h5>
-        <ul>
-            <li><strong>31.07.2025</strong> — Додано фільтрацію за кастомний період (можливість вибрати будь-які дати), створення правил категоризації прямо з результатів імпорту, покращено відображення категорій з ієрархією, виправлено дублювання транзакцій між місяцями</li>
-            <li><strong>04.03.2025</strong> — Впроваджено повноцінну систему сімейних груп з можливістю запрошення користувачів та призначення ролей (чоловік/дружина, дитина, родич)</li>
-            <li><strong>01.06.2025</strong> — Додано підтримку імпорту транзакцій з Erste Bank (PDF виписки)</li>
-            <li><strong>04.01.2025</strong> — Додано імпорт транзакцій з ПриватБанку</li>
-            <li><strong>08.04.2024</strong> — Реалізовано мультивалютний облік з автоматичною конвертацією за курсом</li>
-            <li><strong>06.04.2024</strong> — Додано підтримку імпорту транзакцій з Wise</li>
-            <li><strong>13.06.2023</strong> — Інтегровано імпорт транзакцій з Revolut</li>
-            <li><strong>11.06.2023</strong> — Додано багатокористувацьку підтримку, оптимізовано код</li>
-            <li><strong>07.09.2021</strong> — Розгортання на віртуальному хостингу</li>
-            <li><strong>02.09.2021</strong> — Міграція фронтенду на Vue 3.1 та бекенду на Flask</li>
-            <li><strong>14.04.2021</strong> — Перенесення всіх скриптів на Python</li>
-            <li><strong>13.04.2021</strong> — Додано функціонал редагування транзакцій</li>
-            <li><strong>03.03.2021</strong> — Впроваджено систему підкатегорій для детальнішої класифікації витрат</li>
-            <li><strong>01.03.2021</strong> — Додано налаштування вебхуку для Monobank</li>
-            <li><strong>31.05.2020</strong> — Оновлений інтерфейс з новою навігацією</li>
-            <li><strong>12.05.2020</strong> — Перша версія з імпортом та відображенням виписки з Monobank</li>
-        </ul>
-    </div>
-</div>
+.timeline:before {
+    content: '';
+    position: absolute;
+    left: 0.75rem;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: #dee2e6;
+}
+
+.timeline-item {
+    position: relative;
+    margin-bottom: 1.5rem;
+}
+
+.timeline-marker {
+    position: absolute;
+    left: -1.9rem;
+    top: 0.25rem;
+    width: 0.75rem;
+    height: 0.75rem;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    box-shadow: 0 0 0 2px #dee2e6;
+}
+
+.timeline-content {
+    padding-left: 0.5rem;
+}
+</style>
