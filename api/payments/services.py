@@ -86,6 +86,7 @@ def get_payments_detail(user_id: int, params: dict) -> list[dict]:
     currency = params.get('currency', 'UAH') or 'UAH'
     group_id = params.get("group_id")
     group_user_id = params.get("group_user_id")
+    source = params.get("source")
 
     if not sort:
         sort = "order by `amount` desc"
@@ -103,6 +104,7 @@ def get_payments_detail(user_id: int, params: dict) -> list[dict]:
         "mono_user_id": params.get("mono_user_id"),
         "currency": currency,
         "q": params.get("q"),
+        "source": source,
     }
 
     # Додаємо фільтрацію за групою

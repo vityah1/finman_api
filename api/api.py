@@ -19,7 +19,7 @@ router = APIRouter(tags=["api"])
 
 @router.get("/api/payments/period")
 async def payments_for_period(
-    request: Request, 
+    request: Request,
     year: str = Query("", description="Рік для фільтрації"),
     month: str = Query("", description="Місяць для фільтрації"),
     start_date: Optional[str] = Query(None, description="Дата початку періоду (YYYY-MM-DD)"),
@@ -27,6 +27,7 @@ async def payments_for_period(
     mono_user_id: Optional[str] = Query(None, description="ID користувача Monobank"),
     currency: str = Query("UAH", description="Валюта"),
     group_user_id: Optional[str] = Query(None, description="ID користувача групи"),
+    source: Optional[str] = Query(None, description="Джерело платежу для фільтрації (mono|pryvat|pwa|revolut|wise)"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -58,6 +59,7 @@ async def payments_for_period(
         "user_id": current_user.id,
         "mono_user_id": mono_user_id,
         "currency": currency or 'UAH',
+        "source": source,
     }
 
     # Додаємо фільтрацію за користувачем з групи

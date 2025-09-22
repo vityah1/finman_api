@@ -37,6 +37,7 @@ async def get_payments(
     category_id: Optional[str] = Query(None, description="ID категорії для фільтрації. Спеціальне значення '_' для останніх платежів"),
     currency: Optional[str] = Query("UAH", description="Валюта для відображення сум"),
     group_user_id: Optional[str] = Query(None, description="ID користувача групи"),
+    source: Optional[str] = Query(None, description="Джерело платежу для фільтрації (mono|pryvat|webapp|revolut|wise)"),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -51,7 +52,8 @@ async def get_payments(
         "q": q,
         "category_id": category_id,
         "currency": currency,
-        "group_user_id": group_user_id
+        "group_user_id": group_user_id,
+        "source": source
     }
     return get_payments_detail(current_user.id, params=params)
 

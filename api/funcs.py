@@ -70,6 +70,10 @@ def get_main_sql(
     if data.get("mono_user_id"):
         condition.append(" and mono_user_id = :mono_user_id")
 
+    # Фільтрація по джерелу платежу
+    if data.get("source"):
+        condition.append(" and p.source = :source")
+
     if data.get("q"):
         condition.append(" and (c.`name` like %:q% or gc.`name` like %:q%)")
 
@@ -172,7 +176,46 @@ def add_bulk_payments(data: list[dict]):
         logger.error(f'{err}')
         db.session.rollback()
         db.session.flush()
+
+        # Check if it's a duplicate bank_payment_id error
+        from sqlalchemy.exc import IntegrityError
+        if isinstance(err, IntegrityError) and 'uq_payments_bank_payment_id' in str(err):
+            logger.warning("Bulk insert failed due to duplicate bank_payment_id. Trying individual inserts...")
+            # Try to insert payments one by one, skipping duplicates
+            return add_payments_individually(data)
     return result
+
+
+def add_payments_individually(data: list[dict]):
+    """Insert payments one by one, skipping duplicates"""
+    success_count = 0
+    duplicate_count = 0
+
+    for payment_data in data:
+        try:
+            # Check if payment already exists
+            existing = db.session.query(Payment).filter_by(
+                bank_payment_id=payment_data.get('bank_payment_id')
+            ).first()
+
+            if existing:
+                duplicate_count += 1
+                logger.debug(f"Skipping duplicate payment: {payment_data.get('mydesc')} - {payment_data.get('bank_payment_id')}")
+                continue
+
+            # Insert new payment
+            payment = Payment(**payment_data)
+            db.session.add(payment)
+            db.session.commit()
+            success_count += 1
+
+        except Exception as err:
+            logger.error(f"Error inserting individual payment: {err}")
+            db.session.rollback()
+            continue
+
+    logger.info(f"Individual insert completed: {success_count} new payments, {duplicate_count} duplicates skipped")
+    return success_count > 0
 
 
 def find_category(user: User, description: str) -> tuple[int, bool]:

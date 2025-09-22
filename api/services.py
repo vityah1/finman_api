@@ -11,6 +11,7 @@ from api.core.revolut.funcs import revolut_to_pmt
 from api.core.wise.funcs import wise_to_pmt
 from api.core.pumb.funcs import parse_pumb_pdf, pumb_to_pmt
 from api.core.erste.funcs import parse_erste_pdf, erste_to_pmt
+from api.core.raiffeisen.funcs import parse_raiffeisen_csv, raiffeisen_to_pmt
 from api.funcs import add_bulk_payments
 from api.mono.funcs import add_new_payment
 from models import User
@@ -25,7 +26,7 @@ async def bank_import(user: User, bank: str, file: UploadFile, action: str = "im
 
     Параметри:
         user_id: ID користувача
-        bank: Назва банку ("wise", "mono", "revolut", "p24", "pumb", "erste")
+        bank: Назва банку ("wise", "mono", "revolut", "p24", "pumb", "erste", "raiffeisen")
         file: Завантажений файл через FastAPI UploadFile
         action: Дія - "show" для попереднього перегляду або "import" для імпорту даних
     """
@@ -43,7 +44,7 @@ async def bank_import(user: User, bank: str, file: UploadFile, action: str = "im
         data_ = await convert_file_to_data(user, file_content, file.filename, bank)
 
         if not data_:
-            logger.error("Невалідні дані у файлі")
+            logger.error(f"Невалідні дані у файлі {file.filename} для банку {bank}. Отримано порожній результат", exc_info=True)
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Невалідні дані у файлі")
 
         if action == 'show':
@@ -84,6 +85,7 @@ async def convert_file_to_data(user: User, file_content: bytes, filename: str, b
         filename: Ім'я файлу
         bank: Назва банку
     """
+    logger.info(f"Converting file {filename} for bank {bank}, file size: {len(file_content)} bytes")
     data = []
 
     # Обробка PDF файлів PUMB
@@ -122,6 +124,54 @@ async def convert_file_to_data(user: User, file_content: bytes, filename: str, b
         
         return data
 
+    # Обробка CSV файлів Raiffeisen Bank
+    if bank == 'raiffeisen':
+        if not filename.lower().endswith('.csv'):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail='Для Raiffeisen Bank підтримуються тільки CSV файли'
+            )
+
+        # Декодуємо файл в UTF-8
+        try:
+            file_content_str = file_content.decode('utf-8')
+        except UnicodeDecodeError:
+            try:
+                file_content_str = file_content.decode('cp1251')
+            except UnicodeDecodeError:
+                logger.error(f"Cannot decode Raiffeisen file {filename}. Tried UTF-8 and CP1251", exc_info=True)
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail='Невалідні дані у файлі'
+                )
+
+        # Парсимо CSV та конвертуємо транзакції
+        try:
+            transactions = parse_raiffeisen_csv(file_content_str)
+            logger.info(f"Parsed {len(transactions)} transactions from Raiffeisen CSV")
+        except Exception as e:
+            logger.error(f"Error parsing Raiffeisen CSV: {e}", exc_info=True)
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail='Невалідні дані у файлі'
+            )
+
+        for i, transaction in enumerate(transactions):
+            try:
+                pmt = raiffeisen_to_pmt(user, transaction)
+                if pmt:
+                    data.append(pmt.model_dump())
+                    logger.debug(f"Successfully converted transaction {i+1}: {transaction['description']}")
+                else:
+                    logger.debug(f"Skipped transaction {i+1}: {transaction['description']} (amount: {transaction['amount_uah']})")
+            except Exception as e:
+                logger.error(f"Error converting Raiffeisen transaction {i+1}: {e}", exc_info=True)
+                continue
+
+        logger.info(f"Converted {len(data)} transactions out of {len(transactions)} parsed")
+
+        return data
+
     # Створюємо об'єкт для читання файлу
     file_obj = io.BytesIO(file_content)
 
@@ -138,7 +188,7 @@ async def convert_file_to_data(user: User, file_content: bytes, filename: str, b
     else:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f'Невідомий тип файлу: {filename}. Підтримуються .xls, .xlsx, .csv та .pdf (для PUMB та Erste Bank)'
+            detail=f'Невідомий тип файлу: {filename}. Підтримуються .xls, .xlsx, .csv та .pdf (для PUMB та Erste Bank). CSV для Raiffeisen Bank'
         )
 
     if df.empty:
@@ -162,6 +212,9 @@ async def convert_file_to_data(user: User, file_content: bytes, filename: str, b
                 continue
             case 'erste':
                 # Erste обробляється окремо вище
+                continue
+            case 'raiffeisen':
+                # Raiffeisen обробляється окремо вище
                 continue
             case _:
                 logger.warning(f"Непідтримуваний банк: {bank}")
