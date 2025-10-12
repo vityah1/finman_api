@@ -14,6 +14,7 @@ from utility_helpers import do_sql_cmd
 from mydb import get_db
 from models import User
 from app.auth.jwt import create_access_token
+from dependencies import get_current_user
 
 logger = logging.getLogger(__name__)
 
@@ -178,10 +179,20 @@ async def delete_user(user_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/api/users", status_code=status.HTTP_200_OK)
-async def get_users(db: Session = Depends(get_db)):
+async def get_users(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
     """
-    Отримання списку всіх користувачів
+    Отримання списку всіх користувачів (тільки для адміністраторів)
     """
+    # Check if user is admin
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail='Доступ заборонено. Тільки адміністратори можуть переглядати список всіх користувачів.'
+        )
+
     users = db.query(User).all()
     if not users:
         raise HTTPException(
