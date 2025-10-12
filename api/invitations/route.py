@@ -69,7 +69,7 @@ async def delete_invitation(
     return delete_invitation_(current_user.id, invitation_id)
 
 
-@router.get("/api/users/invitations")
+@router.get("/api/invitations")
 async def check_user_invitations(
     current_user: User = Depends(get_current_user)
 ):

@@ -278,6 +278,9 @@ def get_mono_payments(start_date: str = "", end_date: str = "", mono_user_id: in
             continue
         if account['id'] not in config_accounts:
             continue
+        # If no accounts configured, process all active accounts
+        # if config_accounts and account['id'] not in config_accounts:
+        #     continue
 
         url = (f"{MONO_API_URL}/personal/statement/"
                f"{account['id']}/{start_date_unix}/{end_date_unix}")
