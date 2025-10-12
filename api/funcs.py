@@ -113,16 +113,17 @@ def get_main_sql(
     else:
         recursive_cte = ""
 
-    # Optimize for UAH - no currency conversion needed
+    # Currency conversion logic
     if data.get("currency") == "UAH":
-        amount_calc = "p.currency_amount"
+        # For UAH: use amount field which always contains UAH value
+        amount_calc = "p.amount"
     else:
-        # Only do currency conversion for EUR/USD
+        # For EUR/USD: convert from UAH (amount field) or use original currency_amount
         amount_calc = f"""ROUND(
            CASE
                WHEN p.currency = :currency THEN p.currency_amount
                WHEN p.currency = 'UAH' AND :currency IN ('EUR', 'USD')
-               THEN p.currency_amount / (
+               THEN p.amount / (
                    SELECT COALESCE(MAX(e.saleRate), 1)
                    FROM spr_exchange_rates e
                    WHERE e.currency = :currency AND e.rdate <= p.rdate
@@ -130,21 +131,16 @@ def get_main_sql(
                    LIMIT 1
                )
                WHEN p.currency IN ('EUR', 'USD') AND :currency = 'UAH'
-               THEN p.currency_amount * (
-                   SELECT COALESCE(MAX(e.saleRate), 1)
-                   FROM spr_exchange_rates e
-                   WHERE e.currency = p.currency AND e.rdate <= p.rdate
-                   ORDER BY e.rdate DESC
-                   LIMIT 1
-               )
-               ELSE p.currency_amount
+               THEN p.amount
+               ELSE p.amount
            END, 2)"""
 
     sql = f"""
     {recursive_cte}
     SELECT p.id, p.rdate, p.category_id, p.mydesc,
            {amount_calc} AS amount,
-           p.mono_user_id, p.currency, p.currency_amount, p.source, p.user_id
+           p.mono_user_id, p.currency, p.currency_amount, p.source, p.user_id,
+           :currency AS display_currency
     FROM `payments` p
     {' '.join(joins)}
     WHERE 1=1

@@ -127,7 +127,7 @@ def get_payments_detail(user_id: int, params: dict) -> list[dict]:
     SELECT p.id, p.rdate, p.category_id, c.name AS category_name,
            c.parent_id, p.mydesc, p.amount,
            m.name AS mono_user_name, p.currency, p.currency_amount, p.source,
-           u.login AS user_login
+           u.login AS user_login, p.display_currency
     from ({main_sql}) p
     LEFT JOIN categories c ON p.category_id = c.id
     LEFT OUTER JOIN mono_users m on p.mono_user_id = m.id
