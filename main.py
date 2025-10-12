@@ -82,8 +82,11 @@ from api.import_route import router as import_router
 from api.utilities.route import router as utilities_router
 
 # Підключаємо маршрути
+# IMPORTANT: invitations_router must be registered before api_router and mono_router
+# to avoid path conflicts with /api/users/{user_id} routes
 app.include_router(config_router)
 app.include_router(auth_router)
+app.include_router(invitations_router)
 app.include_router(api_router)
 app.include_router(payments_router)
 app.include_router(mono_router)
@@ -91,7 +94,6 @@ app.include_router(mono_users_router)
 app.include_router(sprs_router)
 app.include_router(categories_router)
 app.include_router(groups_router)
-app.include_router(invitations_router)
 app.include_router(import_router)
 app.include_router(utilities_router)
 
