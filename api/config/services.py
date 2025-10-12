@@ -39,7 +39,7 @@ def get_user_config_(user_id: int) -> list[dict]:
     configs = db.session.execute(stmt).all()
 
     if not configs:
-        raise HTTPException(status_code=404, detail='Not found configs')
+        return []
 
     return [ConfigResponse.model_validate(item).model_dump() for item in configs]
 
