@@ -3,6 +3,7 @@
 from fastapi import APIRouter, Depends, status, Body
 from typing import Optional
 from pydantic import BaseModel, Field
+from typing import List
 
 from api.groups.service import (
     add_user_to_group_, create_group_, delete_group_, get_group_, get_group_users_,
@@ -13,6 +14,7 @@ from api.groups.service import (
 from dependencies import get_current_user
 from models.models import User
 from api.schemas.group import GroupUserUpdate, GroupInvitationCreate
+from api.schemas import GroupUserResponse, GroupInvitationResponse, GroupResponse
 
 # Створюємо Pydantic моделі для запитів та відповідей
 class GroupBase(BaseModel):
@@ -50,11 +52,11 @@ async def update_user_relation(
     return update_user_relation_(current_user.id, group_id, user_id, data=user_relation.model_dump())
 
 
-@router.get("/api/groups/{group_id}/invitations")
+@router.get("/api/groups/{group_id}/invitations", response_model=List[GroupInvitationResponse])
 async def get_group_invitations(
     group_id: int,
     current_user: User = Depends(get_current_user)
-):
+) -> List[GroupInvitationResponse]:
     """
     Отримати запрошення групи
     """
@@ -73,10 +75,10 @@ async def create_group_invitation(
     return create_group_invitation_(current_user.id, group_id, data=invitation_data.model_dump(exclude_unset=True))
 
 
-@router.get("/api/groups")
+@router.get("/api/groups", response_model=List[GroupResponse])
 async def get_groups(
     current_user: User = Depends(get_current_user)
-):
+) -> List[GroupResponse]:
     """
     Отримати всі групи користувача
     """
@@ -139,11 +141,11 @@ async def get_group(
     return get_group_(current_user.id, group_id)
 
 
-@router.get("/api/groups/{group_id}/users")
+@router.get("/api/groups/{group_id}/users", response_model=List[GroupUserResponse])
 async def get_group_users(
     group_id: int,
     current_user: User = Depends(get_current_user)
-):
+) -> List[GroupUserResponse]:
     """
     Отримати список користувачів в групі
     """

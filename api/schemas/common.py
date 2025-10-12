@@ -23,6 +23,12 @@ class UserResponse(ModelResponse):
     is_admin: Optional[bool] = None
 
 
+class GroupUserResponse(UserResponse):
+    """Схема для відповіді з даними користувача в групі"""
+    role: Optional[str] = None
+    relation_type: Optional[str] = None
+
+
 class CategoryResponse(ModelResponse):
     """Схема для відповіді з даними категорії"""
     id: Optional[int] = None

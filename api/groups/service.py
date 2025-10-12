@@ -11,12 +11,12 @@ from sqlalchemy import and_
 from models import User
 from models.models import Group, GroupInvitation, UserGroupAssociation
 from mydb import db
-from api.schemas import UserResponse, GroupResponse, GroupInvitationResponse
+from api.schemas import UserResponse, GroupResponse, GroupInvitationResponse, GroupUserResponse
 
 logger = logging.getLogger()
 
 
-def get_groups_(user_id) -> list[dict]:
+def get_groups_(user_id) -> list[GroupResponse]:
     """
     get groups
     """
@@ -39,20 +39,8 @@ def get_groups_(user_id) -> list[dict]:
     if not groups:
         raise HTTPException(404, 'Not found groups')
 
-    # Спочатку перетворюємо SQLAlchemy об'єкти в словники
-    result = []
-    for group in groups:
-        # Створюємо словник з атрибутів об'єкта
-        group_dict = {
-            "id": group.id,
-            "name": group.name,
-            "description": group.description,
-            "owner_id": group.owner_id,
-            "created": group.created
-        }
-        result.append(GroupResponse.model_validate(group_dict).model_dump())
-    
-    return result
+    # Перетворюємо SQLAlchemy об'єкти в GroupResponse
+    return [GroupResponse.model_validate(group) for group in groups]
 
 
 def create_group_(user_id: int, data: dict) -> dict:
@@ -199,7 +187,7 @@ def get_group_(user_id: int, group_id: int) -> dict:
     return GroupResponse.model_validate(group).model_dump()
 
 
-def get_group_users_(user_id: int, group_id: int) -> list[dict]:
+def get_group_users_(user_id: int, group_id: int) -> list[GroupUserResponse]:
     """
     get users in group
     """
@@ -231,13 +219,22 @@ def get_group_users_(user_id: int, group_id: int) -> list[dict]:
     if not query_result:
         raise HTTPException(404, 'Users not found in this group')
 
-    # Перетворюємо результати в список словників з доданими даними про відносини
+    # Перетворюємо результати в список GroupUserResponse
     user_list = []
     for user, association in query_result:
-        user_dict = UserResponse.model_validate(user).model_dump()
-        user_dict['role'] = association.role
-        user_dict['relation_type'] = association.relation_type
-        user_list.append(user_dict)
+        # Create dict from user and association
+        user_data = {
+            'id': user.id,
+            'login': user.login,
+            'fullname': user.fullname,
+            'phone': user.phone,
+            'email': user.email,
+            'created': user.created,
+            'is_admin': user.is_admin,
+            'role': association.role,
+            'relation_type': association.relation_type
+        }
+        user_list.append(GroupUserResponse.model_validate(user_data))
 
     return user_list
 
@@ -329,7 +326,7 @@ def remove_user_from_group_(
     return {"result": "ok"}
 
 
-def get_group_invitations_(user_id, group_id):
+def get_group_invitations_(user_id, group_id) -> list[GroupInvitationResponse]:
     """
     Отримати запрошення групи
     """
@@ -345,7 +342,7 @@ def get_group_invitations_(user_id, group_id):
         GroupInvitation.group_id == group_id
     ).all()
 
-    return [GroupInvitationResponse.model_validate(invitation).model_dump() for invitation in invitations]
+    return [GroupInvitationResponse.model_validate(invitation) for invitation in invitations]
 
 
 def create_group_invitation_(user_id, group_id, data: dict):
