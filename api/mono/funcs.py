@@ -102,30 +102,48 @@ def _mcc(mcc):
 
 
 def convert_dates(start_date: str = None, end_date: str = None):
+    # Helper function to detect date format and convert to datetime
+    def parse_date(date_str):
+        if not date_str:
+            return None
+        # Try YYYY-MM-DD format first (ISO format from frontend)
+        if '-' in date_str and len(date_str.split('-')[0]) == 4:
+            try:
+                return datetime.datetime.strptime(date_str.split()[0], "%Y-%m-%d")
+            except ValueError:
+                pass
+        # Try DD.MM.YYYY format (old format)
+        try:
+            return datetime.datetime.strptime(date_str.split()[0], "%d.%m.%Y")
+        except ValueError:
+            pass
+        return None
+
+    # Process start_date
     if not start_date:
-        start_date = datetime.datetime.today().strftime("%d.%m.%Y") + " 00:00:01"
-    elif len(start_date) < 11:
-        start_date += " 00:00:01"
+        start_dt = datetime.datetime.today().replace(hour=0, minute=0, second=1)
+    else:
+        start_dt = parse_date(start_date)
+        if not start_dt:
+            raise ValueError(f"Invalid start_date format: {start_date}")
+        # If time is not specified, add 00:00:01
+        if len(start_date) < 11:
+            start_dt = start_dt.replace(hour=0, minute=0, second=1)
 
+    # Process end_date
     if not end_date:
-        end_date = datetime.datetime.today().strftime("%d.%m.%Y") + " 23:59:59"
-    elif len(end_date) < 11:
-        end_date += " 23:59:59"
+        end_dt = datetime.datetime.today().replace(hour=23, minute=59, second=59)
+    else:
+        end_dt = parse_date(end_date)
+        if not end_dt:
+            raise ValueError(f"Invalid end_date format: {end_date}")
+        # If time is not specified, add 23:59:59
+        if len(end_date) < 11:
+            end_dt = end_dt.replace(hour=23, minute=59, second=59)
 
-    start_date_unix = int(
-        time.mktime(
-            datetime.datetime.strptime(
-                start_date, "%d.%m.%Y %H:%M:%S"
-            ).timetuple()
-        )
-    )
-    end_date_unix = int(
-        time.mktime(
-            datetime.datetime.strptime(
-                end_date, "%d.%m.%Y %H:%M:%S"
-            ).timetuple()
-        )
-    )
+    start_date_unix = int(time.mktime(start_dt.timetuple()))
+    end_date_unix = int(time.mktime(end_dt.timetuple()))
+
     return start_date_unix, end_date_unix
 
 

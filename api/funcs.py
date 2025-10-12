@@ -115,8 +115,9 @@ def get_main_sql(
 
     # Currency conversion logic
     if data.get("currency") == "UAH":
-        # For UAH: use amount field which always contains UAH value
-        amount_calc = "p.amount"
+        # For UAH: use currency_amount (actual transaction amount in UAH)
+        # Note: amount field may contain incorrect values for some legacy data
+        amount_calc = "p.currency_amount"
     else:
         # For EUR/USD: convert from UAH (amount field) or use original currency_amount
         amount_calc = f"""ROUND(
