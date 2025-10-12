@@ -207,6 +207,18 @@ def get_group_users_(user_id: int, group_id: int) -> list[dict]:
     if not group:
         raise HTTPException(404, 'Group not found')
 
+    # Check if current user is a member of the group or is admin
+    is_member = db.session().query(UserGroupAssociation).filter(
+        UserGroupAssociation.user_id == user_id,
+        UserGroupAssociation.group_id == group_id
+    ).one_or_none() is not None
+
+    if not is_member:
+        # Check if user is admin
+        user = db.session().query(User).get(user_id)
+        if not user or not user.is_admin:
+            raise HTTPException(403, 'Not authorized to view users in this group')
+
     # Оновлений запит для отримання користувачів разом з асоціативними даними
     query_result = db.session().query(
         User, UserGroupAssociation
