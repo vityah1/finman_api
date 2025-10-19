@@ -216,12 +216,27 @@ def upd_payment_(payment_id: int, payment_data: PaymentUpdate):
     if not payment:
         logger.error(f"Платіж з ID {payment_id} не знайдено")
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Платіж не знайдено")
-    
+
     # Оновлюємо дані про заправку, якщо вони надані
     if payment_data.refuel_data and payment_data.refuel_data.km:
         refuel_dict = payment_data.refuel_data.model_dump(exclude_unset=True)
         payment_data.mydesc = conv_refuel_data_to_desc(refuel_dict)
-    
+
+    # Розраховуємо суму в UAH, якщо валюта інша
+    if payment_data.currency != 'UAH' and payment_data.currency_amount:
+        rate = get_last_rate(payment_data.currency, payment_data.rdate)
+        payment_data.amount = float(payment_data.currency_amount) * rate
+        # Set currency tracking fields
+        payment_data.amount_original = payment_data.currency_amount
+        payment_data.currency_original = payment_data.currency
+        payment_data.exchange_rate = rate
+    else:
+        payment_data.amount = payment_data.currency_amount
+        # Set default values for UAH transactions
+        payment_data.amount_original = payment_data.currency_amount
+        payment_data.currency_original = 'UAH'
+        payment_data.exchange_rate = 1.0
+
     # Конвертуємо Pydantic модель у словник та виключаємо None значення
     update_data = payment_data.model_dump(exclude_unset=True)
     
