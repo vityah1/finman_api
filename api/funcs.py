@@ -115,9 +115,12 @@ def get_main_sql(
 
     # Currency conversion logic
     if data.get("currency") == "UAH":
-        # For UAH: use currency_amount (actual transaction amount in UAH)
-        # Note: amount field may contain incorrect values for some legacy data
-        amount_calc = "p.currency_amount"
+        # For UAH display: use currency_amount for UAH payments (exact amount with kopiykas)
+        # but use amount for EUR/USD payments (converted to UAH)
+        amount_calc = """CASE
+            WHEN p.currency = 'UAH' THEN p.currency_amount
+            ELSE p.amount
+        END"""
     else:
         # For EUR/USD: convert from UAH (amount field) or use original currency_amount
         amount_calc = f"""ROUND(
