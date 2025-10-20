@@ -64,6 +64,13 @@ def add_payment_(user_id: int, payment_data: PaymentCreate):
     # Створюємо об'єкт Payment з Pydantic моделі
     payment = Payment()
     payment_dict = payment_data.model_dump(exclude_unset=True)
+
+    # КРИТИЧНО: Явно додаємо розраховані поля валюти, бо exclude_unset=True може їх виключити
+    payment_dict["amount"] = payment_data.amount
+    payment_dict["amount_original"] = payment_data.amount_original
+    payment_dict["currency_original"] = payment_data.currency_original
+    payment_dict["exchange_rate"] = payment_data.exchange_rate
+
     logger.info(f"[ADD PAYMENT] Payment data dict: {payment_dict}")
 
     for key, value in payment_dict.items():
@@ -264,7 +271,13 @@ def upd_payment_(payment_id: int, payment_data: PaymentUpdate):
 
     # Конвертуємо Pydantic модель у словник та виключаємо None значення
     update_data = payment_data.model_dump(exclude_unset=True)
-    
+
+    # КРИТИЧНО: Явно додаємо розраховані поля валюти, бо exclude_unset=True може їх виключити
+    update_data["amount"] = payment_data.amount
+    update_data["amount_original"] = payment_data.amount_original
+    update_data["currency_original"] = payment_data.currency_original
+    update_data["exchange_rate"] = payment_data.exchange_rate
+
     # Встановлюємо ID платежу
     update_data["id"] = payment_id
     
