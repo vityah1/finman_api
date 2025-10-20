@@ -3,6 +3,7 @@ import logging
 import re
 
 from fastapi import HTTPException, status
+from sqlalchemy import select
 from api.payments.schemas import PaymentBase, PaymentCreate, PaymentUpdate, PaymentResponse, OperationResult, BulkOperationResult
 
 from api.funcs import get_last_rate, get_main_sql
@@ -22,61 +23,56 @@ def add_payment_(user_id: int, payment_data: PaymentCreate):
     """
     insert a new payment
     """
-    # Встановлюємо ID користувача
-    payment_data.user_id = user_id
-    
+    # Конвертуємо Pydantic модель у словник ОДРАЗУ
+    payment_dict = payment_data.model_dump(exclude_unset=True)
+
+    # Встановлюємо ID користувача в словник
+    payment_dict["user_id"] = user_id
+
     # Обробляємо дані заправки, якщо вони є
     if payment_data.refuel_data and payment_data.refuel_data.km:
-        # Конвертуємо дані про заправку в опис
         refuel_dict = payment_data.refuel_data.model_dump(exclude_unset=True)
         result = conv_refuel_data_to_desc(refuel_dict)
         if result:
-            payment_data.mydesc = result
-    
-    # Створюємо унікальний ID платежу
-    payment_data.bank_payment_id = create_bank_payment_id(payment_data.model_dump())
-    
-    # Розраховуємо суму в UAH, якщо валюта інша
-    logger.info(f"[ADD PAYMENT] Currency conversion check: currency={payment_data.currency}, currency_amount={payment_data.currency_amount}, rdate={payment_data.rdate}")
+            payment_dict["mydesc"] = result
 
-    if payment_data.currency != 'UAH' and payment_data.currency_amount:
-        logger.info(f"[ADD PAYMENT] Entering currency conversion for {payment_data.currency}")
-        rate = get_last_rate(payment_data.currency, payment_data.rdate)
+    # Створюємо унікальний ID платежу
+    payment_dict["bank_payment_id"] = create_bank_payment_id(payment_dict)
+
+    # Розраховуємо суму в UAH, якщо валюта інша - працюємо зі словником
+    currency = payment_dict.get("currency")
+    currency_amount = payment_dict.get("currency_amount")
+    rdate = payment_dict.get("rdate")
+
+    logger.info(f"[ADD PAYMENT] Currency conversion check: currency={currency}, currency_amount={currency_amount}, rdate={rdate}")
+
+    if currency != 'UAH' and currency_amount:
+        logger.info(f"[ADD PAYMENT] Entering currency conversion for {currency}")
+        rate = get_last_rate(currency, rdate)
         logger.info(f"[ADD PAYMENT] Exchange rate retrieved: {rate}")
 
-        payment_data.amount = float(payment_data.currency_amount) * rate
-        logger.info(f"[ADD PAYMENT] Calculated amount: {payment_data.currency_amount} * {rate} = {payment_data.amount}")
-
-        # Set new currency tracking fields
-        payment_data.amount_original = payment_data.currency_amount
-        payment_data.currency_original = payment_data.currency
-        payment_data.exchange_rate = rate
-        logger.info(f"[ADD PAYMENT] Set tracking fields: amount_original={payment_data.amount_original}, currency_original={payment_data.currency_original}, exchange_rate={payment_data.exchange_rate}")
+        # Одразу записуємо в словник
+        payment_dict["amount"] = float(currency_amount) * rate
+        payment_dict["amount_original"] = currency_amount
+        payment_dict["currency_original"] = currency
+        payment_dict["exchange_rate"] = rate
+        logger.info(f"[ADD PAYMENT] Calculated: {currency_amount} * {rate} = {payment_dict['amount']}, tracking fields set")
     else:
-        logger.info(f"[ADD PAYMENT] No conversion needed (UAH or no currency_amount), using currency_amount as amount")
-        payment_data.amount = payment_data.currency_amount
-        # Set default values for UAH transactions
-        payment_data.amount_original = payment_data.currency_amount
-        payment_data.currency_original = 'UAH'
-        payment_data.exchange_rate = 1.0
-        logger.info(f"[ADD PAYMENT] Set default values: amount={payment_data.amount}, exchange_rate=1.0")
-    
-    # Створюємо об'єкт Payment з Pydantic моделі
-    payment = Payment()
-    payment_dict = payment_data.model_dump(exclude_unset=True)
-
-    # КРИТИЧНО: Явно додаємо розраховані поля валюти, бо exclude_unset=True може їх виключити
-    payment_dict["amount"] = payment_data.amount
-    payment_dict["amount_original"] = payment_data.amount_original
-    payment_dict["currency_original"] = payment_data.currency_original
-    payment_dict["exchange_rate"] = payment_data.exchange_rate
+        logger.info(f"[ADD PAYMENT] No conversion needed (UAH or no currency_amount)")
+        # Одразу записуємо в словник
+        payment_dict["amount"] = currency_amount
+        payment_dict["amount_original"] = currency_amount
+        payment_dict["currency_original"] = 'UAH'
+        payment_dict["exchange_rate"] = 1.0
+        logger.info(f"[ADD PAYMENT] Set default values: amount={payment_dict['amount']}, exchange_rate=1.0")
 
     logger.info(f"[ADD PAYMENT] Payment data dict: {payment_dict}")
 
-    for key, value in payment_dict.items():
-        # Виключаємо refuel_data, оскільки це не колонка в таблиці Payment
-        if key != 'refuel_data' and hasattr(payment, key):
-            setattr(payment, key, value)
+    # Створюємо об'єкт Payment та заповнюємо через update()
+    payment = Payment()
+    # Видаляємо refuel_data перед update
+    payment_dict_clean = {k: v for k, v in payment_dict.items() if k != 'refuel_data'}
+    payment.update(**payment_dict_clean)
 
     # Log final values before commit
     logger.info(f"[ADD PAYMENT] Final DB values before commit: currency={payment.currency}, currency_amount={payment.currency_amount}, amount={payment.amount}, exchange_rate={payment.exchange_rate}")
@@ -234,54 +230,49 @@ def upd_payment_(payment_id: int, payment_data: PaymentUpdate):
     """
     update payment
     """
-    # Отримуємо платіж з бази даних
+    # Отримуємо платіж з бази даних для перевірки існування
     payment = db.session().query(Payment).get(payment_id)
     if not payment:
         logger.error(f"Платіж з ID {payment_id} не знайдено")
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Платіж не знайдено")
 
+    # Конвертуємо Pydantic модель у словник ОДРАЗУ
+    update_data = payment_data.model_dump(exclude_unset=True)
+
     # Оновлюємо дані про заправку, якщо вони надані
     if payment_data.refuel_data and payment_data.refuel_data.km:
         refuel_dict = payment_data.refuel_data.model_dump(exclude_unset=True)
-        payment_data.mydesc = conv_refuel_data_to_desc(refuel_dict)
+        result = conv_refuel_data_to_desc(refuel_dict)
+        if result:
+            update_data["mydesc"] = result
 
-    # Розраховуємо суму в UAH, якщо валюта інша
-    logger.info(f"[UPD PAYMENT {payment_id}] Currency conversion check: currency={payment_data.currency}, currency_amount={payment_data.currency_amount}, rdate={payment_data.rdate}")
+    # Розраховуємо суму в UAH, якщо валюта інша - працюємо зі словником
+    currency = update_data.get("currency")
+    currency_amount = update_data.get("currency_amount")
+    rdate = update_data.get("rdate")
 
-    if payment_data.currency != 'UAH' and payment_data.currency_amount:
-        logger.info(f"[UPD PAYMENT {payment_id}] Entering currency conversion for {payment_data.currency}")
-        rate = get_last_rate(payment_data.currency, payment_data.rdate)
+    logger.info(f"[UPD PAYMENT {payment_id}] Currency conversion check: currency={currency}, currency_amount={currency_amount}, rdate={rdate}")
+
+    if currency != 'UAH' and currency_amount:
+        logger.info(f"[UPD PAYMENT {payment_id}] Entering currency conversion for {currency}")
+        rate = get_last_rate(currency, rdate)
         logger.info(f"[UPD PAYMENT {payment_id}] Exchange rate retrieved: {rate}")
 
-        payment_data.amount = float(payment_data.currency_amount) * rate
-        logger.info(f"[UPD PAYMENT {payment_id}] Calculated amount: {payment_data.currency_amount} * {rate} = {payment_data.amount}")
-
-        # Set currency tracking fields
-        payment_data.amount_original = payment_data.currency_amount
-        payment_data.currency_original = payment_data.currency
-        payment_data.exchange_rate = rate
-        logger.info(f"[UPD PAYMENT {payment_id}] Set tracking fields: amount_original={payment_data.amount_original}, currency_original={payment_data.currency_original}, exchange_rate={payment_data.exchange_rate}")
+        # Одразу записуємо в словник
+        update_data["amount"] = float(currency_amount) * rate
+        update_data["amount_original"] = currency_amount
+        update_data["currency_original"] = currency
+        update_data["exchange_rate"] = rate
+        logger.info(f"[UPD PAYMENT {payment_id}] Calculated: {currency_amount} * {rate} = {update_data['amount']}, tracking fields set")
     else:
-        logger.info(f"[UPD PAYMENT {payment_id}] No conversion needed (UAH or no currency_amount), using currency_amount as amount")
-        payment_data.amount = payment_data.currency_amount
-        # Set default values for UAH transactions
-        payment_data.amount_original = payment_data.currency_amount
-        payment_data.currency_original = 'UAH'
-        payment_data.exchange_rate = 1.0
-        logger.info(f"[UPD PAYMENT {payment_id}] Set default values: amount={payment_data.amount}, exchange_rate=1.0")
+        logger.info(f"[UPD PAYMENT {payment_id}] No conversion needed (UAH or no currency_amount)")
+        # Одразу записуємо в словник
+        update_data["amount"] = currency_amount
+        update_data["amount_original"] = currency_amount
+        update_data["currency_original"] = 'UAH'
+        update_data["exchange_rate"] = 1.0
+        logger.info(f"[UPD PAYMENT {payment_id}] Set default values: amount={update_data['amount']}, exchange_rate=1.0")
 
-    # Конвертуємо Pydantic модель у словник та виключаємо None значення
-    update_data = payment_data.model_dump(exclude_unset=True)
-
-    # КРИТИЧНО: Явно додаємо розраховані поля валюти, бо exclude_unset=True може їх виключити
-    update_data["amount"] = payment_data.amount
-    update_data["amount_original"] = payment_data.amount_original
-    update_data["currency_original"] = payment_data.currency_original
-    update_data["exchange_rate"] = payment_data.exchange_rate
-
-    # Встановлюємо ID платежу
-    update_data["id"] = payment_id
-    
     try:
         # Оновлюємо платіж
         logger.info(f"[UPD PAYMENT {payment_id}] Updating payment with data: {update_data}")
@@ -293,7 +284,7 @@ def upd_payment_(payment_id: int, payment_data: PaymentUpdate):
         # КРИТИЧНО: Використовуємо прямий UPDATE замість setattr щоб уникнути проблем з SQLAlchemy
         db.session().query(Payment).filter(Payment.id == payment_id).update(update_dict)
 
-        db.session().flush()
+        # db.session().flush()
         db.session().commit()
         logger.info(f"Платіж з ID {payment_id} успішно оновлено")
 
