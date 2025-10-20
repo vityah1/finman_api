@@ -76,6 +76,7 @@ app.add_middleware(
         "pool_pre_ping": True,
         "pool_size": 10,
         "max_overflow": 10,
+        "connect_args": {'ssl': {'fake_flag_to_enable_tls': True}}
     },
 )
 
