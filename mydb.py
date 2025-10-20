@@ -39,7 +39,7 @@ class DBWrapper:
     def __init__(self):
         self.Model = Base
         self.metadata = metadata
-        self.engine = engine
+        self.engine = engine  # Keep engine accessible for lifespan and migrations
 
     def create_all(self):
         """Create all tables"""
