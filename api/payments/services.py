@@ -83,6 +83,7 @@ def add_payment_(user_id: int, payment_data: PaymentCreate):
 
     try:
         db.session().add(payment)
+        db.session().flush()  # КРИТИЧНО: flush() щоб зміни потрапили в сесію
         db.session().commit()
         logger.info(f"Платіж успішно доданий: {payment.id}")
     except Exception as err:
@@ -291,6 +292,7 @@ def upd_payment_(payment_id: int, payment_data: PaymentUpdate):
         # Log final values before commit
         logger.info(f"[UPD PAYMENT {payment_id}] Final DB values before commit: currency={payment.currency}, currency_amount={payment.currency_amount}, amount={payment.amount}, exchange_rate={payment.exchange_rate}")
 
+        db.session().flush()  # КРИТИЧНО: flush() щоб зміни потрапили в сесію
         db.session().commit()
         logger.info(f"Платіж з ID {payment_id} успішно оновлено")
     except Exception as err:
