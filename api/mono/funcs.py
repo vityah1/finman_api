@@ -12,13 +12,13 @@ from app.config import MONO_API_URL, BASE_URL
 from api.config.schemas import ConfigTypes
 from api.mono.services import get_mono_users_
 from models.models import Category, Config, MonoUser, Payment, User
-from mydb import db
+from fastapi_sqlalchemy import db
 
 mono_logger = logging.getLogger('mono')
 
 
 def get_config_accounts(mono_user_id: int) -> list[Config.value_data]:
-    results = db.session().query(
+    results = db.session.query(
         Config.value_data
     ).join(
         User
@@ -366,7 +366,7 @@ def process_mono_payments(
 
 def get_user_id(account: str) -> int:
     user_id = 999999
-    mono_account = db.session().query(Config).join(User).filter(
+    mono_account = db.session.query(Config).join(User).filter(
         Config.type_data == 'mono_account'
     ).filter(Config.value_data == account).one_or_none()
 
@@ -376,7 +376,7 @@ def get_user_id(account: str) -> int:
 
 
 def get_mono_user(mono_user_id: int) -> MonoUser | None:
-    mono_user = db.session().query(MonoUser).get(mono_user_id)
+    mono_user = db.session.query(MonoUser).get(mono_user_id)
 
     if mono_user:
         return mono_user
@@ -384,7 +384,7 @@ def get_mono_user(mono_user_id: int) -> MonoUser | None:
 
 
 def get_category_id(user_id: int, category_name: str) -> int:
-    category = db.session().query(Category).filter(
+    category = db.session.query(Category).filter(
         and_(
             Category.name.like(f'%{category_name}%'), Category.user_id == user_id, Category.parent_id == 0, )
     ).one_or_none()
@@ -395,8 +395,8 @@ def get_category_id(user_id: int, category_name: str) -> int:
         # new_category = Category()
         # data = {"name": category_name, "parent_id": 0, "user_id": user_id}
         # new_category.from_dict(**data)
-        # db.session().add(new_category)
-        # db.session().commit()
+        # db.session.add(new_category)
+        # db.session.commit()
         # category_id = new_category.id
         category_id = 17  # Інші #TODO: need to do another something
     return category_id
@@ -406,12 +406,12 @@ def add_new_payment(data) -> Payment:
     result = None
     try:
         new_payment = Payment(**data)
-        db.session().add(new_payment)
-        db.session().commit()
+        db.session.add(new_payment)
+        db.session.commit()
         result = new_payment
     except Exception as err:
-        db.session().rollback()
-        db.session().flush()
+        db.session.rollback()
+        db.session.flush()
         raise err
     return result
 
@@ -427,15 +427,15 @@ def sync_payment(data: dict) -> dict:
         else:
             result = add_new_payment(data)
             return result
-        db.session().commit()
+        db.session.commit()
         result = payment
     except Exception as err:
-        db.session().rollback()
-        db.session().flush()
+        db.session.rollback()
+        db.session.flush()
         raise err
     return result
 
 
 def get_mono_user_token(mono_user_id: int) -> str:
-    mono_user = db.session().query(MonoUser).get(mono_user_id)
+    mono_user = db.session.query(MonoUser).get(mono_user_id)
     return mono_user.token

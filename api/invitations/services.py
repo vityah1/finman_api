@@ -5,7 +5,7 @@ from api.schemas.common import GroupResponse, GroupInvitationResponse, UserRespo
 
 from fastapi import HTTPException
 from models.models import Group, GroupInvitation, User, UserGroupAssociation
-from mydb import db
+from fastapi_sqlalchemy import db
 
 logger = logging.getLogger()
 
@@ -14,7 +14,7 @@ def check_invitation_(user_id, invitation_code):
     """
     Перевірка запрошення
     """
-    invitation = db.session().query(GroupInvitation).filter(
+    invitation = db.session.query(GroupInvitation).filter(
         and_(
             GroupInvitation.invitation_code == invitation_code,
             GroupInvitation.is_active == True
@@ -31,7 +31,7 @@ def check_invitation_(user_id, invitation_code):
         raise HTTPException(400, 'Термін дії запрошення закінчився')
 
     # Перевіряємо, чи користувач вже в групі
-    user_in_group = db.session().query(UserGroupAssociation).filter(
+    user_in_group = db.session.query(UserGroupAssociation).filter(
         and_(
             UserGroupAssociation.user_id == user_id,
             UserGroupAssociation.group_id == invitation.group_id
@@ -42,8 +42,8 @@ def check_invitation_(user_id, invitation_code):
         raise HTTPException(400, 'Ви вже є учасником цієї групи')
 
     # Отримуємо дані про групу та користувача, який створив запрошення
-    group = db.session().query(Group).get(invitation.group_id)
-    creator = db.session().query(User).get(invitation.created_by)
+    group = db.session.query(Group).get(invitation.group_id)
+    creator = db.session.query(User).get(invitation.created_by)
 
     result = GroupInvitationResponse.model_validate(invitation).model_dump()
     result['group'] = GroupResponse.model_validate(group).model_dump()
@@ -58,7 +58,7 @@ def accept_invitation_(user_id: int, invitation_code: str, data: dict):
     """
 
     # Перевіряємо, чи користувач уже в якійсь групі
-    existing_membership = db.session().query(UserGroupAssociation).filter(
+    existing_membership = db.session.query(UserGroupAssociation).filter(
         UserGroupAssociation.user_id == user_id
     ).one_or_none()
 
@@ -68,7 +68,7 @@ def accept_invitation_(user_id: int, invitation_code: str, data: dict):
             'Ви вже є учасником іншої групи. Вийдіть з неї перед приєднанням до нової.'
         )
 
-    invitation = db.session().query(GroupInvitation).filter(
+    invitation = db.session.query(GroupInvitation).filter(
         and_(
             GroupInvitation.invitation_code == invitation_code,
             GroupInvitation.is_active == True
@@ -91,7 +91,7 @@ def accept_invitation_(user_id: int, invitation_code: str, data: dict):
             raise HTTPException(400, 'Термін дії запрошення закінчився')
 
     # Перевіряємо, чи користувач вже в групі
-    user_in_group = db.session().query(UserGroupAssociation).filter(
+    user_in_group = db.session.query(UserGroupAssociation).filter(
         and_(
             UserGroupAssociation.user_id == user_id,
             UserGroupAssociation.group_id == invitation.group_id
@@ -109,15 +109,15 @@ def accept_invitation_(user_id: int, invitation_code: str, data: dict):
     user_group.joined_at = datetime.datetime.now(datetime.timezone.utc)
 
     try:
-        db.session().add(user_group)
+        db.session.add(user_group)
 
         # Якщо запрошення було на електронну пошту, деактивуємо його
         if invitation.email:
             invitation.is_active = False
 
-        db.session().commit()
+        db.session.commit()
     except Exception as err:
-        db.session().rollback()
+        db.session.rollback()
         raise err
 
     return {"result": "ok", "message": "Ви успішно приєднались до групи"}
@@ -127,13 +127,13 @@ def get_invitation_(user_id, invitation_id):
     """
     Отримання запрошення
     """
-    invitation = db.session().query(GroupInvitation).get(invitation_id)
+    invitation = db.session.query(GroupInvitation).get(invitation_id)
 
     if not invitation:
         raise HTTPException(404, 'Запрошення не знайдено')
 
     # Перевіряємо, чи користувач має право переглядати це запрошення
-    group = db.session().query(Group).get(invitation.group_id)
+    group = db.session.query(Group).get(invitation.group_id)
 
     if group.owner_id != user_id:
         raise HTTPException(403, 'У вас немає доступу до цього запрошення')
@@ -145,13 +145,13 @@ def delete_invitation_(user_id, invitation_id):
     """
     Видалення запрошення
     """
-    invitation = db.session().query(GroupInvitation).get(invitation_id)
+    invitation = db.session.query(GroupInvitation).get(invitation_id)
 
     if not invitation:
         raise HTTPException(404, 'Запрошення не знайдено')
 
     # Перевіряємо, чи користувач має право видаляти це запрошення
-    group = db.session().query(Group).get(invitation.group_id)
+    group = db.session.query(Group).get(invitation.group_id)
 
     if group.owner_id != user_id:
         raise HTTPException(403, 'У вас немає доступу для видалення цього запрошення')
@@ -159,9 +159,9 @@ def delete_invitation_(user_id, invitation_id):
     try:
         # Деактивуємо запрошення замість видалення
         invitation.is_active = False
-        db.session().commit()
+        db.session.commit()
     except Exception as err:
-        db.session().rollback()
+        db.session.rollback()
         raise err
 
     return {"result": "ok"}
@@ -172,12 +172,12 @@ def check_user_invitations_(user_id):
     Перевірка наявності запрошень для користувача за email
     """
     # Отримуємо інформацію про користувача
-    user = db.session().query(User).get(user_id)
+    user = db.session.query(User).get(user_id)
     if not user or not user.email:
         return []
 
     # Перевіряємо, чи користувач вже є членом якоїсь групи
-    user_in_any_group = db.session().query(UserGroupAssociation).filter(
+    user_in_any_group = db.session.query(UserGroupAssociation).filter(
         UserGroupAssociation.user_id == user_id
     ).one_or_none()
 
@@ -186,7 +186,7 @@ def check_user_invitations_(user_id):
         return []
 
     # Шукаємо активні запрошення за email користувача
-    invitations = db.session().query(GroupInvitation).filter(
+    invitations = db.session.query(GroupInvitation).filter(
         and_(
             GroupInvitation.email == user.email,
             GroupInvitation.is_active == True
@@ -209,10 +209,10 @@ def check_user_invitations_(user_id):
 
         # Додаємо інформацію про групу та творця запрошення
         invitation_dict = GroupInvitationResponse.model_validate(invitation).model_dump()
-        group = db.session().query(Group).get(invitation.group_id)
+        group = db.session.query(Group).get(invitation.group_id)
         if group:
             invitation_dict['group'] = GroupResponse.model_validate(group).model_dump()
-            creator = db.session().query(User).get(invitation.created_by)
+            creator = db.session.query(User).get(invitation.created_by)
             if creator:
                 invitation_dict['creator'] = UserResponse.model_validate(creator).model_dump()
             valid_invitations.append(invitation_dict)
@@ -223,22 +223,22 @@ def ignore_invitation_(user_id, invitation_id):
     """
     Ігнорування запрошення
     """
-    invitation = db.session().query(GroupInvitation).get(invitation_id)
+    invitation = db.session.query(GroupInvitation).get(invitation_id)
 
     if not invitation:
         raise HTTPException(404, 'Запрошення не знайдено')
 
     # Перевіряємо, чи запрошення стосується цього користувача
-    user = db.session().query(User).get(user_id)
+    user = db.session.query(User).get(user_id)
     if not user or user.email != invitation.email:
         raise HTTPException(403, 'Ви не можете ігнорувати це запрошення')
 
     try:
         # Позначаємо запрошення як неактивне
         invitation.is_active = False
-        db.session().commit()
+        db.session.commit()
     except Exception as err:
-        db.session().rollback()
+        db.session.rollback()
         raise err
 
     return {"result": "ok"}

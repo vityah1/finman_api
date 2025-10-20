@@ -5,7 +5,7 @@ import requests
 from sqlalchemy import and_
 
 from api.config.schemas import ConfigTypes
-from mydb import db
+from fastapi_sqlalchemy import db
 from models import Config
 
 tel_logger = logging.getLogger('telegram')
@@ -14,7 +14,7 @@ tel_logger = logging.getLogger('telegram')
 def get_telegram_data(user_id: int) -> str:
     telegram_token = None
     telegram_chat_id = None
-    telegram_data = db.session().query(
+    telegram_data = db.session.query(
         Config.type_data,
         Config.value_data
     ).filter(

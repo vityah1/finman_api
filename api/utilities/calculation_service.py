@@ -5,7 +5,7 @@ from datetime import datetime
 
 from sqlalchemy import or_
 from models.models import UtilityTariff, UtilityReading, UtilityService
-from mydb import db
+from fastapi_sqlalchemy import db
 
 logger = logging.getLogger()
 
@@ -20,7 +20,7 @@ class UtilityCalculationService:
         period_date = datetime.strptime(f"{period}-01", "%Y-%m-%d")
         
         # Знаходимо всі активні тарифи для служби на цей період
-        tariffs = db.session().query(UtilityTariff).filter(
+        tariffs = db.session.query(UtilityTariff).filter(
             UtilityTariff.service_id == service_id,
             UtilityTariff.is_active == True,
             UtilityTariff.valid_from <= period_date,
@@ -205,7 +205,7 @@ class UtilityCalculationService:
             # Стандартний розрахунок для одного показника
             consumption = reading_data['current_reading'] - reading_data.get('previous_reading', 0)
             tariff_id = reading_data.get('tariff_id')
-            tariff = db.session().query(UtilityTariff).get(tariff_id)
+            tariff = db.session.query(UtilityTariff).get(tariff_id)
             
             if tariff:
                 # Перевіряємо тип розрахунку

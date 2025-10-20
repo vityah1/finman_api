@@ -25,3 +25,4 @@ uvicorn>=0.22.0
 alembic
 python-multipart
 aiohttp>=3.8.0
+fastapi-sqlalchemy>=0.2.1

@@ -5,7 +5,7 @@ from sqlalchemy import select
 
 from .schemas import ConfigTypes
 from models.models import Config, SprConfigTypes
-from mydb import db
+from fastapi_sqlalchemy import db
 from .funcs import add_new_config_row
 from api.schemas.common import SprConfigTypesResponse, ConfigResponse
 
@@ -16,7 +16,7 @@ def get_config_types_() -> list:
     """
     get config types
     """
-    config_types = db.session().query(SprConfigTypes).all()
+    config_types = db.session.query(SprConfigTypes).all()
     if not config_types:
         raise HTTPException(status_code=404, detail='Not found configs')
 
@@ -77,16 +77,16 @@ def edit_config_(config_id: int, data: dict) -> dict:
     """
     edit mono user
     """
-    config = db.session().query(Config).get(config_id)
+    config = db.session.query(Config).get(config_id)
     if not config:
         raise HTTPException(status_code=404, detail='Not found config')
 
     config.update(**data)
 
     try:
-        db.session().commit()
+        db.session.commit()
     except Exception as err:
-        db.session().rollback()
+        db.session.rollback()
         raise err
 
     return ConfigResponse.model_validate(config).model_dump()
@@ -97,15 +97,15 @@ def delete_config_(config_id: int) -> dict[str, str]:
     delete mono user
     """
 
-    config = db.session().query(Config).get(config_id)
+    config = db.session.query(Config).get(config_id)
     if not config:
         raise HTTPException(status_code=404, detail='Not found config')
 
     try:
-        db.session().delete(config)
-        db.session().commit()
+        db.session.delete(config)
+        db.session.commit()
     except Exception as err:
-        db.session().rollback()
+        db.session.rollback()
         raise err
 
     return {"result": "ok"}
@@ -116,7 +116,7 @@ def get_config_(config_id: int) -> dict:
     get mono user
     """
 
-    config = db.session().query(Config).get(config_id)
+    config = db.session.query(Config).get(config_id)
     if not config:
         raise HTTPException(status_code=404, detail='Not found config')
 

@@ -17,17 +17,17 @@ def get_current_user_from_token(token: str) -> Optional[User]:
     Використовується в обробниках помилок
     """
     try:
-        from mydb import db
-        
+        from fastapi_sqlalchemy import db
+
         # Декодуємо JWT токен
         user_data = decode_token(token)
         user_id = user_data.get('user_id')
-        
+
         if not user_id:
             return None
-        
+
         # Знаходимо користувача в базі
-        user = db.session().query(User).filter(User.id == user_id).first()
+        user = db.session.query(User).filter(User.id == user_id).first()
         return user
         
     except Exception as e:

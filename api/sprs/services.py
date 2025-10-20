@@ -4,7 +4,7 @@ from fastapi import HTTPException
 from models.models import Category, SprSource, SprTypePayment
 from api.schemas.common import SprCurrencyResponse, SprSourceResponse, SprTypePaymentResponse, CategoryResponse
 
-from mydb import db
+from fastapi_sqlalchemy import db
 
 logger = logging.getLogger()
 
@@ -27,7 +27,7 @@ def get_spr_dictionary(dictionary) -> list[dict]:
         model = Category
     else:
         return []               
-    query = db.session().query(model).all()
+    query = db.session.query(model).all()
     if not query:
         raise HTTPException(404, 'Not found dictionary')
 

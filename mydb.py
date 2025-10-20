@@ -1,6 +1,6 @@
 from sqlalchemy import create_engine, MetaData, text as sa_text
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, scoped_session
+from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import QueuePool
 from fastapi import Depends
 from app.config import SQLALCHEMY_DATABASE_URI
@@ -23,35 +23,40 @@ engine = create_engine(
     connect_args={'ssl': {'fake_flag_to_enable_tls': True}}
 )
 
-# Створення сесій
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-db_session = scoped_session(SessionLocal)
+# Створення сесій - використовуємо autoflush=True для автоматичного flush перед commit
+SessionLocal = sessionmaker(autocommit=False, autoflush=True, bind=engine)
 
 # SQLAlchemy база для моделей
 Base = declarative_base(metadata=metadata)
-Base.query = db_session.query_property()
 
-# Клас для сумісності з попередньою версією на Flask-SQLAlchemy
-class SQLAlchemyWrapper:
+# OLD: scoped_session approach (replaced by fastapi-sqlalchemy middleware)
+# db_session = scoped_session(SessionLocal)
+# Base.query = db_session.query_property()
+
+# Simple wrapper class for backward compatibility with legacy code
+class DBWrapper:
+    """Minimal wrapper for backward compatibility - use fastapi_sqlalchemy.db instead"""
     def __init__(self):
-        self.session = db_session
         self.Model = Base
         self.metadata = metadata
         self.engine = engine
-    
+
     def create_all(self):
+        """Create all tables"""
         Base.metadata.create_all(bind=engine)
-    
+
     def init_app(self, app):
-        # Заглушка для сумісності
+        """Compatibility stub"""
         pass
 
-# Для зворотної сумісності з Flask-SQLAlchemy
-db = SQLAlchemyWrapper()
+# For backward compatibility with legacy code
+# NOTE: For new code, use: from fastapi_sqlalchemy import db
+db = DBWrapper()
 text = sa_text
 
-# Функція для отримання залежності бази даних
+# Dependency function for routes that use Depends(get_db)
 def get_db():
+    """Get database session - for routes using Depends(get_db)"""
     db = SessionLocal()
     try:
         yield db
@@ -62,6 +67,7 @@ __all__ = [
     "db",
     "text",
     "get_db",
-    "db_session",
-    "Base"
+    "Base",
+    "engine",
+    "metadata"
 ]

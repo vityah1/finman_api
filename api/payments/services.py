@@ -13,7 +13,7 @@ from api.payments.funcs import (
 )
 from api.groups.services import check_user_in_group
 from models.models import Payment
-from mydb import db
+from fastapi_sqlalchemy import db
 from utility_helpers import do_sql_sel
 
 logger = logging.getLogger()
@@ -78,12 +78,14 @@ def add_payment_(user_id: int, payment_data: PaymentCreate):
     logger.info(f"[ADD PAYMENT] Final DB values before commit: currency={payment.currency}, currency_amount={payment.currency_amount}, amount={payment.amount}, exchange_rate={payment.exchange_rate}")
 
     try:
-        db.session().add(payment)
-        db.session().flush()  # КРИТИЧНО: flush() щоб зміни потрапили в сесію
-        db.session().commit()
+        db.session.add(payment)
+        db.session.flush()  # КРИТИЧНО: flush() щоб зміни потрапили в сесію
+        db.session.commit()
         logger.info(f"Платіж успішно доданий: {payment.id}")
+        # Refresh to get updated values from database
+        db.session.refresh(payment)
     except Exception as err:
-        db.session().rollback()
+        db.session.rollback()
         logger.error(f"Помилка при додаванні платежу: {str(err)}")
         raise err
 
@@ -185,7 +187,7 @@ def get_payment_detail(payment_id: int):
     """
     get info about payment
     """
-    payment = db.session().query(Payment).get(payment_id)
+    payment = db.session.query(Payment).get(payment_id)
 
     if not payment:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Платіж не знайдено")
@@ -209,17 +211,17 @@ def del_payment_(payment_id: int):
     """
     mark delete payment
     """
-    payment = db.session().query(Payment).get(payment_id)
+    payment = db.session.query(Payment).get(payment_id)
     if not payment:
         logger.error(f"Платіж з ID {payment_id} не знайдено")
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Платіж не знайдено")
-        
+
     payment.is_deleted = True
     try:
-        db.session().commit()
+        db.session.commit()
         logger.info(f"Платіж з ID {payment_id} помічений як видалений")
     except Exception as err:
-        db.session().rollback()
+        db.session.rollback()
         logger.error(f"Помилка при видаленні платежу: {str(err)}")
         raise err
 
@@ -231,7 +233,7 @@ def upd_payment_(payment_id: int, payment_data: PaymentUpdate):
     update payment
     """
     # Отримуємо платіж з бази даних для перевірки існування
-    payment = db.session().query(Payment).get(payment_id)
+    payment = db.session.query(Payment).get(payment_id)
     if not payment:
         logger.error(f"Платіж з ID {payment_id} не знайдено")
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Платіж не знайдено")
@@ -282,12 +284,12 @@ def upd_payment_(payment_id: int, payment_data: PaymentUpdate):
         logger.info(f"[UPD PAYMENT {payment_id}] Final update dict: {update_dict}")
 
         # КРИТИЧНО: Використовуємо прямий UPDATE замість setattr щоб уникнути проблем з SQLAlchemy
-        db.session().query(Payment).filter(Payment.id == payment_id).update(update_dict)
+        db.session.query(Payment).filter(Payment.id == payment_id).update(update_dict)
 
-        db.session().commit()
+        db.session.commit()
         logger.info(f"Платіж з ID {payment_id} успішно оновлено")
     except Exception as err:
-        db.session().rollback()
+        db.session.rollback()
         logger.error(f"Помилка при оновленні платежу: {str(err)}")
         raise err
 
@@ -303,11 +305,11 @@ def change_payments_category_(user_id: int, payment_ids: list[int], category_id:
     """
     
     # Отримуємо всі платежі
-    payments = db.session().query(Payment).filter(Payment.id.in_(payment_ids)).all()
-    
+    payments = db.session.query(Payment).filter(Payment.id.in_(payment_ids)).all()
+
     # Платежі, до яких користувач має доступ
     allowed_payments = []
-    
+
     # Перевіряємо доступ до кожного платежу
     for payment in payments:
         if payment.user_id == user_id:
@@ -318,7 +320,7 @@ def change_payments_category_(user_id: int, payment_ids: list[int], category_id:
             is_admin = check_user_in_group(payment.user_id, user_id)
             if is_admin:
                 allowed_payments.append(payment)
-    
+
     if not allowed_payments:
         # Якщо немає платежів, до яких користувач має доступ
         logger.warning(f"Не знайдено платежів для користувача {user_id} з ID {payment_ids} або немає прав доступу")
@@ -326,16 +328,16 @@ def change_payments_category_(user_id: int, payment_ids: list[int], category_id:
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Немає доступу до платежів"
         )
-    
+
     # Змінюємо категорію для доступних платежів
     for payment in allowed_payments:
         payment.category_id = category_id
-    
+
     try:
-        db.session().commit()
+        db.session.commit()
         logger.info(f"Змінено категорію для {len(allowed_payments)} платежів на {category_id}")
     except Exception as err:
-        db.session().rollback()
+        db.session.rollback()
         logger.error(f"Помилка при зміні категорії платежів: {str(err)}")
         raise err
     
@@ -351,11 +353,11 @@ def bulk_delete_payments_(user_id: int, payment_ids: list[int]):
     """
     
     # Отримуємо всі платежі
-    payments = db.session().query(Payment).filter(Payment.id.in_(payment_ids)).all()
-    
+    payments = db.session.query(Payment).filter(Payment.id.in_(payment_ids)).all()
+
     # Платежі, до яких користувач має доступ
     allowed_payments = []
-    
+
     # Перевіряємо доступ до кожного платежу
     for payment in payments:
         if payment.user_id == user_id:
@@ -366,7 +368,7 @@ def bulk_delete_payments_(user_id: int, payment_ids: list[int]):
             is_admin = check_user_in_group(payment.user_id, user_id)
             if is_admin:
                 allowed_payments.append(payment)
-    
+
     if not allowed_payments:
         # Якщо немає платежів, до яких користувач має доступ
         logger.warning(f"Не знайдено платежів для користувача {user_id} з ID {payment_ids} або немає прав доступу")
@@ -374,16 +376,16 @@ def bulk_delete_payments_(user_id: int, payment_ids: list[int]):
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Немає доступу до платежів"
         )
-    
+
     # Позначаємо платежі як видалені
     for payment in allowed_payments:
         payment.is_deleted = True
-    
+
     try:
-        db.session().commit()
+        db.session.commit()
         logger.info(f"Видалено {len(allowed_payments)} платежів")
     except Exception as err:
-        db.session().rollback()
+        db.session.rollback()
         logger.error(f"Помилка при видаленні платежів: {str(err)}")
         raise err
     

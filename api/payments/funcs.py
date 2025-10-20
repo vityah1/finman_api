@@ -6,7 +6,7 @@ from pandas import Timestamp
 from sqlalchemy import and_
 
 from api.config.schemas import ConfigTypes
-from mydb import db
+from fastapi_sqlalchemy import db
 from models import Config
 
 
@@ -52,7 +52,7 @@ def conv_refuel_data_to_desc(data: dict) -> str:
 
 def get_user_phones_from_config(user_id: int) -> dict:
     user_phones = {}
-    user_config = db.session().query(
+    user_config = db.session.query(
         Config.value_data,
         Config.add_value,
     ).filter(

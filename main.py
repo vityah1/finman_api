@@ -4,10 +4,11 @@ from fastapi.middleware.cors import CORSMiddleware
 import logging
 
 # Імпортуємо конфігурацію
-from app.config import logger_config
+from app.config import logger_config, SQLALCHEMY_DATABASE_URI
 from models.models import SprCurrency
 from mydb import db
 from models import *
+from fastapi_sqlalchemy import DBSessionMiddleware
 
 # Налаштовуємо логування
 logging.config.dictConfig(logger_config)
@@ -67,6 +68,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# DBSessionMiddleware для управління сесіями через ContextVar
+app.add_middleware(
+    DBSessionMiddleware,
+    db_url=SQLALCHEMY_DATABASE_URI,
+    engine_args={
+        "pool_pre_ping": True,
+        "pool_size": 10,
+        "max_overflow": 10,
+    },
+)
+
 # Імпортуємо та включаємо роутери
 from api.config.route import router as config_router
 from auth.auth import router as auth_router
@@ -101,25 +113,39 @@ app.include_router(utilities_router)
 from app.exceptions import register_exception_handlers
 register_exception_handlers(app)
 
-# Middleware для логування запитів та сесій БД
+# OLD: Middleware для логування запитів та сесій БД (replaced by DBSessionMiddleware)
+# @app.middleware("http")
+# async def session_and_logging_middleware(request, call_next):
+#     from mydb import db_session
+#
+#     try:
+#         # Логуємо запит
+#         logger.info(f"Request: {request.method} {request.url.path} | Headers: {request.headers}")
+#
+#         # Обробляємо запит
+#         response = await call_next(request)
+#
+#         # Логуємо відповідь
+#         logger.info(f"Response: {request.method} {request.url.path} | Status: {response.status_code}")
+#
+#         return response
+#     finally:
+#         # Закриваємо сесію після кожного запиту
+#         db_session.remove()
+
+# Middleware для логування запитів
 @app.middleware("http")
-async def session_and_logging_middleware(request, call_next):
-    from mydb import db_session
-    
-    try:
-        # Логуємо запит
-        logger.info(f"Request: {request.method} {request.url.path} | Headers: {request.headers}")
-        
-        # Обробляємо запит
-        response = await call_next(request)
-        
-        # Логуємо відповідь
-        logger.info(f"Response: {request.method} {request.url.path} | Status: {response.status_code}")
-        
-        return response
-    finally:
-        # Закриваємо сесію після кожного запиту
-        db_session.remove()
+async def logging_middleware(request, call_next):
+    # Логуємо запит
+    logger.info(f"Request: {request.method} {request.url.path} | Headers: {request.headers}")
+
+    # Обробляємо запит
+    response = await call_next(request)
+
+    # Логуємо відповідь
+    logger.info(f"Response: {request.method} {request.url.path} | Status: {response.status_code}")
+
+    return response
 
 # Запуск додатку (якщо викликається напряму)
 if __name__ == "__main__":

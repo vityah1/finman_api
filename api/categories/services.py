@@ -4,7 +4,7 @@ from api.schemas.common import CategoryResponse
 
 
 from models.models import Group, UserGroupAssociation
-from mydb import db
+from fastapi_sqlalchemy import db
 from models import Category
 
 logger = logging.getLogger()
@@ -15,10 +15,10 @@ def get_categories_(user_id) -> list[dict]:
     Отримує категорії для користувача, включаючи категорії групи, якщо користувач є членом групи
     """
     # Спочатку отримуємо категорії, які належать користувачу напряму
-    user_categories = db.session().query(Category).filter_by(user_id=user_id).all()
+    user_categories = db.session.query(Category).filter_by(user_id=user_id).all()
 
     # Отримуємо групу користувача, якщо вона є
-    user_group = db.session().query(Group).join(
+    user_group = db.session.query(Group).join(
         UserGroupAssociation, Group.id == UserGroupAssociation.group_id
     ).filter(
         UserGroupAssociation.user_id == user_id
@@ -27,7 +27,7 @@ def get_categories_(user_id) -> list[dict]:
     # Якщо користувач є членом групи, додаємо також категорії групи
     group_categories = []
     if user_group:
-        group_categories = db.session().query(Category).filter_by(
+        group_categories = db.session.query(Category).filter_by(
             group_id=user_group.id
         ).all()
 
@@ -56,7 +56,7 @@ def add_category_(user_id: int, data: dict) -> dict:
     """
     data['user_id'] = user_id
 
-    group = db.session().query(Group).join(
+    group = db.session.query(Group).join(
         UserGroupAssociation, Group.id == UserGroupAssociation.group_id
     ).filter(
         UserGroupAssociation.user_id == user_id
@@ -70,10 +70,10 @@ def add_category_(user_id: int, data: dict) -> dict:
     category = Category(**data)
 
     try:
-        db.session().add(category)
-        db.session().commit()
+        db.session.add(category)
+        db.session.commit()
     except Exception as err:
-        db.session().rollback()
+        db.session.rollback()
         raise err
 
     return CategoryResponse.model_validate(category).model_dump()
@@ -83,7 +83,7 @@ def edit_category_(user_id, category_id: int, data: dict) -> dict:
     """
     edit category
     """
-    category = db.session().query(Category).get(category_id)
+    category = db.session.query(Category).get(category_id)
 
     if not category:
         raise HTTPException(404, 'Not found categories')
@@ -91,7 +91,7 @@ def edit_category_(user_id, category_id: int, data: dict) -> dict:
     data['user_id'] = user_id
     category.update(**data)
 
-    db.session().commit()
+    db.session.commit()
     return CategoryResponse.model_validate(category).model_dump()
 
 
@@ -100,12 +100,12 @@ def delete_category_(category_id: int) -> dict:
     delete category
     """
 
-    category = db.session().query(Category).get(category_id)
+    category = db.session.query(Category).get(category_id)
     if not category:
         raise HTTPException(404, 'Not found categories')
 
-    db.session().delete(category)
-    db.session().commit()
+    db.session.delete(category)
+    db.session.commit()
 
     return {"result": "ok"}
 
@@ -115,7 +115,7 @@ def get_category_(category_id: int) -> dict:
     get category
     """
 
-    category = db.session().query(Category).get(category_id)
+    category = db.session.query(Category).get(category_id)
     if not category:
         raise HTTPException(404, 'Not found categories')
 

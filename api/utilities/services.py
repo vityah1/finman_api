@@ -10,7 +10,7 @@ from api.schemas.common import (
 )
 from models.models import UtilityAddress, UtilityService, UtilityTariff, UtilityReading
 from api.utilities.calculation_service import UtilityCalculationService
-from mydb import db
+from fastapi_sqlalchemy import db
 
 logger = logging.getLogger()
 
@@ -18,7 +18,7 @@ logger = logging.getLogger()
 # Utility Addresses
 def get_utility_addresses(user_id: int) -> List[dict]:
     """Отримати всі адреси користувача"""
-    addresses = db.session().query(UtilityAddress).filter_by(
+    addresses = db.session.query(UtilityAddress).filter_by(
         user_id=user_id, is_active=True
     ).order_by(UtilityAddress.name).all()
     
@@ -27,7 +27,7 @@ def get_utility_addresses(user_id: int) -> List[dict]:
 
 def get_utility_address(user_id: int, address_id: int) -> dict:
     """Отримати адресу за ID"""
-    address = db.session().query(UtilityAddress).filter_by(
+    address = db.session.query(UtilityAddress).filter_by(
         id=address_id, user_id=user_id
     ).first()
     
@@ -43,10 +43,10 @@ def create_utility_address(user_id: int, data: dict) -> dict:
     address = UtilityAddress(**data)
     
     try:
-        db.session().add(address)
-        db.session().commit()
+        db.session.add(address)
+        db.session.commit()
     except Exception as err:
-        db.session().rollback()
+        db.session.rollback()
         logger.error(f"Error creating utility address: {err}")
         raise HTTPException(400, 'Error creating utility address')
     
@@ -55,7 +55,7 @@ def create_utility_address(user_id: int, data: dict) -> dict:
 
 def update_utility_address(user_id: int, address_id: int, data: dict) -> dict:
     """Оновити адресу"""
-    address = db.session().query(UtilityAddress).filter_by(
+    address = db.session.query(UtilityAddress).filter_by(
         id=address_id, user_id=user_id
     ).first()
     
@@ -67,9 +67,9 @@ def update_utility_address(user_id: int, address_id: int, data: dict) -> dict:
     address.update(**filtered_data)
     
     try:
-        db.session().commit()
+        db.session.commit()
     except Exception as err:
-        db.session().rollback()
+        db.session.rollback()
         logger.error(f"Error updating utility address: {err}")
         raise HTTPException(400, 'Error updating utility address')
     
@@ -80,7 +80,7 @@ def update_utility_address(user_id: int, address_id: int, data: dict) -> dict:
 # Utility Services
 def get_utility_services(user_id: int) -> List[dict]:
     """Отримати всі комунальні служби користувача"""
-    services = db.session().query(UtilityService).filter_by(
+    services = db.session.query(UtilityService).filter_by(
         user_id=user_id, is_active=True
     ).order_by(UtilityService.name).all()
     
@@ -89,7 +89,7 @@ def get_utility_services(user_id: int) -> List[dict]:
 
 def get_utility_service(user_id: int, service_id: int) -> dict:
     """Отримати комунальну службу за ID"""
-    service = db.session().query(UtilityService).filter_by(
+    service = db.session.query(UtilityService).filter_by(
         id=service_id, user_id=user_id
     ).first()
     
@@ -105,10 +105,10 @@ def create_utility_service(user_id: int, data: dict) -> dict:
     service = UtilityService(**data)
     
     try:
-        db.session().add(service)
-        db.session().commit()
+        db.session.add(service)
+        db.session.commit()
     except Exception as err:
-        db.session().rollback()
+        db.session.rollback()
         logger.error(f"Error creating utility service: {err}")
         raise HTTPException(400, 'Error creating utility service')
     
@@ -117,7 +117,7 @@ def create_utility_service(user_id: int, data: dict) -> dict:
 
 def update_utility_service(user_id: int, service_id: int, data: dict) -> dict:
     """Оновити комунальну службу"""
-    service = db.session().query(UtilityService).filter_by(
+    service = db.session.query(UtilityService).filter_by(
         id=service_id, user_id=user_id
     ).first()
     
@@ -129,9 +129,9 @@ def update_utility_service(user_id: int, service_id: int, data: dict) -> dict:
     service.update(**filtered_data)
     
     try:
-        db.session().commit()
+        db.session.commit()
     except Exception as err:
-        db.session().rollback()
+        db.session.rollback()
         logger.error(f"Error updating utility service: {err}")
         raise HTTPException(400, 'Error updating utility service')
     
@@ -140,7 +140,7 @@ def update_utility_service(user_id: int, service_id: int, data: dict) -> dict:
 
 def delete_utility_service(user_id: int, service_id: int) -> dict:
     """Видалити комунальну службу (м'яке видалення)"""
-    service = db.session().query(UtilityService).filter_by(
+    service = db.session.query(UtilityService).filter_by(
         id=service_id, user_id=user_id
     ).first()
     
@@ -150,9 +150,9 @@ def delete_utility_service(user_id: int, service_id: int) -> dict:
     service.is_active = False
     
     try:
-        db.session().commit()
+        db.session.commit()
     except Exception as err:
-        db.session().rollback()
+        db.session.rollback()
         logger.error(f"Error deleting utility service: {err}")
         raise HTTPException(400, 'Error deleting utility service')
     
@@ -162,7 +162,7 @@ def delete_utility_service(user_id: int, service_id: int) -> dict:
 # Utility Tariffs
 def get_utility_tariffs(user_id: int, service_id: Optional[int] = None) -> List[dict]:
     """Отримати тарифи для комунальних служб"""
-    query = db.session().query(UtilityTariff).join(UtilityService).filter(
+    query = db.session.query(UtilityTariff).join(UtilityService).filter(
         UtilityService.user_id == user_id
     )
     
@@ -176,7 +176,7 @@ def get_utility_tariffs(user_id: int, service_id: Optional[int] = None) -> List[
 
 def get_utility_tariff(user_id: int, tariff_id: int) -> dict:
     """Отримати тариф за ID"""
-    tariff = db.session().query(UtilityTariff).join(UtilityService).filter(
+    tariff = db.session.query(UtilityTariff).join(UtilityService).filter(
         UtilityTariff.id == tariff_id,
         UtilityService.user_id == user_id
     ).first()
@@ -190,7 +190,7 @@ def get_utility_tariff(user_id: int, tariff_id: int) -> dict:
 def create_utility_tariff(user_id: int, data: dict) -> dict:
     """Створити новий тариф"""
     # Перевіряємо, що служба належить користувачу
-    service = db.session().query(UtilityService).filter_by(
+    service = db.session.query(UtilityService).filter_by(
         id=data['service_id'], user_id=user_id
     ).first()
     
@@ -200,10 +200,10 @@ def create_utility_tariff(user_id: int, data: dict) -> dict:
     tariff = UtilityTariff(**data)
     
     try:
-        db.session().add(tariff)
-        db.session().commit()
+        db.session.add(tariff)
+        db.session.commit()
     except Exception as err:
-        db.session().rollback()
+        db.session.rollback()
         logger.error(f"Error creating utility tariff: {err}")
         raise HTTPException(400, 'Error creating utility tariff')
     
@@ -212,7 +212,7 @@ def create_utility_tariff(user_id: int, data: dict) -> dict:
 
 def update_utility_tariff(user_id: int, tariff_id: int, data: dict) -> dict:
     """Оновити тариф"""
-    tariff = db.session().query(UtilityTariff).join(UtilityService).filter(
+    tariff = db.session.query(UtilityTariff).join(UtilityService).filter(
         UtilityTariff.id == tariff_id,
         UtilityService.user_id == user_id
     ).first()
@@ -225,9 +225,9 @@ def update_utility_tariff(user_id: int, tariff_id: int, data: dict) -> dict:
     tariff.update(**filtered_data)
     
     try:
-        db.session().commit()
+        db.session.commit()
     except Exception as err:
-        db.session().rollback()
+        db.session.rollback()
         logger.error(f"Error updating utility tariff: {err}")
         raise HTTPException(400, 'Error updating utility tariff')
     
@@ -236,7 +236,7 @@ def update_utility_tariff(user_id: int, tariff_id: int, data: dict) -> dict:
 
 def delete_utility_tariff(user_id: int, tariff_id: int) -> dict:
     """Видалити тариф (м'яке видалення)"""
-    tariff = db.session().query(UtilityTariff).join(UtilityService).filter(
+    tariff = db.session.query(UtilityTariff).join(UtilityService).filter(
         UtilityTariff.id == tariff_id,
         UtilityService.user_id == user_id
     ).first()
@@ -247,9 +247,9 @@ def delete_utility_tariff(user_id: int, tariff_id: int) -> dict:
     tariff.is_active = False
     
     try:
-        db.session().commit()
+        db.session.commit()
     except Exception as err:
-        db.session().rollback()
+        db.session.rollback()
         logger.error(f"Error deleting utility tariff: {err}")
         raise HTTPException(400, 'Error deleting utility tariff')
     
@@ -263,7 +263,7 @@ def create_shared_meter_readings(user_id: int, service: UtilityService, data: di
     from sqlalchemy import or_
     
     # Отримуємо всі активні тарифи служби
-    all_service_tariffs = db.session().query(UtilityTariff).filter(
+    all_service_tariffs = db.session.query(UtilityTariff).filter(
         UtilityTariff.service_id == service.id,
         UtilityTariff.is_active == True,
         or_(
@@ -277,7 +277,7 @@ def create_shared_meter_readings(user_id: int, service: UtilityService, data: di
     
     # Знаходимо попередній показник
     if not data.get('previous_reading'):
-        previous_reading = db.session().query(UtilityReading).filter(
+        previous_reading = db.session.query(UtilityReading).filter(
             UtilityReading.user_id == user_id,
             UtilityReading.service_id == service.id,
             UtilityReading.period < data['period']
@@ -342,13 +342,13 @@ def create_shared_meter_readings(user_id: int, service: UtilityService, data: di
             }
             
             reading = UtilityReading(**reading_data)
-            db.session().add(reading)
+            db.session.add(reading)
             created_readings.append(reading)
         
-        db.session().commit()
+        db.session.commit()
         
     except Exception as err:
-        db.session().rollback()
+        db.session.rollback()
         logger.error(f"Error creating shared meter readings: {err}")
         raise HTTPException(400, f'Error creating shared meter readings: {str(err)}')
     
@@ -361,7 +361,7 @@ def create_utility_reading(user_id: int, data: dict) -> dict:
     logger.info(f"Creating utility reading for user {user_id} with data: {data}")
     
     # Перевіряємо, що служба належить користувачу
-    service = db.session().query(UtilityService).filter_by(
+    service = db.session.query(UtilityService).filter_by(
         id=data['service_id'], user_id=user_id
     ).first()
     
@@ -381,7 +381,7 @@ def create_utility_reading(user_id: int, data: dict) -> dict:
         raise HTTPException(400, 'Tariff ID is required for services without shared meter')
         
     # Перевіряємо, що тариф існує та належить цій службі
-    tariff = db.session().query(UtilityTariff).filter_by(
+    tariff = db.session.query(UtilityTariff).filter_by(
         id=data['tariff_id'], service_id=data['service_id']
     ).first()
     
@@ -392,7 +392,7 @@ def create_utility_reading(user_id: int, data: dict) -> dict:
     
     # Якщо не передано попередній показник, знаходимо його автоматично
     if not data.get('previous_reading'):
-        previous_reading = db.session().query(UtilityReading).filter(
+        previous_reading = db.session.query(UtilityReading).filter(
             UtilityReading.user_id == user_id,
             UtilityReading.service_id == data['service_id'],
             UtilityReading.tariff_id == data['tariff_id'],
@@ -436,10 +436,10 @@ def create_utility_reading(user_id: int, data: dict) -> dict:
     reading = UtilityReading(**data)
     
     try:
-        db.session().add(reading)
-        db.session().commit()
+        db.session.add(reading)
+        db.session.commit()
     except Exception as err:
-        db.session().rollback()
+        db.session.rollback()
         logger.error(f"Error creating utility reading: {err}")
         raise HTTPException(400, 'Error creating utility reading')
     
@@ -448,7 +448,7 @@ def create_utility_reading(user_id: int, data: dict) -> dict:
 
 def delete_utility_reading(user_id: int, reading_id: int) -> dict:
     """Видалити показник"""
-    reading = db.session().query(UtilityReading).filter_by(
+    reading = db.session.query(UtilityReading).filter_by(
         id=reading_id, user_id=user_id
     ).first()
     
@@ -461,23 +461,23 @@ def delete_utility_reading(user_id: int, reading_id: int) -> dict:
         
         if service.has_shared_meter:
             # Для служб зі спільним лічільником видаляємо всі показники за той же період
-            related_readings = db.session().query(UtilityReading).filter(
+            related_readings = db.session.query(UtilityReading).filter(
                 UtilityReading.user_id == user_id,
                 UtilityReading.service_id == reading.service_id,
                 UtilityReading.period == reading.period
             ).all()
             
             for related_reading in related_readings:
-                db.session().delete(related_reading)
+                db.session.delete(related_reading)
                 
             logger.info(f"Deleted {len(related_readings)} related readings for shared meter service {service.name}")
         else:
             # Стандартне видалення одного показника
-            db.session().delete(reading)
+            db.session.delete(reading)
         
-        db.session().commit()
+        db.session.commit()
     except Exception as err:
-        db.session().rollback()
+        db.session.rollback()
         logger.error(f"Error deleting utility reading: {err}")
         raise HTTPException(400, 'Error deleting utility reading')
     
@@ -486,7 +486,7 @@ def delete_utility_reading(user_id: int, reading_id: int) -> dict:
 
 def delete_utility_address(user_id: int, address_id: int) -> dict:
     """Видалити адресу (м'яке видалення)"""
-    address = db.session().query(UtilityAddress).filter_by(
+    address = db.session.query(UtilityAddress).filter_by(
         id=address_id, user_id=user_id
     ).first()
     
@@ -496,9 +496,9 @@ def delete_utility_address(user_id: int, address_id: int) -> dict:
     address.is_active = False
     
     try:
-        db.session().commit()
+        db.session.commit()
     except Exception as err:
-        db.session().rollback()
+        db.session.rollback()
         logger.error(f"Error deleting utility address: {err}")
         raise HTTPException(400, 'Error deleting utility address')
     
@@ -508,7 +508,7 @@ def delete_utility_address(user_id: int, address_id: int) -> dict:
 # Utility Services
 def get_utility_services(user_id: int, address_id: Optional[int] = None) -> List[dict]:
     """Отримати всі комунальні служби користувача"""
-    query = db.session().query(UtilityService).filter_by(
+    query = db.session.query(UtilityService).filter_by(
         user_id=user_id, is_active=True
     )
     
@@ -522,7 +522,7 @@ def get_utility_services(user_id: int, address_id: Optional[int] = None) -> List
 
 def get_utility_service(user_id: int, service_id: int) -> dict:
     """Отримати комунальну службу за ID"""
-    service = db.session().query(UtilityService).filter_by(
+    service = db.session.query(UtilityService).filter_by(
         id=service_id, user_id=user_id
     ).first()
     
@@ -535,7 +535,7 @@ def get_utility_service(user_id: int, service_id: int) -> dict:
 def create_utility_service(user_id: int, data: dict) -> dict:
     """Створити нову комунальну службу"""
     # Перевіряємо, що адреса належить користувачу
-    address = db.session().query(UtilityAddress).filter_by(
+    address = db.session.query(UtilityAddress).filter_by(
         id=data['address_id'], user_id=user_id
     ).first()
     
@@ -546,10 +546,10 @@ def create_utility_service(user_id: int, data: dict) -> dict:
     service = UtilityService(**data)
     
     try:
-        db.session().add(service)
-        db.session().commit()
+        db.session.add(service)
+        db.session.commit()
     except Exception as err:
-        db.session().rollback()
+        db.session.rollback()
         logger.error(f"Error creating utility service: {err}")
         raise HTTPException(400, 'Error creating utility service')
     
@@ -558,7 +558,7 @@ def create_utility_service(user_id: int, data: dict) -> dict:
 
 def update_utility_service(user_id: int, service_id: int, data: dict) -> dict:
     """Оновити комунальну службу"""
-    service = db.session().query(UtilityService).filter_by(
+    service = db.session.query(UtilityService).filter_by(
         id=service_id, user_id=user_id
     ).first()
     
@@ -567,7 +567,7 @@ def update_utility_service(user_id: int, service_id: int, data: dict) -> dict:
     
     # Якщо змінюється адреса, перевіряємо її
     if 'address_id' in data:
-        address = db.session().query(UtilityAddress).filter_by(
+        address = db.session.query(UtilityAddress).filter_by(
             id=data['address_id'], user_id=user_id
         ).first()
         
@@ -579,9 +579,9 @@ def update_utility_service(user_id: int, service_id: int, data: dict) -> dict:
     service.update(**filtered_data)
     
     try:
-        db.session().commit()
+        db.session.commit()
     except Exception as err:
-        db.session().rollback()
+        db.session.rollback()
         logger.error(f"Error updating utility service: {err}")
         raise HTTPException(400, 'Error updating utility service')
     
@@ -590,7 +590,7 @@ def update_utility_service(user_id: int, service_id: int, data: dict) -> dict:
 
 def delete_utility_service(user_id: int, service_id: int) -> dict:
     """Видалити комунальну службу (м'яке видалення)"""
-    service = db.session().query(UtilityService).filter_by(
+    service = db.session.query(UtilityService).filter_by(
         id=service_id, user_id=user_id
     ).first()
     
@@ -600,9 +600,9 @@ def delete_utility_service(user_id: int, service_id: int) -> dict:
     service.is_active = False
     
     try:
-        db.session().commit()
+        db.session.commit()
     except Exception as err:
-        db.session().rollback()
+        db.session.rollback()
         logger.error(f"Error deleting utility service: {err}")
         raise HTTPException(400, 'Error deleting utility service')
     
@@ -611,7 +611,7 @@ def delete_utility_service(user_id: int, service_id: int) -> dict:
 def get_utility_readings(user_id: int, address_id: Optional[int] = None, 
                         service_id: Optional[int] = None, period: Optional[str] = None) -> List[dict]:
     """Отримати показники комунальних служб"""
-    query = db.session().query(UtilityReading).filter_by(user_id=user_id)
+    query = db.session.query(UtilityReading).filter_by(user_id=user_id)
     
     if address_id:
         query = query.filter(UtilityReading.address_id == address_id)
@@ -630,7 +630,7 @@ def get_utility_readings(user_id: int, address_id: Optional[int] = None,
 
 def get_utility_reading(user_id: int, reading_id: int) -> dict:
     """Отримати показник за ID"""
-    reading = db.session().query(UtilityReading).filter_by(
+    reading = db.session.query(UtilityReading).filter_by(
         id=reading_id, user_id=user_id
     ).first()
     
@@ -643,7 +643,7 @@ def get_utility_reading(user_id: int, reading_id: int) -> dict:
         (reading.current_reading is None or reading.current_reading <= 0)):
         
         # Шукаємо основний показник (той що має current_reading > 0)
-        main_reading = db.session().query(UtilityReading).filter_by(
+        main_reading = db.session.query(UtilityReading).filter_by(
             user_id=user_id,
             service_id=reading.service_id,
             period=reading.period
@@ -662,7 +662,7 @@ def get_utility_reading(user_id: int, reading_id: int) -> dict:
 def update_utility_reading(user_id: int, reading_id: int, data: dict) -> UtilityReadingResponse | Any:
     """Оновити показник"""
     try:
-        reading = db.session().query(UtilityReading).filter_by(
+        reading = db.session.query(UtilityReading).filter_by(
             id=reading_id, user_id=user_id
         ).first()
         
@@ -675,7 +675,7 @@ def update_utility_reading(user_id: int, reading_id: int, data: dict) -> Utility
         service = reading.service
         if service.has_shared_meter:
             # Для спільних лічильників видаляємо всі записи за період і створюємо заново
-            related_readings = db.session().query(UtilityReading).filter(
+            related_readings = db.session.query(UtilityReading).filter(
                 UtilityReading.user_id == user_id,
                 UtilityReading.service_id == reading.service_id,
                 UtilityReading.period == reading.period
@@ -687,7 +687,7 @@ def update_utility_reading(user_id: int, reading_id: int, data: dict) -> Utility
             if 'period' in data and data['period'] != reading.period:
                 # Check if changing period would create duplicates
                 new_period = data['period']
-                existing_readings = db.session().query(UtilityReading).filter(
+                existing_readings = db.session.query(UtilityReading).filter(
                     UtilityReading.user_id == user_id,
                     UtilityReading.service_id == reading.service_id,
                     UtilityReading.period == new_period
@@ -696,7 +696,7 @@ def update_utility_reading(user_id: int, reading_id: int, data: dict) -> Utility
                 if existing_readings:
                     # Delete existing readings for the new period to avoid conflicts
                     for existing in existing_readings:
-                        db.session().delete(existing)
+                        db.session.delete(existing)
                     logger.info(f"Deleted {len(existing_readings)} existing readings for period {new_period}")
 
             # Оновлюємо всі пов'язані записи
@@ -722,10 +722,10 @@ def update_utility_reading(user_id: int, reading_id: int, data: dict) -> Utility
                 
                 logger.info(f"DEBUG: Updated reading {related_reading.id}")
             
-            db.session().commit()
+            db.session.commit()
             
             # Повертаємо оновлений запис використовуючи схему FastAPI
-            updated_reading = db.session().query(UtilityReading).filter_by(id=reading_id).first()
+            updated_reading = db.session.query(UtilityReading).filter_by(id=reading_id).first()
             return UtilityReadingResponse.model_validate(updated_reading)
         
         # Видаляємо None значення з data
@@ -765,7 +765,7 @@ def update_utility_reading(user_id: int, reading_id: int, data: dict) -> Utility
                     
                     # Якщо змінився тариф, використовуємо його, інакше поточний
                     if 'tariff_id' in filtered_data:
-                        tariff = db.session().query(UtilityTariff).get(filtered_data['tariff_id'])
+                        tariff = db.session.query(UtilityTariff).get(filtered_data['tariff_id'])
                     else:
                         tariff = reading.tariff
                     
@@ -806,7 +806,7 @@ def update_utility_reading(user_id: int, reading_id: int, data: dict) -> Utility
             logger.info(f"Updating shared meter readings for service {service.name}")
             
             # Знаходимо всі показники цієї служби за цей період
-            all_readings = db.session().query(UtilityReading).filter_by(
+            all_readings = db.session.query(UtilityReading).filter_by(
                 user_id=user_id,
                 service_id=service.id,
                 period=reading.period
@@ -827,10 +827,10 @@ def update_utility_reading(user_id: int, reading_id: int, data: dict) -> Utility
                     setattr(reading, key, value)
         
         try:
-            db.session().commit()
+            db.session.commit()
             logger.info(f"Successfully updated reading {reading_id}")
         except Exception as err:
-            db.session().rollback()
+            db.session.rollback()
             logger.error(f"Error updating utility reading: {err}")
             raise HTTPException(400, 'Error updating utility reading')
         
@@ -854,7 +854,7 @@ def update_utility_reading(user_id: int, reading_id: int, data: dict) -> Utility
 
 def get_latest_period_with_readings(user_id: int, address_id: int) -> Optional[str]:
     """Отримати останній період з показниками для адреси"""
-    latest_reading = db.session().query(UtilityReading).join(
+    latest_reading = db.session.query(UtilityReading).join(
         UtilityService
     ).filter(
         UtilityService.user_id == user_id,
@@ -871,7 +871,7 @@ def get_grouped_readings(user_id: int, address_id: int, period: str, service_id:
         logger.info(f"Starting get_grouped_readings for user_id={user_id}, address_id={address_id}, period={period}, service_id={service_id}")
         
         # Отримуємо всі показники для адреси за період
-        readings_query = db.session().query(UtilityReading).join(
+        readings_query = db.session.query(UtilityReading).join(
             UtilityService
         ).filter(
             UtilityService.user_id == user_id,
@@ -888,7 +888,7 @@ def get_grouped_readings(user_id: int, address_id: int, period: str, service_id:
         logger.info(f"Found {len(readings)} readings for period {period}")
         
         # Отримуємо тільки служби які мають показники за цей період
-        services_with_readings = db.session().query(UtilityService).join(
+        services_with_readings = db.session.query(UtilityService).join(
             UtilityReading
         ).filter(
             UtilityService.user_id == user_id,

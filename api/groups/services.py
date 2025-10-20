@@ -3,7 +3,7 @@ from sqlalchemy import and_
 from fastapi import HTTPException, status
 
 from models.models import Group, UserGroupAssociation
-from mydb import db
+from fastapi_sqlalchemy import db
 
 logger = logging.getLogger()
 
@@ -19,7 +19,7 @@ def check_user_in_group(target_user_id: int, admin_user_id: int) -> bool:
         bool: True, якщо admin_user_id є адміністратором групи, в якій є target_user_id
     """
     # Знаходимо групи, в яких знаходиться цільовий користувач
-    target_user_groups = db.session().query(UserGroupAssociation).filter(
+    target_user_groups = db.session.query(UserGroupAssociation).filter(
         UserGroupAssociation.user_id == target_user_id
     ).all()
     
@@ -30,7 +30,7 @@ def check_user_in_group(target_user_id: int, admin_user_id: int) -> bool:
     # Для кожної групи перевіряємо, чи є admin_user_id адміністратором
     for association in target_user_groups:
         # Перевіряємо, чи є admin_user_id у цій групі та чи є він адміном
-        admin_association = db.session().query(UserGroupAssociation).filter(
+        admin_association = db.session.query(UserGroupAssociation).filter(
             and_(
                 UserGroupAssociation.group_id == association.group_id,
                 UserGroupAssociation.user_id == admin_user_id,

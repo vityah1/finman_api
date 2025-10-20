@@ -26,10 +26,10 @@ class TelegramNotifier:
         Отримати інформацію про користувача для включення в повідомлення про помилку
         """
         try:
-            from mydb import db
+            from fastapi_sqlalchemy import db
             from sqlalchemy import text
-            
-            result = db.session().execute(
+
+            result = db.session.execute(
                 text("SELECT id, login, email, fullname FROM users WHERE id = :user_id"),
                 {"user_id": user_id}
             ).fetchone()
