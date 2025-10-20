@@ -285,14 +285,15 @@ def upd_payment_(payment_id: int, payment_data: PaymentUpdate):
     try:
         # Оновлюємо платіж
         logger.info(f"[UPD PAYMENT {payment_id}] Updating payment with data: {update_data}")
-        for key, value in update_data.items():
-            if key != 'refuel_data' and hasattr(payment, key):
-                setattr(payment, key, value)
 
-        # Log final values before commit
-        logger.info(f"[UPD PAYMENT {payment_id}] Final DB values before commit: currency={payment.currency}, currency_amount={payment.currency_amount}, amount={payment.amount}, exchange_rate={payment.exchange_rate}")
+        # Видаляємо поля які не можна оновити
+        update_dict = {k: v for k, v in update_data.items() if k not in ['refuel_data', 'id']}
+        logger.info(f"[UPD PAYMENT {payment_id}] Final update dict: {update_dict}")
 
-        db.session().flush()  # КРИТИЧНО: flush() щоб зміни потрапили в сесію
+        # КРИТИЧНО: Використовуємо прямий UPDATE замість setattr щоб уникнути проблем з SQLAlchemy
+        db.session().query(Payment).filter(Payment.id == payment_id).update(update_dict)
+
+        db.session().flush()
         db.session().commit()
         logger.info(f"Платіж з ID {payment_id} успішно оновлено")
 
