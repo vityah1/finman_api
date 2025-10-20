@@ -20,18 +20,60 @@ from contextlib import asynccontextmanager
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Створюємо таблиці якщо вони не існують
-    if not check_exsists_table(SprConfigTypes):
-        db.create_all()
-    check_result = check_and_fill_spr_config_table()
-    if not check_result:
-        raise Exception('Config table not valid')
-    if not check_exsists_table(SprCurrency):
-        SprCurrency.__table__.create(db.engine)
+    """
+    Application lifespan - handles startup and shutdown
+    IMPORTANT: Errors here are logged to stderr to ensure visibility
+    """
+    import sys
+    import traceback
+
+    try:
+        logger.info("=" * 80)
+        logger.info("Starting FinMan API application...")
+        logger.info("=" * 80)
+
+        # Створюємо таблиці якщо вони не існують
+        logger.info("Checking if SprConfigTypes table exists...")
+        if not check_exsists_table(SprConfigTypes):
+            logger.info("Creating all tables...")
+            db.create_all()
+
+        logger.info("Checking and filling config table...")
+        check_result = check_and_fill_spr_config_table()
+        if not check_result:
+            error_msg = 'Config table not valid'
+            logger.error(error_msg)
+            print(f"\n❌ STARTUP ERROR: {error_msg}\n", file=sys.stderr)
+            raise Exception(error_msg)
+
+        logger.info("Checking if SprCurrency table exists...")
+        if not check_exsists_table(SprCurrency):
+            logger.info("Creating SprCurrency table...")
+            SprCurrency.__table__.create(db.engine)
+
+        logger.info("=" * 80)
+        logger.info("✅ Application startup completed successfully!")
+        logger.info("=" * 80)
+
+    except Exception as e:
+        error_msg = f"❌ CRITICAL ERROR during startup: {str(e)}"
+        logger.error(error_msg)
+        logger.error(traceback.format_exc())
+
+        # Also print to stderr to ensure visibility even if logging fails
+        print("\n" + "=" * 80, file=sys.stderr)
+        print(error_msg, file=sys.stderr)
+        print("=" * 80, file=sys.stderr)
+        print(traceback.format_exc(), file=sys.stderr)
+        print("=" * 80 + "\n", file=sys.stderr)
+
+        # Re-raise to prevent app from starting in broken state
+        raise
 
     yield  # Тут виконується програма
 
-    # Код для виконання при завершенні (тут можна закрити ресурси)
+    # Код для виконання при завершенні
+    logger.info("Shutting down FinMan API application...")
 
 # Створюємо екземпляр FastAPI з підтримкою OAuth2
 from fastapi.openapi.models import OAuthFlows as OAuthFlowsModel
@@ -113,6 +155,27 @@ app.include_router(utilities_router)
 # Підключаємо обробники помилок
 from app.exceptions import register_exception_handlers
 register_exception_handlers(app)
+
+# Global exception handler to catch ALL unhandled exceptions
+@app.exception_handler(Exception)
+async def global_exception_handler(request, exc):
+    import traceback
+    import sys
+
+    error_msg = f"Unhandled exception: {str(exc)}"
+    logger.error(error_msg)
+    logger.error(f"Request: {request.method} {request.url}")
+    logger.error(traceback.format_exc())
+
+    # Print to stderr for visibility
+    print("\n" + "=" * 80, file=sys.stderr)
+    print(f"❌ UNHANDLED EXCEPTION", file=sys.stderr)
+    print(f"Request: {request.method} {request.url}", file=sys.stderr)
+    print("=" * 80, file=sys.stderr)
+    print(traceback.format_exc(), file=sys.stderr)
+    print("=" * 80 + "\n", file=sys.stderr)
+
+    return {"detail": "Internal server error", "error": str(exc)}
 
 # OLD: Middleware для логування запитів та сесій БД (replaced by DBSessionMiddleware)
 # @app.middleware("http")
