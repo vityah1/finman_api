@@ -295,6 +295,11 @@ def upd_payment_(payment_id: int, payment_data: PaymentUpdate):
         db.session().flush()  # КРИТИЧНО: flush() щоб зміни потрапили в сесію
         db.session().commit()
         logger.info(f"Платіж з ID {payment_id} успішно оновлено")
+
+        # ДЕБАГ: Отримуємо платіж з БД після коміту і перевіряємо що збереглось
+        db.session().expire_all()  # Очистити кеш сесії
+        saved_payment = db.session().query(Payment).get(payment_id)
+        logger.info(f"[UPD PAYMENT {payment_id}] AFTER COMMIT - DB values: currency={saved_payment.currency}, currency_amount={saved_payment.currency_amount}, amount={saved_payment.amount}, exchange_rate={saved_payment.exchange_rate}, amount_original={saved_payment.amount_original}, currency_original={saved_payment.currency_original}")
     except Exception as err:
         db.session().rollback()
         logger.error(f"Помилка при оновленні платежу: {str(err)}")
